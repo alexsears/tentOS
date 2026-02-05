@@ -32,7 +32,6 @@ function AppContent() {
   const [version, setVersion] = useState('')
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [latestVersion, setLatestVersion] = useState('')
-  const [updating, setUpdating] = useState(false)
   const { lastMessage } = useWebSocket('api/ws')
 
   useEffect(() => {
@@ -57,24 +56,6 @@ function AppContent() {
       })
       .catch(console.error)
   }, [])
-
-  const handleUpdate = async () => {
-    if (!confirm(`Update TentOS to v${latestVersion}? The app will restart.`)) return
-    setUpdating(true)
-    try {
-      const res = await apiFetch('api/updates/trigger-update', { method: 'POST' })
-      const data = await res.json()
-      if (data.success) {
-        alert('Update triggered! TentOS will restart shortly.')
-      } else {
-        alert('Update failed: ' + (data.detail || 'Unknown error'))
-      }
-    } catch (e) {
-      alert('Update failed: ' + e.message)
-    } finally {
-      setUpdating(false)
-    }
-  }
 
   useEffect(() => {
     if (lastMessage?.type === 'alert') {
@@ -102,14 +83,14 @@ function AppContent() {
               <h1 className="text-xl font-semibold">TentOS</h1>
               {version && <span className="text-xs text-gray-500">v{version}</span>}
               {updateAvailable && (
-                <button
-                  onClick={handleUpdate}
-                  disabled={updating}
-                  className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-colors disabled:opacity-50"
-                  title={`Update to v${latestVersion}`}
+                <a
+                  href="/hassio/addon/f2f41762_tentos/info"
+                  target="_top"
+                  className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-colors"
+                  title={`v${latestVersion} available - click to update in HA`}
                 >
-                  {updating ? 'Updating...' : `Update`}
-                </button>
+                  Update Available
+                </a>
               )}
               <TempToggle />
             </div>
