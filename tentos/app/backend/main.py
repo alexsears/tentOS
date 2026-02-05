@@ -14,16 +14,23 @@ from config import settings
 def get_version():
     """Read version from config.yaml."""
     config_paths = [
+        "/app/config.yaml",  # Docker container path
+        os.path.join(os.path.dirname(__file__), "../../config.yaml"),  # Local dev
         "/config.yaml",
-        os.path.join(os.path.dirname(__file__), "../../config.yaml"),
     ]
     for path in config_paths:
         try:
             with open(path) as f:
                 config = yaml.safe_load(f)
-                return config.get("version", "1.0.0")
+                version = config.get("version", "1.0.0")
+                logging.info(f"Loaded version {version} from {path}")
+                return version
         except FileNotFoundError:
             continue
+        except Exception as e:
+            logging.warning(f"Error reading {path}: {e}")
+            continue
+    logging.warning("Could not find config.yaml, using default version")
     return "1.0.0"
 from database import init_db, get_db
 from ha_client import HAClient
