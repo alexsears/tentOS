@@ -116,6 +116,19 @@ class ChatUser(Base):
     is_banned = Column(Boolean, default=False)
 
 
+class TelemetrySettings(Base):
+    """Telemetry opt-in settings."""
+    __tablename__ = "telemetry_settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    install_id = Column(String(64), nullable=False, unique=True)  # Anonymous unique ID
+    opted_in = Column(Boolean, default=False)
+    first_seen = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_ping = Column(DateTime, nullable=True)
+    version = Column(String(16), nullable=True)
+    arch = Column(String(16), nullable=True)
+
+
 # Database engine and session
 engine = create_async_engine(
     f"sqlite+aiosqlite:///{settings.db_path}",

@@ -34,7 +34,7 @@ def get_version():
     return "1.0.0"
 from database import init_db, get_db
 from ha_client import HAClient
-from routes import tents, events, alerts, system, config, automations, reports, updates, camera, chat
+from routes import tents, events, alerts, system, config, automations, reports, updates, camera, chat, telemetry
 from state_manager import StateManager
 from automation import AutomationEngine
 
@@ -80,6 +80,10 @@ async def lifespan(app: FastAPI):
         # Start state subscription and automation engine
         asyncio.create_task(state_manager.start())
         asyncio.create_task(automation_engine.start())
+
+        # Send startup telemetry if opted in
+        from routes.telemetry import startup_telemetry_ping
+        asyncio.create_task(startup_telemetry_ping())
     except Exception as e:
         logger.error(f"Failed to connect to Home Assistant: {e}")
 
@@ -123,6 +127,7 @@ app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(updates.router, prefix="/api/updates", tags=["updates"])
 app.include_router(camera.router, prefix="/api/camera", tags=["camera"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
+app.include_router(telemetry.router, prefix="/api/telemetry", tags=["telemetry"])
 
 
 @app.get("/api/health")
