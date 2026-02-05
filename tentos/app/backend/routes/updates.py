@@ -3,7 +3,7 @@ import logging
 import os
 import yaml
 import aiohttp
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -449,6 +449,37 @@ async def restart_addon():
         raise
     except Exception as e:
         logger.error(f"Restart error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/trigger-update")
+async def trigger_update_via_ha(request: Request):
+    """Trigger addon update via HA hassio.addon_update service.
+
+    This bypasses the "addon can't update itself" restriction by
+    calling the HA service instead of the Supervisor API directly.
+    """
+
+    try:
+        ha_client = request.app.state.ha_client
+        slug = await get_addon_slug()
+
+        logger.info(f"Triggering update for {slug} via HA service")
+
+        result = await ha_client.call_service(
+            "hassio",
+            "addon_update",
+            service_data={"addon": slug}
+        )
+
+        return {
+            "success": True,
+            "message": "Update triggered via Home Assistant. The add-on will restart.",
+            "slug": slug,
+            "result": result
+        }
+    except Exception as e:
+        logger.error(f"Failed to trigger update via HA: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
