@@ -55,7 +55,11 @@ async def get_status(request: Request):
 
 
 @router.get("/entities")
-async def list_entities(request: Request, domain: Optional[str] = None):
+async def list_entities(
+    request: Request,
+    domain: Optional[str] = None,
+    device_class: Optional[str] = None
+):
     """List available HA entities for mapping."""
     ha_client = request.app.state.ha_client
 
@@ -69,20 +73,30 @@ async def list_entities(request: Request, domain: Optional[str] = None):
         for state in states:
             entity_id = state.get("entity_id", "")
             entity_domain = entity_id.split(".")[0] if "." in entity_id else ""
+            attrs = state.get("attributes", {})
+            entity_device_class = attrs.get("device_class")
 
+            # Filter by domain
             if domain and entity_domain != domain:
+                continue
+
+            # Filter by device_class
+            if device_class and entity_device_class != device_class:
                 continue
 
             entities.append({
                 "entity_id": entity_id,
                 "domain": entity_domain,
-                "friendly_name": state.get("attributes", {}).get("friendly_name", entity_id),
+                "device_class": entity_device_class,
+                "friendly_name": attrs.get("friendly_name", entity_id),
                 "state": state.get("state"),
-                "unit": state.get("attributes", {}).get("unit_of_measurement")
+                "unit": attrs.get("unit_of_measurement"),
+                "area_id": attrs.get("area_id"),
+                "icon": attrs.get("icon")
             })
 
         # Sort by domain then name
-        entities.sort(key=lambda x: (x["domain"], x["friendly_name"]))
+        entities.sort(key=lambda x: (x["domain"], x["friendly_name"] or ""))
 
         return {"entities": entities, "count": len(entities)}
 

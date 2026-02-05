@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import init_db, get_db
 from ha_client import HAClient
-from routes import tents, events, alerts, system
+from routes import tents, events, alerts, system, config
 from state_manager import StateManager
 
 logging.basicConfig(
@@ -84,6 +84,7 @@ app.include_router(tents.router, prefix="/api/tents", tags=["tents"])
 app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
 app.include_router(system.router, prefix="/api/system", tags=["system"])
+app.include_router(config.router, prefix="/api/config", tags=["config"])
 
 
 @app.get("/api/health")
