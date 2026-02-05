@@ -128,8 +128,27 @@ class TentState:
         self.last_updated: datetime | None = None
 
     def update_sensor(self, sensor_type: str, value: Any, unit: str | None = None, entity_id: str | None = None):
-        """Update a sensor value. For multi-entity slots, averages all values."""
+        """Update a sensor value. For multi-entity slots, averages all values.
+
+        Temperature values are normalized to Celsius for consistent storage and VPD calculation.
+        """
         now = datetime.now(timezone.utc).isoformat()
+
+        # Normalize temperature to Celsius
+        if sensor_type == "temperature" and value is not None:
+            try:
+                temp_val = float(value)
+                # Detect Fahrenheit: via unit attribute OR heuristic (grow temps > 50°C are unrealistic)
+                is_fahrenheit = (
+                    (unit and "f" in unit.lower()) or
+                    (unit is None and temp_val > 50)
+                )
+                if is_fahrenheit:
+                    value = round(fahrenheit_to_celsius(temp_val), 1)
+                else:
+                    value = round(temp_val, 1)
+            except (ValueError, TypeError):
+                pass
 
         if sensor_type in self.sensors and entity_id:
             # Multi-entity: store per-entity values and average
@@ -421,17 +440,23 @@ class StateManager:
                 if not notifications.get("enabled", True):
                     continue
 
-                # Temperature alert
+                # Temperature alert (values stored in Celsius)
                 temp_data = tent.sensors.get("temperature", {})
                 temp = temp_data.get("value")
                 if temp is not None and notifications.get("alert_temp_out_of_range", True):
                     temp_min = targets.get("temp_day_min", 18)
                     temp_max = targets.get("temp_day_max", 30)
                     if temp < temp_min or temp > temp_max:
+                        # Round to 1 decimal for display
+                        temp_display = round(temp, 1)
                         alerts.append({
                             "type": "temp_out_of_range",
                             "severity": "warning",
-                            "message": f"Temperature {temp}°C is outside range ({temp_min}-{temp_max}°C)"
+                            "message": f"Temperature {temp_display}°C is outside range ({temp_min}-{temp_max}°C)",
+                            "value": temp_display,
+                            "unit": "C",
+                            "range_min": temp_min,
+                            "range_max": temp_max
                         })
 
                 # Humidity alert
@@ -441,10 +466,15 @@ class StateManager:
                     hum_min = targets.get("humidity_day_min", 40)
                     hum_max = targets.get("humidity_day_max", 70)
                     if humidity < hum_min or humidity > hum_max:
+                        # Round to 1 decimal for display
+                        hum_display = round(humidity, 1)
                         alerts.append({
                             "type": "humidity_out_of_range",
                             "severity": "warning",
-                            "message": f"Humidity {humidity}% is outside range ({hum_min}-{hum_max}%)"
+                            "message": f"Humidity {hum_display}% is outside range ({hum_min}-{hum_max}%)",
+                            "value": hum_display,
+                            "range_min": hum_min,
+                            "range_max": hum_max
                         })
 
                 # Leak sensor alert

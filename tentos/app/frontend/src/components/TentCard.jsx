@@ -261,18 +261,29 @@ export function TentCard({ tent, onAction, onToggle, isPending }) {
       {/* Alerts */}
       {tent.alerts?.length > 0 && (
         <div className="mb-4 space-y-1">
-          {tent.alerts.slice(0, 2).map((alert, i) => (
-            <div
-              key={i}
-              className={`text-xs p-2 rounded ${
-                alert.severity === 'critical'
-                  ? 'bg-red-900/30 text-red-300'
-                  : 'bg-yellow-900/30 text-yellow-300'
-              }`}
-            >
-              {alert.message}
-            </div>
-          ))}
+          {tent.alerts.slice(0, 2).map((alert, i) => {
+            // Format alert message based on user's temperature preference
+            let message = alert.message
+            if (alert.type === 'temp_out_of_range' && alert.unit === 'C' && unit === 'F') {
+              // Convert Celsius values to Fahrenheit for display
+              const tempF = formatTemp(alert.value, 1)
+              const minF = formatTemp(alert.range_min, 0)
+              const maxF = formatTemp(alert.range_max, 0)
+              message = `Temperature ${tempF}°F is outside range (${minF}-${maxF}°F)`
+            }
+            return (
+              <div
+                key={i}
+                className={`text-xs p-2 rounded ${
+                  alert.severity === 'critical'
+                    ? 'bg-red-900/30 text-red-300'
+                    : 'bg-yellow-900/30 text-yellow-300'
+                }`}
+              >
+                {message}
+              </div>
+            )
+          })}
         </div>
       )}
 
