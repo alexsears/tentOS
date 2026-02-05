@@ -78,13 +78,13 @@ export default function Reports() {
 
     setLoading(true)
     const sensorParam = sensors.join(',')
-    let url = `/api/reports/history/${selectedTent}?sensors=${sensorParam}&range=${timeRange}`
+    let url = `api/reports/history/${selectedTent}?sensors=${sensorParam}&range=${timeRange}`
 
     if (showCustom && customRange.from && customRange.to) {
-      url = `/api/reports/history/${selectedTent}?sensors=${sensorParam}&from_time=${customRange.from}&to_time=${customRange.to}`
+      url = `api/reports/history/${selectedTent}?sensors=${sensorParam}&from_time=${customRange.from}&to_time=${customRange.to}`
     }
 
-    fetch(url)
+    apiFetch(url)
       .then(r => r.json())
       .then(setHistoryData)
       .catch(console.error)
@@ -236,18 +236,29 @@ export default function Reports() {
   const handleExport = async (format) => {
     if (!selectedTent) return
     const sensorParam = sensors.join(',')
-    const url = `/api/reports/export/${selectedTent}?format=${format}&sensors=${sensorParam}&range=${timeRange}`
+    const url = `api/reports/export/${selectedTent}?format=${format}&sensors=${sensorParam}&range=${timeRange}`
 
-    if (format === 'csv') {
-      window.open(url, '_blank')
-    } else {
-      const res = await fetch(url)
-      const data = await res.json()
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = `${selectedTent}_${timeRange}.json`
-      a.click()
+    try {
+      const res = await apiFetch(url)
+      if (format === 'csv') {
+        const text = await res.text()
+        const blob = new Blob([text], { type: 'text/csv' })
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = `${selectedTent}_${timeRange}.csv`
+        a.click()
+        URL.revokeObjectURL(a.href)
+      } else {
+        const data = await res.json()
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = `${selectedTent}_${timeRange}.json`
+        a.click()
+        URL.revokeObjectURL(a.href)
+      }
+    } catch (err) {
+      console.error('Export failed:', err)
     }
   }
 
