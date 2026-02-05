@@ -230,7 +230,7 @@ async def update_config(config: AppConfig, request: Request):
 
 
 @router.post("/tents")
-async def create_tent(tent: TentConfig):
+async def create_tent(tent: TentConfig, request: Request):
     """Create a new tent."""
     config = load_config()
 
@@ -247,12 +247,19 @@ async def create_tent(tent: TentConfig):
     config.tents.append(tent)
 
     if save_config(config):
+        # Reload state manager to pick up new config
+        state_manager = getattr(request.app.state, "state_manager", None)
+        if state_manager:
+            try:
+                await state_manager.reload_config()
+            except Exception as e:
+                logger.warning(f"Failed to reload state manager: {e}")
         return {"success": True, "tent": tent.model_dump()}
     raise HTTPException(status_code=500, detail="Failed to save tent")
 
 
 @router.put("/tents/{tent_id}")
-async def update_tent(tent_id: str, tent: TentConfig):
+async def update_tent(tent_id: str, tent: TentConfig, request: Request):
     """Update an existing tent."""
     config = load_config()
 
@@ -260,6 +267,13 @@ async def update_tent(tent_id: str, tent: TentConfig):
         if t.id == tent_id:
             config.tents[i] = tent
             if save_config(config):
+                # Reload state manager to pick up new entity mappings
+                state_manager = getattr(request.app.state, "state_manager", None)
+                if state_manager:
+                    try:
+                        await state_manager.reload_config()
+                    except Exception as e:
+                        logger.warning(f"Failed to reload state manager: {e}")
                 return {"success": True, "tent": tent.model_dump()}
             raise HTTPException(status_code=500, detail="Failed to save tent")
 
@@ -267,7 +281,7 @@ async def update_tent(tent_id: str, tent: TentConfig):
 
 
 @router.delete("/tents/{tent_id}")
-async def delete_tent(tent_id: str):
+async def delete_tent(tent_id: str, request: Request):
     """Delete a tent."""
     config = load_config()
 
@@ -278,6 +292,13 @@ async def delete_tent(tent_id: str):
         raise HTTPException(status_code=404, detail="Tent not found")
 
     if save_config(config):
+        # Reload state manager to remove deleted tent
+        state_manager = getattr(request.app.state, "state_manager", None)
+        if state_manager:
+            try:
+                await state_manager.reload_config()
+            except Exception as e:
+                logger.warning(f"Failed to reload state manager: {e}")
         return {"success": True, "message": "Tent deleted"}
     raise HTTPException(status_code=500, detail="Failed to delete tent")
 
