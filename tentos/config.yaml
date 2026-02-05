@@ -1,8 +1,8 @@
 name: "TentOS"
 description: "Monitor and automate indoor grow tents with scheduling, alerts, and visualization"
 version: "1.0.0"
-slug: "tent_garden_manager"
-url: "https://github.com/yourusername/tent-garden-manager"
+slug: "tentos"
+url: "https://github.com/alexsears/tentOS"
 arch:
   - aarch64
   - amd64
