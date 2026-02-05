@@ -382,6 +382,31 @@ export default function Settings() {
     }
   }
 
+  // Auto-update (refresh + check + update if available)
+  const handleAutoUpdate = async () => {
+    setRebuilding(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const res = await apiFetch('api/updates/auto-update', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        if (data.action === 'none') {
+          setSuccess(`Already on latest version (${data.current_version})`)
+        } else {
+          setSuccess(data.message || 'Update started! The add-on will restart.')
+        }
+        checkForUpdates() // Refresh version info
+      } else {
+        setError(data.error || data.detail || 'Auto-update failed')
+      }
+    } catch (err) {
+      setError('Auto-update failed: ' + err.message)
+    } finally {
+      setRebuilding(false)
+    }
+  }
+
   // Export config as JSON file
   const handleExport = () => {
     const dataStr = JSON.stringify(config, null, 2)
@@ -764,11 +789,18 @@ export default function Settings() {
             <h3 className="font-semibold mb-4">Add-on Management</h3>
             <div className="flex gap-3 flex-wrap mb-4">
               <button
-                onClick={handleUpdate}
+                onClick={handleAutoUpdate}
                 disabled={rebuilding}
                 className="btn bg-green-600 hover:bg-green-700 text-white"
               >
-                {rebuilding ? 'Updating...' : '🔄 Refresh & Update'}
+                {rebuilding ? 'Updating...' : '🚀 Auto-Update'}
+              </button>
+              <button
+                onClick={handleUpdate}
+                disabled={rebuilding}
+                className="btn"
+              >
+                {rebuilding ? 'Updating...' : 'Refresh & Update'}
               </button>
               <button
                 onClick={handleRebuild}
@@ -785,10 +817,37 @@ export default function Settings() {
               </button>
             </div>
             <div className="text-xs text-gray-500 space-y-1">
-              <p><strong>Refresh & Update:</strong> Checks for new versions and installs (~1-2 min)</p>
+              <p><strong>Auto-Update:</strong> Checks GitHub for updates and installs automatically</p>
+              <p><strong>Refresh & Update:</strong> Refreshes store cache then updates (~1-2 min)</p>
               <p><strong>Rebuild:</strong> Rebuilds current version (~1-2 min)</p>
               <p><strong>Restart:</strong> Quick restart without rebuild (~10 sec)</p>
             </div>
+          </div>
+
+          <div className="card">
+            <h3 className="font-semibold mb-4">Automate Updates with Home Assistant</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Create an HA automation to automatically update TentOS. Add this to your <code className="text-green-400">configuration.yaml</code>:
+            </p>
+            <div className="bg-[#1a1a2e] p-4 rounded font-mono text-xs overflow-x-auto">
+              <pre className="text-gray-300">{`# configuration.yaml
+rest_command:
+  tentos_auto_update:
+    url: "http://localhost:8099/api/updates/auto-update"
+    method: POST
+
+# In automations.yaml or via UI
+automation:
+  - alias: "TentOS Auto Update (Daily)"
+    trigger:
+      - platform: time
+        at: "04:00:00"  # 4 AM daily
+    action:
+      - service: rest_command.tentos_auto_update`}</pre>
+            </div>
+            <p className="text-xs text-gray-500 mt-3">
+              The API will check for updates and only install if a newer version is available.
+            </p>
           </div>
         </div>
       )}

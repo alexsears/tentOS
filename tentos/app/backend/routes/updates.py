@@ -314,6 +314,118 @@ async def rebuild_addon():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/auto-update")
+async def auto_update():
+    """One-click auto-update: refresh store, check for updates, update if available.
+
+    This endpoint can be called by Home Assistant automations to keep TentOS updated.
+    Example HA automation trigger: call rest_command.tentos_auto_update
+    """
+    try:
+        headers = await get_supervisor_headers()
+        slug = await get_addon_slug()
+        current = get_current_version()
+
+        async with aiohttp.ClientSession() as session:
+            # Step 1: Refresh the add-on store
+            logger.info("Auto-update: Refreshing add-on store...")
+            reload_url = f"{SUPERVISOR_API}/store/reload"
+            async with session.post(reload_url, headers=headers) as resp:
+                if resp.status != 200:
+                    logger.warning(f"Store reload returned {resp.status}")
+
+            # Step 2: Check for updates via GitHub (most accurate)
+            update_available = False
+            latest_version = current
+
+            try:
+                config_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/master/tentos/config.yaml"
+                async with session.get(config_url) as resp:
+                    if resp.status == 200:
+                        config_text = await resp.text()
+                        config_data = yaml.safe_load(config_text)
+                        latest_version = config_data.get("version", current)
+                        update_available = is_newer_version(latest_version, current)
+                        logger.info(f"GitHub check: current={current}, latest={latest_version}, update={update_available}")
+            except Exception as e:
+                logger.debug(f"GitHub check failed: {e}")
+
+            # Fallback: Check Supervisor API
+            if not update_available:
+                info_url = f"{SUPERVISOR_API}/addons/{slug}/info"
+                async with session.get(info_url, headers=headers) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        addon_info = data.get("data", {})
+                        update_available = addon_info.get("update_available", False)
+                        latest_version = addon_info.get("version_latest", current)
+
+            # Step 3: Update if available
+            if update_available:
+                logger.info(f"Auto-update: Update available ({current} -> {latest_version}), updating...")
+
+                # Check if local addon
+                info_url = f"{SUPERVISOR_API}/addons/{slug}/info"
+                async with session.get(info_url, headers=headers) as info_resp:
+                    is_local = False
+                    if info_resp.status == 200:
+                        info_data = await info_resp.json()
+                        repo = info_data.get("data", {}).get("repository", "")
+                        is_local = not repo or "local" in str(repo).lower()
+
+                if is_local:
+                    rebuild_url = f"{SUPERVISOR_API}/addons/{slug}/rebuild"
+                    async with session.post(rebuild_url, headers=headers) as resp:
+                        if resp.status == 200:
+                            return {
+                                "success": True,
+                                "action": "rebuild",
+                                "current_version": current,
+                                "latest_version": latest_version,
+                                "message": f"Rebuild started. Updating from {current} to {latest_version}."
+                            }
+                        else:
+                            error_text = await resp.text()
+                            return {
+                                "success": False,
+                                "action": "rebuild_failed",
+                                "error": error_text
+                            }
+                else:
+                    update_url = f"{SUPERVISOR_API}/addons/{slug}/update"
+                    async with session.post(update_url, headers=headers) as resp:
+                        if resp.status == 200:
+                            return {
+                                "success": True,
+                                "action": "update",
+                                "current_version": current,
+                                "latest_version": latest_version,
+                                "message": f"Update started. Updating from {current} to {latest_version}."
+                            }
+                        else:
+                            error_text = await resp.text()
+                            return {
+                                "success": False,
+                                "action": "update_failed",
+                                "error": error_text
+                            }
+            else:
+                logger.info(f"Auto-update: Already on latest version ({current})")
+                return {
+                    "success": True,
+                    "action": "none",
+                    "current_version": current,
+                    "latest_version": latest_version,
+                    "message": "Already running the latest version."
+                }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Auto-update error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/restart")
 async def restart_addon():
     """Restart the add-on (faster than rebuild, but won't pull new code)."""
