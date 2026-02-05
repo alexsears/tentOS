@@ -89,10 +89,32 @@ async def get_supervisor_headers():
 
 @router.get("/check")
 async def check_for_updates():
-    """Check for updates via Supervisor API first, then GitHub."""
+    """Check for updates via GitHub raw config (most accurate) with Supervisor fallback."""
     current = get_current_version()
 
-    # Try Supervisor API first (most reliable for HA add-ons)
+    # Always check GitHub raw config.yaml first - it's the source of truth
+    try:
+        async with aiohttp.ClientSession() as session:
+            config_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/master/tentos/config.yaml"
+            async with session.get(config_url) as resp:
+                if resp.status == 200:
+                    config_text = await resp.text()
+                    config_data = yaml.safe_load(config_text)
+                    latest_version = config_data.get("version", "")
+
+                    if latest_version:
+                        update_available = is_newer_version(latest_version, current)
+                        return {
+                            "current_version": current,
+                            "latest_version": latest_version,
+                            "update_available": update_available,
+                            "source": "github",
+                            "repo_url": f"https://github.com/{GITHUB_REPO}"
+                        }
+    except Exception as e:
+        logger.debug(f"GitHub raw check failed: {e}")
+
+    # Fallback to Supervisor API (may have cached/stale version info)
     try:
         headers = await get_supervisor_headers()
         slug = await get_addon_slug()
@@ -118,9 +140,9 @@ async def check_for_updates():
                         "repo_url": f"https://github.com/{GITHUB_REPO}"
                     }
     except Exception as e:
-        logger.debug(f"Supervisor check failed, trying GitHub: {e}")
+        logger.debug(f"Supervisor check failed: {e}")
 
-    # Fallback to GitHub releases
+    # Also try GitHub releases API (for repos that use releases)
     try:
         async with aiohttp.ClientSession() as session:
             url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
@@ -138,11 +160,11 @@ async def check_for_updates():
                         "update_available": update_available,
                         "release_notes": release_notes,
                         "published_at": published_at,
-                        "source": "github",
+                        "source": "github_releases",
                         "repo_url": f"https://github.com/{GITHUB_REPO}"
                     }
     except Exception as e:
-        logger.debug(f"GitHub check failed: {e}")
+        logger.debug(f"GitHub releases check failed: {e}")
 
     return {
         "current_version": current,
