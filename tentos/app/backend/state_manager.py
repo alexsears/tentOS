@@ -121,6 +121,8 @@ class TentState:
         self.sensors: dict[str, Any] = {}
         self.actuators: dict[str, Any] = {}
         self.vpd: float | None = None
+        self.avg_temperature: float | None = None
+        self.avg_humidity: float | None = None
         self.environment_score: int = 0
         self.alerts: list[dict] = []
         self.last_updated: datetime | None = None
@@ -142,21 +144,41 @@ class TentState:
             "updated": datetime.now(timezone.utc).isoformat()
         }
 
+    def _get_averaged_value(self, base_type: str) -> float | None:
+        """Get averaged value for sensors with multiple instances (temp, humidity)."""
+        values = []
+        # Check base sensor and numbered variants
+        for key in [base_type, f"{base_type}_2", f"{base_type}_3"]:
+            data = self.sensors.get(key, {})
+            if data.get("value") is not None:
+                try:
+                    values.append(float(data["value"]))
+                except (ValueError, TypeError):
+                    pass
+        if values:
+            return round(sum(values) / len(values), 1)
+        return None
+
     def _recalculate(self):
         """Recalculate derived values."""
         self.last_updated = datetime.now(timezone.utc)
 
-        # Calculate VPD if we have temp and humidity
-        temp_data = self.sensors.get("temperature", {})
-        humidity_data = self.sensors.get("humidity", {})
+        # Get averaged temp and humidity from multiple sensors
+        avg_temp = self._get_averaged_value("temperature")
+        avg_humidity = self._get_averaged_value("humidity")
 
-        if temp_data.get("value") is not None and humidity_data.get("value") is not None:
-            temp = float(temp_data["value"])
-            humidity = float(humidity_data["value"])
-            self.vpd = calculate_vpd(temp, humidity)
+        # Store averaged values for display
+        self.avg_temperature = avg_temp
+        self.avg_humidity = avg_humidity
 
-        # Calculate environment score
+        # Calculate VPD using averaged values
+        if avg_temp is not None and avg_humidity is not None:
+            self.vpd = calculate_vpd(avg_temp, avg_humidity)
+
+        # Calculate environment score using averaged values
         sensor_values = {k: v.get("value") for k, v in self.sensors.items()}
+        sensor_values["temperature"] = avg_temp  # Use averaged temp
+        sensor_values["humidity"] = avg_humidity  # Use averaged humidity
         sensor_values["vpd"] = self.vpd
         self.environment_score = calculate_environment_score(sensor_values, self.config.targets)
 
@@ -169,6 +191,8 @@ class TentState:
             "sensors": self.sensors,
             "actuators": self.actuators,
             "vpd": self.vpd,
+            "avg_temperature": self.avg_temperature,
+            "avg_humidity": self.avg_humidity,
             "environment_score": self.environment_score,
             "alerts": self.alerts,
             "last_updated": self.last_updated.isoformat() if self.last_updated else None,

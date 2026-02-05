@@ -6,6 +6,7 @@ import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 const ACTUATOR_ICONS = {
   light: { icon: '💡', activeColor: 'text-yellow-400', label: 'Light 1' },
   light_2: { icon: '💡', activeColor: 'text-yellow-400', label: 'Light 2' },
+  light_3: { icon: '💡', activeColor: 'text-yellow-400', label: 'Light 3' },
   exhaust_fan: { icon: '🌀', activeColor: 'text-blue-400', label: 'Exhaust' },
   circulation_fan: { icon: '🔄', activeColor: 'text-cyan-400', label: 'Circ Fan' },
   humidifier: { icon: '💨', activeColor: 'text-blue-300', label: 'Humid' },
@@ -13,6 +14,7 @@ const ACTUATOR_ICONS = {
   heater: { icon: '🔥', activeColor: 'text-red-400', label: 'Heater' },
   water_pump: { icon: '🚿', activeColor: 'text-blue-400', label: 'Water 1' },
   water_pump_2: { icon: '🚿', activeColor: 'text-blue-400', label: 'Water 2' },
+  water_pump_3: { icon: '🚿', activeColor: 'text-blue-400', label: 'Water 3' },
   drain_pump: { icon: '🔽', activeColor: 'text-gray-400', label: 'Drain' }
 }
 
@@ -111,8 +113,9 @@ export function TentCard({ tent, onAction, onToggle, isPending }) {
     return tent.actuators?.[type]?.state || 'unknown'
   }
 
-  const temp = getSensorValue('temperature')
-  const humidity = getSensorValue('humidity')
+  // Use averaged values if available, fallback to single sensor
+  const temp = tent.avg_temperature ?? getSensorValue('temperature')
+  const humidity = tent.avg_humidity ?? getSensorValue('humidity')
   const co2 = getSensorValue('co2')
 
   // Determine VPD color

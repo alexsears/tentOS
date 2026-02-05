@@ -19,15 +19,43 @@ CONFIG_BACKUP_PATH = Path("/data/config.backup.json")
 SLOT_DEFINITIONS = {
     "sensors": {
         "temperature": {
-            "label": "Temperature Sensor",
+            "label": "Temperature 1",
             "required": True,
             "domains": ["sensor"],
             "device_classes": ["temperature"],
             "icon": "🌡️"
         },
+        "temperature_2": {
+            "label": "Temperature 2",
+            "required": False,
+            "domains": ["sensor"],
+            "device_classes": ["temperature"],
+            "icon": "🌡️"
+        },
+        "temperature_3": {
+            "label": "Temperature 3",
+            "required": False,
+            "domains": ["sensor"],
+            "device_classes": ["temperature"],
+            "icon": "🌡️"
+        },
         "humidity": {
-            "label": "Humidity Sensor",
+            "label": "Humidity 1",
             "required": True,
+            "domains": ["sensor"],
+            "device_classes": ["humidity"],
+            "icon": "💧"
+        },
+        "humidity_2": {
+            "label": "Humidity 2",
+            "required": False,
+            "domains": ["sensor"],
+            "device_classes": ["humidity"],
+            "icon": "💧"
+        },
+        "humidity_3": {
+            "label": "Humidity 3",
+            "required": False,
             "domains": ["sensor"],
             "device_classes": ["humidity"],
             "icon": "💧"
@@ -83,6 +111,13 @@ SLOT_DEFINITIONS = {
             "device_classes": [None],
             "icon": "💡"
         },
+        "light_3": {
+            "label": "Grow Light 3",
+            "required": False,
+            "domains": ["switch", "light"],
+            "device_classes": [None],
+            "icon": "💡"
+        },
         "exhaust_fan": {
             "label": "Exhaust Fan",
             "required": False,
@@ -127,6 +162,13 @@ SLOT_DEFINITIONS = {
         },
         "water_pump_2": {
             "label": "Water Pump 2",
+            "required": False,
+            "domains": ["switch"],
+            "device_classes": [None],
+            "icon": "🚿"
+        },
+        "water_pump_3": {
+            "label": "Water Pump 3",
             "required": False,
             "domains": ["switch"],
             "device_classes": [None],

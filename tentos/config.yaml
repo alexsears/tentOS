@@ -1,6 +1,6 @@
 name: "TentOS"
 description: "Monitor and automate indoor grow tents with scheduling, alerts, and visualization"
-version: "1.1.20"
+version: "1.1.21"
 slug: "tentos"
 url: "https://github.com/alexsears/tentOS"
 arch:
@@ -31,7 +31,11 @@ schema:
       description: "str?"
       sensors:
         temperature: "str?"
+        temperature_2: "str?"
+        temperature_3: "str?"
         humidity: "str?"
+        humidity_2: "str?"
+        humidity_3: "str?"
         co2: "str?"
         light_level: "str?"
         reservoir_level: "str?"
@@ -40,6 +44,7 @@ schema:
       actuators:
         light: "str?"
         light_2: "str?"
+        light_3: "str?"
         exhaust_fan: "str?"
         circulation_fan: "str?"
         humidifier: "str?"
@@ -47,6 +52,7 @@ schema:
         heater: "str?"
         water_pump: "str?"
         water_pump_2: "str?"
+        water_pump_3: "str?"
         drain_pump: "str?"
       targets:
         temp_day_min: "float?"

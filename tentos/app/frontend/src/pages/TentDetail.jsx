@@ -184,6 +184,7 @@ export default function TentDetail() {
             <div className="grid md:grid-cols-2 gap-4">
               {tent.actuators?.light && getActuatorControl('light', 'Light 1', '💡')}
               {tent.actuators?.light_2 && getActuatorControl('light_2', 'Light 2', '💡')}
+              {tent.actuators?.light_3 && getActuatorControl('light_3', 'Light 3', '💡')}
               {tent.actuators?.exhaust_fan && getActuatorControl('exhaust_fan', 'Exhaust Fan', '🌀')}
               {tent.actuators?.circulation_fan && getActuatorControl('circulation_fan', 'Circulation Fan', '🔄')}
               {tent.actuators?.humidifier && getActuatorControl('humidifier', 'Humidifier', '💨')}
@@ -191,6 +192,7 @@ export default function TentDetail() {
               {tent.actuators?.heater && getActuatorControl('heater', 'Heater', '🔥')}
               {tent.actuators?.water_pump && getActuatorControl('water_pump', 'Water Pump 1', '🚿')}
               {tent.actuators?.water_pump_2 && getActuatorControl('water_pump_2', 'Water Pump 2', '🚿')}
+              {tent.actuators?.water_pump_3 && getActuatorControl('water_pump_3', 'Water Pump 3', '🚿')}
               {tent.actuators?.drain_pump && getActuatorControl('drain_pump', 'Drain Pump', '🔽')}
             </div>
           </div>
