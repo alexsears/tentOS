@@ -65,7 +65,7 @@ def infer_growth_stage(schedules: dict, growth_stage_config: dict = None) -> dic
     Returns dict with stage, flower_week, inferred, etc.
     """
     result = {
-        "stage": "unknown",
+        "stage": "veg",  # Default to veg when nothing configured
         "inferred": True,
         "light_hours": None,
         "flower_week": None,
@@ -90,7 +90,7 @@ def infer_growth_stage(schedules: dict, growth_stage_config: dict = None) -> dic
                 pass
 
     # Try to infer from photoperiod if not manually set
-    if result["stage"] == "unknown":
+    if result["inferred"]:
         on_time = schedules.get("photoperiod_on")
         off_time = schedules.get("photoperiod_off")
 
