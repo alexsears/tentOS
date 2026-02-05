@@ -46,6 +46,45 @@ def get_entity_ids_for_sensor(tent, sensor_type: str) -> list[str]:
     return [entity_ids] if entity_ids else []
 
 
+def get_light_entity_ids(tent) -> list[str]:
+    """Get all light entity IDs from tent actuators config."""
+    entity_ids = tent.config.actuators.get("light")
+    if not entity_ids:
+        return []
+    if isinstance(entity_ids, list):
+        return [e for e in entity_ids if e]
+    return [entity_ids] if entity_ids else []
+
+
+def extract_light_periods(history_data: list) -> list[dict]:
+    """Convert light state history to on/off periods for chart overlay."""
+    if not history_data:
+        return []
+
+    periods = []
+    current_period = None
+
+    for state in sorted(history_data, key=lambda x: x.get("last_changed", "")):
+        timestamp = state.get("last_changed") or state.get("last_updated")
+        is_on = state.get("state", "").lower() in ("on", "true", "1", "playing")
+
+        if is_on and current_period is None:
+            # Light turned on - start new period
+            current_period = {"start": timestamp, "end": None}
+        elif not is_on and current_period is not None:
+            # Light turned off - end current period
+            current_period["end"] = timestamp
+            periods.append(current_period)
+            current_period = None
+
+    # If light is still on, end period at current time
+    if current_period is not None:
+        current_period["end"] = datetime.now(timezone.utc).isoformat()
+        periods.append(current_period)
+
+    return periods
+
+
 @router.get("/history/{tent_id}")
 async def get_history(
     tent_id: str,
@@ -187,6 +226,24 @@ async def get_history(
                     "points": len(data)
                 }
 
+    # Fetch light state history for overlay
+    light_periods = []
+    light_entities = get_light_entity_ids(tent)
+    if light_entities:
+        try:
+            light_history = await ha_client.get_history(
+                light_entities,
+                start_time.isoformat(),
+                end_time.isoformat()
+            )
+            # Process light history to extract on/off periods
+            for entity_history in light_history:
+                if entity_history:
+                    periods = extract_light_periods(entity_history)
+                    light_periods.extend(periods)
+        except Exception as e:
+            logger.error(f"Failed to get light history: {e}")
+
     return {
         "tent_id": tent_id,
         "tent_name": tent.config.name,
@@ -195,6 +252,7 @@ async def get_history(
         "to": end_time.isoformat(),
         "data": result_data,
         "stats": stats,
+        "light_periods": light_periods,
         "source": "home_assistant"
     }
 

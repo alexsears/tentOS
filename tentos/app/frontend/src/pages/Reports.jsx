@@ -107,14 +107,25 @@ export default function Reports() {
     const series = []
     const legend = []
 
-    Object.entries(historyData.data).forEach(([sensor, data]) => {
+    // Build light period markArea data for overlay
+    const lightMarkAreas = (historyData.light_periods || []).map(period => ([
+      {
+        xAxis: new Date(period.start).getTime(),
+        itemStyle: { color: 'rgba(250, 204, 21, 0.15)' }
+      },
+      {
+        xAxis: new Date(period.end).getTime()
+      }
+    ]))
+
+    Object.entries(historyData.data).forEach(([sensor, data], index) => {
       if (!data || data.length === 0) return
       const config = SENSOR_CONFIG[sensor] || { label: sensor, color: '#888', yAxisIndex: 0 }
 
       legend.push(config.label)
 
-      // Main line
-      series.push({
+      // Main line - add light overlay markArea to first series only
+      const seriesConfig = {
         name: config.label,
         type: 'line',
         smooth: true,
@@ -123,7 +134,17 @@ export default function Reports() {
         itemStyle: { color: config.color },
         data: data.map(d => [new Date(d.timestamp).getTime(), d.value]),
         yAxisIndex: sensor === 'humidity' ? 1 : 0
-      })
+      }
+
+      // Add light overlay to the first series
+      if (index === 0 && lightMarkAreas.length > 0) {
+        seriesConfig.markArea = {
+          silent: true,
+          data: lightMarkAreas
+        }
+      }
+
+      series.push(seriesConfig)
 
       // Min/max area if available
       if (data[0]?.min !== undefined) {
@@ -416,11 +437,19 @@ export default function Reports() {
 
       {/* Data info */}
       {historyData && (
-        <div className="text-sm text-gray-500 text-center">
-          Showing data from {format(new Date(historyData.from), 'MMM d, yyyy HH:mm')} to{' '}
-          {format(new Date(historyData.to), 'MMM d, yyyy HH:mm')}
-          {' '}&bull;{' '}
-          {Object.values(historyData.data).reduce((sum, d) => sum + d.length, 0)} data points
+        <div className="text-sm text-gray-500 text-center space-y-1">
+          <div>
+            Showing data from {format(new Date(historyData.from), 'MMM d, yyyy HH:mm')} to{' '}
+            {format(new Date(historyData.to), 'MMM d, yyyy HH:mm')}
+            {' '}&bull;{' '}
+            {Object.values(historyData.data).reduce((sum, d) => sum + d.length, 0)} data points
+          </div>
+          {historyData.light_periods?.length > 0 && (
+            <div className="flex items-center justify-center gap-2">
+              <span className="inline-block w-4 h-3 bg-yellow-400/30 border border-yellow-400/50 rounded"></span>
+              <span>Light On Periods ({historyData.light_periods.length})</span>
+            </div>
+          )}
         </div>
       )}
     </div>
