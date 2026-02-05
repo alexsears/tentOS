@@ -88,6 +88,9 @@ export default {
         const installs = [];
         const versions = {};
         const archs = {};
+        const now = Date.now();
+        const day = 24 * 60 * 60 * 1000;
+        let active24h = 0, active7d = 0, active30d = 0;
 
         for (const key of list.keys) {
           const data = await env.INSTALLS.get(key.name, 'json');
@@ -96,6 +99,7 @@ export default {
               id: key.name,
               ...data
             });
+
             // Count versions
             if (data.version) {
               versions[data.version] = (versions[data.version] || 0) + 1;
@@ -104,14 +108,24 @@ export default {
             if (data.arch) {
               archs[data.arch] = (archs[data.arch] || 0) + 1;
             }
+            // Active users
+            if (data.last_seen) {
+              const lastSeen = new Date(data.last_seen).getTime();
+              if (now - lastSeen < day) active24h++;
+              if (now - lastSeen < 7 * day) active7d++;
+              if (now - lastSeen < 30 * day) active30d++;
+            }
           }
         }
 
         return new Response(JSON.stringify({
-          total_installs: installs.length,
+          total_users: installs.length,
+          active_24h: active24h,
+          active_7d: active7d,
+          active_30d: active30d,
           versions,
           archs,
-          installs: installs.sort((a, b) =>
+          users: installs.sort((a, b) =>
             new Date(b.last_seen) - new Date(a.last_seen)
           )
         }, null, 2), {

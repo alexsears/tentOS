@@ -1,4 +1,4 @@
-"""Anonymous install counter - pings once per unique install."""
+"""Anonymous telemetry - pings on each startup, tracked by unique user."""
 import logging
 import os
 import platform
@@ -28,34 +28,31 @@ def get_current_version():
 
 
 async def ping_install():
-    """Send one-time anonymous install ping. Called on first startup only."""
+    """Send startup ping. Tracks unique users by install ID."""
     try:
         async with async_session() as session:
-            # Check if we've already pinged
             result = await session.execute(select(TelemetrySettings).limit(1))
             existing = result.scalar_one_or_none()
 
-            if existing and existing.last_ping:
-                # Already pinged, skip
-                return
-
-            # Generate or get install ID
-            if existing:
-                install_id = existing.install_id
-            else:
+            # Generate install ID on first run
+            if not existing:
                 install_id = str(uuid.uuid4())[:12]
                 existing = TelemetrySettings(
                     install_id=install_id,
-                    opted_in=True,  # Not used anymore
+                    opted_in=True,
                     version=get_current_version(),
                     arch=platform.machine()
                 )
                 session.add(existing)
+                event = "install"
+            else:
+                install_id = existing.install_id
+                event = "startup"
 
             # Send ping
             data = {
                 "id": install_id,
-                "event": "install",
+                "event": event,
                 "version": get_current_version(),
                 "arch": platform.machine(),
                 "timestamp": datetime.now(timezone.utc).isoformat()
@@ -69,10 +66,9 @@ async def ping_install():
                 ) as resp:
                     if resp.status == 200:
                         existing.last_ping = datetime.now(timezone.utc)
+                        existing.version = get_current_version()
                         await session.commit()
-                        logger.info(f"Install ping sent: {install_id}")
-                    else:
-                        logger.debug(f"Install ping failed: {resp.status}")
+                        logger.info(f"Telemetry ping: {event} ({install_id})")
 
     except Exception as e:
-        logger.debug(f"Install ping error: {e}")
+        logger.debug(f"Telemetry error: {e}")
