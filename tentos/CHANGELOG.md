@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.62
+- Add CHANGELOG.md for HA add-on page
+- Remove 32-bit ARM architectures (armhf, armv7) - only amd64 and aarch64 now
+
 ## 1.1.61
 - Fix Automations page crash with better error handling
 - Separate HA automations fetch so failures don't break page
