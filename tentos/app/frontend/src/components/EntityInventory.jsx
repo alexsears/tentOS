@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 
-function DraggableEntity({ entity, slotType }) {
+function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: entity.entity_id,
     data: { entity, slotType }
@@ -13,35 +13,67 @@ function DraggableEntity({ entity, slotType }) {
     opacity: isDragging ? 0.5 : 1,
   }
 
+  const handleCheckboxClick = (e) => {
+    e.stopPropagation()
+    onToggleSelect(entity.entity_id)
+  }
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
-      className={`p-2 bg-[#1a1a2e] rounded border border-[#2d3a5c] cursor-grab
-        hover:border-green-500/50 hover:bg-[#1a1a2e]/80 transition-colors
+      className={`p-2 bg-[#1a1a2e] rounded border transition-colors
+        ${isSelected
+          ? 'border-green-500 bg-green-500/10'
+          : 'border-[#2d3a5c] hover:border-green-500/50 hover:bg-[#1a1a2e]/80'
+        }
         ${isDragging ? 'ring-2 ring-green-500' : ''}`}
     >
       <div className="flex items-center gap-2">
-        <span className="text-lg">{entity.icon || '📍'}</span>
-        <div className="flex-1 min-w-0">
-          <div className="font-medium truncate text-sm">
-            {entity.friendly_name || entity.entity_id}
+        {/* Checkbox */}
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={handleCheckboxClick}
+          className="w-4 h-4 accent-green-500 cursor-pointer flex-shrink-0"
+        />
+
+        {/* Draggable area */}
+        <div
+          {...listeners}
+          {...attributes}
+          className="flex-1 min-w-0 flex items-center gap-2 cursor-grab"
+        >
+          <span className="text-lg">{entity.icon || '📍'}</span>
+          <div className="flex-1 min-w-0">
+            <div className="font-medium truncate text-sm">
+              {entity.friendly_name || entity.entity_id}
+            </div>
+            <div className="text-xs text-gray-500 font-mono truncate">
+              {entity.entity_id}
+            </div>
           </div>
-          <div className="text-xs text-gray-500 font-mono truncate">
-            {entity.entity_id}
+          <div className="text-xs text-gray-400">
+            {entity.state}{entity.unit ? ` ${entity.unit}` : ''}
           </div>
-        </div>
-        <div className="text-xs text-gray-400">
-          {entity.state}{entity.unit ? ` ${entity.unit}` : ''}
         </div>
       </div>
     </div>
   )
 }
 
-export default function EntityInventory({ entities, slots, assignedEntities = {}, slotFilter, onClearFilter }) {
+export default function EntityInventory({
+  entities,
+  slots,
+  assignedEntities = {},
+  slotFilter,
+  onClearFilter,
+  selectedEntities = [],
+  onToggleSelect,
+  onSelectAll,
+  onDeselectAll,
+  onAddSelected
+}) {
   const [search, setSearch] = useState('')
   const [domainFilter, setDomainFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -88,8 +120,8 @@ export default function EntityInventory({ entities, slots, assignedEntities = {}
         const { domains = [], device_classes = [] } = slotFilter.slotDef
         // Must match domain
         if (domains.length > 0 && !domains.includes(entity.domain)) return false
-        // If device_classes specified, must match
-        if (device_classes.length > 0 && !device_classes.includes(entity.device_class)) return false
+        // If device_classes specified, must match (allow null in device_classes to match any)
+        if (device_classes.length > 0 && !device_classes.includes(null) && !device_classes.includes(entity.device_class)) return false
         // Apply search within slot-filtered results
         if (search) {
           const searchLower = search.toLowerCase()
@@ -146,6 +178,19 @@ export default function EntityInventory({ entities, slots, assignedEntities = {}
     return compatible[0]?.slotType || null
   }
 
+  // Count selected entities that are visible
+  const visibleSelectedCount = filteredEntities.filter(e => selectedEntities.includes(e.entity_id)).length
+  const allVisibleSelected = filteredEntities.length > 0 && visibleSelectedCount === filteredEntities.length
+
+  const handleSelectAllVisible = () => {
+    const visibleIds = filteredEntities.map(e => e.entity_id)
+    if (allVisibleSelected) {
+      onDeselectAll()
+    } else {
+      onSelectAll(visibleIds)
+    }
+  }
+
   return (
     <div className="h-full flex flex-col">
       <div className="p-3 border-b border-[#2d3a5c] space-y-2">
@@ -156,14 +201,14 @@ export default function EntityInventory({ entities, slots, assignedEntities = {}
           <div className="flex items-center gap-2 p-2 bg-green-500/20 border border-green-500/50 rounded text-sm">
             <span className="text-lg">{slotFilter.slotDef?.icon}</span>
             <div className="flex-1">
-              <span className="text-green-400">Showing: </span>
+              <span className="text-green-400">Adding to: </span>
               <span className="font-medium">{slotFilter.slotDef?.label}</span>
             </div>
             <button
               onClick={onClearFilter}
               className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 rounded"
             >
-              Clear
+              Done
             </button>
           </div>
         )}
@@ -200,6 +245,32 @@ export default function EntityInventory({ entities, slots, assignedEntities = {}
             </select>
           </div>
         )}
+
+        {/* Selection controls */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSelectAllVisible}
+            className="text-xs text-gray-400 hover:text-white"
+          >
+            {allVisibleSelected ? '☑ Deselect All' : '☐ Select All'}
+          </button>
+
+          {visibleSelectedCount > 0 && (
+            <span className="text-xs text-green-400">
+              {visibleSelectedCount} selected
+            </span>
+          )}
+        </div>
+
+        {/* Add Selected button */}
+        {slotFilter && visibleSelectedCount > 0 && (
+          <button
+            onClick={() => onAddSelected(slotFilter)}
+            className="w-full btn btn-primary text-sm py-2"
+          >
+            + Add {visibleSelectedCount} to {slotFilter.slotDef?.label}
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
@@ -219,6 +290,8 @@ export default function EntityInventory({ entities, slots, assignedEntities = {}
                     key={entity.entity_id}
                     entity={entity}
                     slotType={getSlotType(entity)}
+                    isSelected={selectedEntities.includes(entity.entity_id)}
+                    onToggleSelect={onToggleSelect}
                   />
                 ))}
                 {domainEntities.length > 50 && (
@@ -234,6 +307,7 @@ export default function EntityInventory({ entities, slots, assignedEntities = {}
 
       <div className="p-2 border-t border-[#2d3a5c] text-xs text-gray-500 text-center">
         {filteredEntities.length} entities available
+        {selectedEntities.length > 0 && ` • ${selectedEntities.length} selected`}
       </div>
     </div>
   )

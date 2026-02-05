@@ -14,7 +14,7 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
   const handleClick = (e) => {
     if (onSelect) {
       e.stopPropagation()
-      onSelect({ category, slotType, slotDef })
+      onSelect({ category, slotType, slotDef, tentId })
     }
   }
 
@@ -186,7 +186,7 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
                   category="sensors"
                   tentId={tent.id}
                   onSelect={onSlotSelect}
-                  isSelected={selectedSlot?.category === 'sensors' && selectedSlot?.slotType === slotType}
+                  isSelected={selectedSlot?.tentId === tent.id && selectedSlot?.category === 'sensors' && selectedSlot?.slotType === slotType}
                 />
               ))}
             </div>
@@ -207,7 +207,7 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
                   category="actuators"
                   tentId={tent.id}
                   onSelect={onSlotSelect}
-                  isSelected={selectedSlot?.category === 'actuators' && selectedSlot?.slotType === slotType}
+                  isSelected={selectedSlot?.tentId === tent.id && selectedSlot?.category === 'actuators' && selectedSlot?.slotType === slotType}
                 />
               ))}
             </div>

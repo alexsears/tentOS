@@ -15,10 +15,11 @@ export default function Settings() {
   const [success, setSuccess] = useState(null)
   const [activeDragEntity, setActiveDragEntity] = useState(null)
   const [activeTab, setActiveTab] = useState('builder')
-  const [slotFilter, setSlotFilter] = useState(null) // { category, slotType, slotDef }
+  const [slotFilter, setSlotFilter] = useState(null) // { category, slotType, slotDef, tentId }
   const [updateInfo, setUpdateInfo] = useState(null)
   const [updateLoading, setUpdateLoading] = useState(false)
   const [rebuilding, setRebuilding] = useState(false)
+  const [selectedEntities, setSelectedEntities] = useState([]) // Multi-select for bulk add
 
   // Load all data
   useEffect(() => {
@@ -161,6 +162,71 @@ export default function Settings() {
       }
     }
     return assigned
+  }
+
+  // Toggle entity selection
+  const handleToggleSelect = (entityId) => {
+    setSelectedEntities(prev =>
+      prev.includes(entityId)
+        ? prev.filter(id => id !== entityId)
+        : [...prev, entityId]
+    )
+  }
+
+  // Select all visible entities
+  const handleSelectAll = (visibleIds) => {
+    setSelectedEntities(prev => {
+      const newSelected = new Set(prev)
+      visibleIds.forEach(id => newSelected.add(id))
+      return Array.from(newSelected)
+    })
+  }
+
+  // Deselect all
+  const handleDeselectAll = () => {
+    setSelectedEntities([])
+  }
+
+  // Add all selected entities to slot
+  const handleAddSelected = (slotInfo) => {
+    if (!slotInfo || selectedEntities.length === 0) return
+
+    const { category, slotType, tentId } = slotInfo
+    const isMultiple = slotInfo.slotDef?.multiple
+
+    // Find the target tent
+    const tentIndex = config.tents?.findIndex(t => t.id === tentId)
+    if (tentIndex === -1) return
+
+    const updatedTents = [...config.tents]
+    const targetTent = { ...updatedTents[tentIndex] }
+
+    if (!targetTent[category]) targetTent[category] = {}
+    targetTent[category] = { ...targetTent[category] }
+
+    if (isMultiple) {
+      // Append all selected to array
+      const current = targetTent[category][slotType]
+      const arr = Array.isArray(current) ? [...current] : (current ? [current] : [])
+      for (const entityId of selectedEntities) {
+        if (!arr.includes(entityId)) {
+          arr.push(entityId)
+        }
+      }
+      targetTent[category][slotType] = arr
+    } else {
+      // Single entity slot - just use the first selected
+      targetTent[category][slotType] = selectedEntities[0]
+    }
+
+    updatedTents[tentIndex] = targetTent
+    setConfig({ ...config, tents: updatedTents })
+    setSelectedEntities([]) // Clear selection after adding
+  }
+
+  // Handle slot selection (pass tentId along)
+  const handleSlotSelect = (slotInfo) => {
+    setSlotFilter(slotInfo)
   }
 
   // Check for updates
@@ -388,7 +454,12 @@ export default function Settings() {
                 slots={slots}
                 assignedEntities={getAssignedEntities()}
                 slotFilter={slotFilter}
-                onClearFilter={() => setSlotFilter(null)}
+                onClearFilter={() => { setSlotFilter(null); setSelectedEntities([]) }}
+                selectedEntities={selectedEntities}
+                onToggleSelect={handleToggleSelect}
+                onSelectAll={handleSelectAll}
+                onDeselectAll={handleDeselectAll}
+                onAddSelected={handleAddSelected}
               />
             </div>
 
@@ -399,7 +470,7 @@ export default function Settings() {
                 slots={slots}
                 entities={entities}
                 onConfigChange={setConfig}
-                onSlotSelect={setSlotFilter}
+                onSlotSelect={handleSlotSelect}
                 selectedSlot={slotFilter}
               />
             </div>
