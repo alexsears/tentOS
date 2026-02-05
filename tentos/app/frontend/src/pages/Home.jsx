@@ -3,7 +3,7 @@ import { useTents } from '../hooks/useTents'
 import { TentCard } from '../components/TentCard'
 
 export default function Home() {
-  const { tents, loading, error, connected, performAction, toggleActuator, isPending } = useTents()
+  const { tents, loading, error, connected, performAction, toggleActuator, isPending, updateControlSettings } = useTents()
 
   if (loading) {
     return (
@@ -61,6 +61,7 @@ export default function Home() {
             onAction={performAction}
             onToggle={toggleActuator}
             isPending={isPending}
+            onUpdateControlSettings={updateControlSettings}
           />
         ))}
       </div>

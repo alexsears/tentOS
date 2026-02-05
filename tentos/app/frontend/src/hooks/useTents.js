@@ -92,6 +92,29 @@ export function useTents() {
     return !!pending[`${tentId}.${slot}`]
   }, [pending])
 
+  const updateControlSettings = useCallback(async (tentId, controlSettings) => {
+    try {
+      const response = await apiFetch(`api/tents/${tentId}/control-settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(controlSettings)
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Failed to update control settings')
+      }
+      // Update local state
+      setTents(prev => prev.map(tent =>
+        tent.id === tentId
+          ? { ...tent, control_settings: controlSettings }
+          : tent
+      ))
+      return await response.json()
+    } catch (e) {
+      throw e
+    }
+  }, [])
+
   return {
     tents,
     loading,
@@ -100,7 +123,8 @@ export function useTents() {
     refetch: fetchTents,
     performAction,
     toggleActuator,
-    isPending
+    isPending,
+    updateControlSettings
   }
 }
 

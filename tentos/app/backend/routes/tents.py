@@ -31,6 +31,13 @@ class OverrideRequest(BaseModel):
     duration_minutes: int = 60
 
 
+class ControlSettingsRequest(BaseModel):
+    """Request model for control settings."""
+    order: Optional[list[str]] = None
+    labels: Optional[dict[str, str]] = None
+    icons: Optional[dict[str, str]] = None
+
+
 def get_state_manager(request: Request) -> StateManager:
     """Get state manager from app state."""
     return request.app.state.state_manager
@@ -290,3 +297,59 @@ async def get_tent_history(
             })
 
         return {"tent_id": tent_id, "range": range, "history": history}
+
+
+@router.put("/{tent_id}/control-settings")
+async def update_control_settings(
+    tent_id: str,
+    settings: ControlSettingsRequest,
+    request: Request,
+    state_manager: StateManager = Depends(get_state_manager)
+):
+    """Update control customization settings for a tent."""
+    tent = state_manager.get_tent(tent_id)
+    if not tent:
+        raise HTTPException(status_code=404, detail="Tent not found")
+
+    try:
+        # Load current config
+        from config import load_addon_config, save_addon_config
+        config = load_addon_config()
+
+        # Find the tent in config
+        tent_idx = None
+        for i, t in enumerate(config.get("tents", [])):
+            # Match by name since config uses name, not id
+            if t.get("name") == tent.config.name:
+                tent_idx = i
+                break
+
+        if tent_idx is None:
+            raise HTTPException(status_code=404, detail="Tent not found in config")
+
+        # Update control_settings
+        if "control_settings" not in config["tents"][tent_idx]:
+            config["tents"][tent_idx]["control_settings"] = {}
+
+        cs = config["tents"][tent_idx]["control_settings"]
+
+        if settings.order is not None:
+            cs["order"] = settings.order
+        if settings.labels is not None:
+            cs["labels"] = settings.labels
+        if settings.icons is not None:
+            cs["icons"] = settings.icons
+
+        # Save config
+        save_addon_config(config)
+
+        # Reload config in state manager
+        await state_manager.reload_config()
+
+        return {"success": True, "control_settings": cs}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update control settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

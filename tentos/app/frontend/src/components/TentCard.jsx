@@ -209,8 +209,15 @@ function GrowTentIcon({ color = '#22c55e', size = 40 }) {
   )
 }
 
-export function TentCard({ tent, onAction, onToggle, isPending }) {
+export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlSettings }) {
   const { unit, formatTemp, getTempUnit } = useTemperatureUnit()
+  const [editMode, setEditMode] = useState(false)
+  const [editingSlot, setEditingSlot] = useState(null)
+  const [tempLabel, setTempLabel] = useState('')
+  const [tempIcon, setTempIcon] = useState('')
+  const [localOrder, setLocalOrder] = useState(null)
+  const [localLabels, setLocalLabels] = useState({})
+  const [localIcons, setLocalIcons] = useState({})
 
   const getSensorValue = (type) => {
     const sensor = tent.sensors?.[type]
@@ -287,8 +294,85 @@ export function TentCard({ tent, onAction, onToggle, isPending }) {
 
   // Get custom icon for actuator
   const getCustomIcon = (slot) => {
+    if (editMode && localIcons[slot]) return localIcons[slot]
     const icons = tent.control_settings?.icons
     return icons?.[slot] || null
+  }
+
+  // Get custom label (with edit mode support)
+  const getDisplayLabel = (slot) => {
+    if (editMode && localLabels[slot]) return localLabels[slot]
+    return getCustomLabel(slot)
+  }
+
+  // Edit mode functions
+  const enterEditMode = () => {
+    setEditMode(true)
+    setLocalOrder(getOrderedActuators())
+    setLocalLabels({ ...(tent.control_settings?.labels || {}) })
+    setLocalIcons({ ...(tent.control_settings?.icons || {}) })
+  }
+
+  const exitEditMode = () => {
+    setEditMode(false)
+    setEditingSlot(null)
+    setLocalOrder(null)
+    setLocalLabels({})
+    setLocalIcons({})
+  }
+
+  const saveChanges = async () => {
+    if (onUpdateControlSettings) {
+      await onUpdateControlSettings(tent.id, {
+        order: localOrder,
+        labels: localLabels,
+        icons: localIcons
+      })
+    }
+    exitEditMode()
+  }
+
+  const moveControl = (slot, direction) => {
+    const order = [...(localOrder || getOrderedActuators())]
+    const idx = order.indexOf(slot)
+    if (direction === 'up' && idx > 0) {
+      [order[idx - 1], order[idx]] = [order[idx], order[idx - 1]]
+    } else if (direction === 'down' && idx < order.length - 1) {
+      [order[idx], order[idx + 1]] = [order[idx + 1], order[idx]]
+    }
+    setLocalOrder(order)
+  }
+
+  const startEditSlot = (slot) => {
+    setEditingSlot(slot)
+    const def = ACTUATOR_ICONS[slot] || { label: slot, icon: '⚡' }
+    setTempLabel(localLabels[slot] || tent.control_settings?.labels?.[slot] || '')
+    setTempIcon(localIcons[slot] || tent.control_settings?.icons?.[slot] || '')
+  }
+
+  const saveSlotEdit = () => {
+    if (editingSlot) {
+      const newLabels = { ...localLabels }
+      const newIcons = { ...localIcons }
+      if (tempLabel.trim()) {
+        newLabels[editingSlot] = tempLabel.trim()
+      } else {
+        delete newLabels[editingSlot]
+      }
+      if (tempIcon.trim()) {
+        newIcons[editingSlot] = tempIcon.trim()
+      } else {
+        delete newIcons[editingSlot]
+      }
+      setLocalLabels(newLabels)
+      setLocalIcons(newIcons)
+    }
+    setEditingSlot(null)
+  }
+
+  // Get display order for edit mode
+  const getDisplayOrder = () => {
+    return editMode && localOrder ? localOrder : getOrderedActuators()
   }
 
   const handleToggle = (slot) => {
@@ -413,21 +497,154 @@ export function TentCard({ tent, onAction, onToggle, isPending }) {
       )}
 
       {/* Actuators - Clickable Controls */}
-      {configuredActuators.length > 0 && (
+      {getDisplayOrder().length > 0 && (
         <div className="mb-4">
-          <div className="text-xs text-gray-500 mb-2">Controls (click to toggle)</div>
-          <div className="flex flex-wrap gap-2">
-            {configuredActuators.map(slot => (
-              <ActuatorButton
-                key={slot}
-                slot={slot}
-                state={getActuatorState(slot)}
-                pending={checkPending(slot)}
-                onToggle={handleToggle}
-                customLabel={getCustomLabel(slot)}
-                customIcon={getCustomIcon(slot)}
-              />
-            ))}
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs text-gray-500">
+              {editMode ? 'Drag to reorder, click ✏️ to rename' : 'Controls (click to toggle)'}
+            </div>
+            {!editMode ? (
+              <button
+                onClick={enterEditMode}
+                className="text-xs text-gray-400 hover:text-white px-2 py-0.5 rounded hover:bg-[#2d3a5c]"
+                title="Customize controls"
+              >
+                ✏️ Edit
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={exitEditMode}
+                  className="text-xs text-gray-400 hover:text-white px-2 py-0.5 rounded hover:bg-[#2d3a5c]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveChanges}
+                  className="text-xs text-green-400 hover:text-green-300 px-2 py-0.5 rounded bg-green-900/30 hover:bg-green-900/50"
+                >
+                  Save
+                </button>
+              </div>
+            )}
+          </div>
+
+          {editMode ? (
+            // Edit mode: show reorder controls
+            <div className="space-y-1">
+              {getDisplayOrder().map((slot, idx) => {
+                const def = ACTUATOR_ICONS[slot] || { icon: '⚡', label: slot }
+                const state = getActuatorState(slot)
+                const isOn = state === 'on' || state === 'playing' || state === 'open'
+                const displayIcon = getCustomIcon(slot) || def.icon
+                const displayLabel = getDisplayLabel(slot) || def.label
+
+                return (
+                  <div key={slot} className="flex items-center gap-2 p-2 bg-[#1a1a2e] rounded-lg">
+                    {/* Reorder buttons */}
+                    <div className="flex flex-col">
+                      <button
+                        onClick={() => moveControl(slot, 'up')}
+                        disabled={idx === 0}
+                        className="text-xs text-gray-400 hover:text-white disabled:opacity-30 px-1"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        onClick={() => moveControl(slot, 'down')}
+                        disabled={idx === getDisplayOrder().length - 1}
+                        className="text-xs text-gray-400 hover:text-white disabled:opacity-30 px-1"
+                      >
+                        ▼
+                      </button>
+                    </div>
+
+                    {/* Icon and label */}
+                    <span className={`text-xl ${isOn ? def.activeColor : 'text-gray-500'}`}>
+                      {displayIcon}
+                    </span>
+                    <span className="flex-1 text-sm">{displayLabel}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      isOn ? 'bg-green-900/30 text-green-400' : 'text-gray-500'
+                    }`}>
+                      {state}
+                    </span>
+
+                    {/* Edit button */}
+                    <button
+                      onClick={() => startEditSlot(slot)}
+                      className="p-1 hover:bg-[#2d3a5c] rounded text-gray-400 hover:text-white"
+                      title="Edit label & icon"
+                    >
+                      ✏️
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            // Normal mode: clickable buttons
+            <div className="flex flex-wrap gap-2">
+              {getDisplayOrder().map(slot => (
+                <ActuatorButton
+                  key={slot}
+                  slot={slot}
+                  state={getActuatorState(slot)}
+                  pending={checkPending(slot)}
+                  onToggle={handleToggle}
+                  customLabel={getDisplayLabel(slot)}
+                  customIcon={getCustomIcon(slot)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Edit slot modal */}
+      {editingSlot && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+          onClick={() => setEditingSlot(null)}
+        >
+          <div
+            className="bg-[#16213e] rounded-lg p-4 w-80"
+            onClick={e => e.stopPropagation()}
+          >
+            <h4 className="font-semibold mb-3">
+              Edit "{ACTUATOR_ICONS[editingSlot]?.label || editingSlot}"
+            </h4>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Custom Label</label>
+                <input
+                  type="text"
+                  value={tempLabel}
+                  onChange={e => setTempLabel(e.target.value)}
+                  placeholder={ACTUATOR_ICONS[editingSlot]?.label || editingSlot}
+                  className="input w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Custom Icon (emoji)</label>
+                <input
+                  type="text"
+                  value={tempIcon}
+                  onChange={e => setTempIcon(e.target.value)}
+                  placeholder={ACTUATOR_ICONS[editingSlot]?.icon || '⚡'}
+                  className="input w-full"
+                  maxLength={4}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setEditingSlot(null)} className="btn btn-sm">
+                  Cancel
+                </button>
+                <button onClick={saveSlotEdit} className="btn btn-sm btn-primary">
+                  Apply
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
