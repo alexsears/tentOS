@@ -9,8 +9,23 @@ import Reports from './pages/Reports'
 import { useWebSocket } from './hooks/useWebSocket'
 import { AlertBanner } from './components/AlertBanner'
 import { apiFetch } from './utils/api'
+import { TempUnitProvider, useTemperatureUnit } from './hooks/useTemperatureUnit'
 
-function App() {
+// Temperature unit toggle component
+function TempToggle() {
+  const { unit, toggleUnit } = useTemperatureUnit()
+  return (
+    <button
+      onClick={toggleUnit}
+      className="px-2 py-1 rounded bg-[#1a1a2e] hover:bg-[#2d3a5c] text-sm font-medium transition-colors"
+      title="Toggle temperature unit"
+    >
+      °{unit}
+    </button>
+  )
+}
+
+function AppContent() {
   const location = useLocation()
   const [alerts, setAlerts] = useState([])
   const [version, setVersion] = useState('')
@@ -54,6 +69,7 @@ function App() {
               <span className="text-2xl">🌿</span>
               <h1 className="text-xl font-semibold">TentOS</h1>
               {version && <span className="text-xs text-gray-500">v{version}</span>}
+              <TempToggle />
             </div>
 
             <nav className="flex items-center gap-1">
@@ -107,6 +123,14 @@ function App() {
         </Routes>
       </main>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <TempUnitProvider>
+      <AppContent />
+    </TempUnitProvider>
   )
 }
 

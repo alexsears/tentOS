@@ -3,11 +3,13 @@ import { useState } from 'react'
 import { useTent, useTents } from '../hooks/useTents'
 import { SensorChart } from '../components/SensorChart'
 import { EventLog } from '../components/EventLog'
+import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 
 export default function TentDetail() {
   const { tentId } = useParams()
   const { tent, loading, error } = useTent(tentId)
   const { performAction } = useTents()
+  const { formatTemp, getTempUnit } = useTemperatureUnit()
   const [activeTab, setActiveTab] = useState('overview')
   const [chartRange, setChartRange] = useState('24h')
   const [actionLoading, setActionLoading] = useState(null)
@@ -36,13 +38,15 @@ export default function TentDetail() {
     )
   }
 
-  const getSensorDisplay = (type, label, unit = '') => {
+  const getSensorDisplay = (type, label, unit = '', isTemp = false) => {
     const sensor = tent.sensors?.[type]
     const value = sensor?.value
+    const displayValue = isTemp && value != null ? formatTemp(value, 1) : (value != null ? value.toFixed(1) : null)
+    const displayUnit = isTemp ? getTempUnit() : unit
     return (
       <div className="card text-center">
         <div className="text-3xl font-bold mb-1">
-          {value != null ? `${value}${unit}` : '--'}
+          {displayValue != null ? `${displayValue}${displayUnit}` : '--'}
         </div>
         <div className="text-sm text-gray-400">{label}</div>
       </div>
@@ -142,11 +146,11 @@ export default function TentDetail() {
           <div>
             <h3 className="font-semibold mb-3">Environment</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {getSensorDisplay('temperature', 'Temperature', '°C')}
+              {getSensorDisplay('temperature', 'Temperature', '', true)}
               {getSensorDisplay('humidity', 'Humidity', '%')}
               <div className="card text-center">
                 <div className="text-3xl font-bold mb-1">
-                  {tent.vpd != null ? tent.vpd.toFixed(2) : '--'}
+                  {tent.vpd != null ? tent.vpd.toFixed(1) : '--'}
                 </div>
                 <div className="text-sm text-gray-400">VPD (kPa)</div>
               </div>
@@ -178,13 +182,16 @@ export default function TentDetail() {
           <div>
             <h3 className="font-semibold mb-3">Controls</h3>
             <div className="grid md:grid-cols-2 gap-4">
-              {tent.actuators?.light && getActuatorControl('light', 'Light', '💡')}
+              {tent.actuators?.light && getActuatorControl('light', 'Light 1', '💡')}
+              {tent.actuators?.light_2 && getActuatorControl('light_2', 'Light 2', '💡')}
               {tent.actuators?.exhaust_fan && getActuatorControl('exhaust_fan', 'Exhaust Fan', '🌀')}
               {tent.actuators?.circulation_fan && getActuatorControl('circulation_fan', 'Circulation Fan', '🔄')}
               {tent.actuators?.humidifier && getActuatorControl('humidifier', 'Humidifier', '💨')}
               {tent.actuators?.dehumidifier && getActuatorControl('dehumidifier', 'Dehumidifier', '🏜️')}
               {tent.actuators?.heater && getActuatorControl('heater', 'Heater', '🔥')}
-              {tent.actuators?.water_pump && getActuatorControl('water_pump', 'Water Pump', '💧')}
+              {tent.actuators?.water_pump && getActuatorControl('water_pump', 'Water Pump 1', '🚿')}
+              {tent.actuators?.water_pump_2 && getActuatorControl('water_pump_2', 'Water Pump 2', '🚿')}
+              {tent.actuators?.drain_pump && getActuatorControl('drain_pump', 'Drain Pump', '🔽')}
             </div>
           </div>
 

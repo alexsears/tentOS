@@ -17,7 +17,12 @@ from ha_client import HAClient
 logger = logging.getLogger(__name__)
 
 
-def calculate_vpd(temp_c: float, humidity: float) -> float:
+def fahrenheit_to_celsius(f: float) -> float:
+    """Convert Fahrenheit to Celsius."""
+    return (f - 32) * 5 / 9
+
+
+def calculate_vpd(temp: float, humidity: float) -> float:
     """
     Calculate Vapor Pressure Deficit (VPD) in kPa.
 
@@ -25,14 +30,20 @@ def calculate_vpd(temp_c: float, humidity: float) -> float:
     Where SVP (Saturation Vapor Pressure) = 0.6108 * exp(17.27 * T / (T + 237.3))
 
     Args:
-        temp_c: Temperature in Celsius
+        temp: Temperature (auto-detects if Fahrenheit and converts)
         humidity: Relative humidity (0-100)
 
     Returns:
-        VPD in kPa
+        VPD in kPa (typical range 0.4-1.6 for plants)
     """
     if humidity <= 0 or humidity > 100:
         return 0.0
+
+    # Auto-detect Fahrenheit: grow tent temps over 50C (122F) are unrealistic
+    # Typical range: 60-85F (15-30C)
+    temp_c = temp
+    if temp > 50:
+        temp_c = fahrenheit_to_celsius(temp)
 
     # Saturation vapor pressure (Tetens formula)
     svp = 0.6108 * math.exp((17.27 * temp_c) / (temp_c + 237.3))
@@ -40,7 +51,7 @@ def calculate_vpd(temp_c: float, humidity: float) -> float:
     # VPD calculation
     vpd = svp * (1 - humidity / 100)
 
-    return round(vpd, 2)
+    return round(vpd, 1)
 
 
 def calculate_environment_score(tent_state: dict, targets: dict) -> int:

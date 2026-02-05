@@ -70,7 +70,14 @@ SLOT_DEFINITIONS = {
     },
     "actuators": {
         "light": {
-            "label": "Grow Light",
+            "label": "Grow Light 1",
+            "required": False,
+            "domains": ["switch", "light"],
+            "device_classes": [None],
+            "icon": "💡"
+        },
+        "light_2": {
+            "label": "Grow Light 2",
             "required": False,
             "domains": ["switch", "light"],
             "device_classes": [None],
@@ -112,7 +119,14 @@ SLOT_DEFINITIONS = {
             "icon": "🔥"
         },
         "water_pump": {
-            "label": "Water Pump",
+            "label": "Water Pump 1",
+            "required": False,
+            "domains": ["switch"],
+            "device_classes": [None],
+            "icon": "🚿"
+        },
+        "water_pump_2": {
+            "label": "Water Pump 2",
             "required": False,
             "domains": ["switch"],
             "device_classes": [None],

@@ -63,6 +63,23 @@ def get_current_version():
     return "unknown"
 
 
+def parse_version(version_str: str) -> tuple:
+    """Parse version string into comparable tuple."""
+    try:
+        # Remove 'v' prefix if present
+        v = version_str.lstrip("v")
+        # Split by dots and convert to integers
+        parts = v.split(".")
+        return tuple(int(p) for p in parts)
+    except (ValueError, AttributeError):
+        return (0, 0, 0)
+
+
+def is_newer_version(latest: str, current: str) -> bool:
+    """Check if latest version is newer than current."""
+    return parse_version(latest) > parse_version(current)
+
+
 async def get_supervisor_headers():
     """Get headers for Supervisor API calls."""
     if not SUPERVISOR_TOKEN:
@@ -72,10 +89,40 @@ async def get_supervisor_headers():
 
 @router.get("/check")
 async def check_for_updates():
-    """Check GitHub for newer versions."""
+    """Check for updates via Supervisor API first, then GitHub."""
+    current = get_current_version()
+
+    # Try Supervisor API first (most reliable for HA add-ons)
+    try:
+        headers = await get_supervisor_headers()
+        slug = await get_addon_slug()
+
+        async with aiohttp.ClientSession() as session:
+            info_url = f"{SUPERVISOR_API}/addons/{slug}/info"
+            async with session.get(info_url, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    addon_info = data.get("data", {})
+                    latest = addon_info.get("version_latest", current)
+                    update_available = addon_info.get("update_available", False)
+
+                    # Double-check with version comparison
+                    if not update_available and latest:
+                        update_available = is_newer_version(latest, current)
+
+                    return {
+                        "current_version": current,
+                        "latest_version": latest,
+                        "update_available": update_available,
+                        "source": "supervisor",
+                        "repo_url": f"https://github.com/{GITHUB_REPO}"
+                    }
+    except Exception as e:
+        logger.debug(f"Supervisor check failed, trying GitHub: {e}")
+
+    # Fallback to GitHub releases
     try:
         async with aiohttp.ClientSession() as session:
-            # Get latest release from GitHub
             url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
             async with session.get(url) as resp:
                 if resp.status == 200:
@@ -84,40 +131,24 @@ async def check_for_updates():
                     release_notes = data.get("body", "")
                     published_at = data.get("published_at")
 
-                    current = get_current_version()
+                    update_available = latest_version and is_newer_version(latest_version, current)
                     return {
                         "current_version": current,
                         "latest_version": latest_version or current,
-                        "update_available": latest_version and latest_version != current,
+                        "update_available": update_available,
                         "release_notes": release_notes,
                         "published_at": published_at,
+                        "source": "github",
                         "repo_url": f"https://github.com/{GITHUB_REPO}"
                     }
-                elif resp.status == 404:
-                    # No releases yet, check commits
-                    commits_url = f"https://api.github.com/repos/{GITHUB_REPO}/commits?per_page=1"
-                    async with session.get(commits_url) as commits_resp:
-                        if commits_resp.status == 200:
-                            commits = await commits_resp.json()
-                            if commits:
-                                latest_sha = commits[0]["sha"][:7]
-                                latest_date = commits[0]["commit"]["committer"]["date"]
-                                latest_msg = commits[0]["commit"]["message"].split("\n")[0]
+    except Exception as e:
+        logger.debug(f"GitHub check failed: {e}")
 
-                                return {
-                                    "current_version": get_current_version(),
-                                    "latest_commit": latest_sha,
-                                    "latest_commit_date": latest_date,
-                                    "latest_commit_message": latest_msg,
-                                    "update_available": True,  # Assume updates if checking commits
-                                    "repo_url": f"https://github.com/{GITHUB_REPO}"
-                                }
-
-        return {
-            "current_version": get_current_version(),
-            "update_available": False,
-            "message": "Could not check for updates"
-        }
+    return {
+        "current_version": current,
+        "update_available": False,
+        "message": "Could not check for updates"
+    }
 
     except Exception as e:
         logger.error(f"Update check failed: {e}")

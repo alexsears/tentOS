@@ -14,13 +14,15 @@ const SENSOR_META = {
 
 // Actuator metadata for display
 const ACTUATOR_META = {
-  light: { label: 'Grow Light', icon: '💡' },
+  light: { label: 'Grow Light 1', icon: '💡' },
+  light_2: { label: 'Grow Light 2', icon: '💡' },
   exhaust_fan: { label: 'Exhaust Fan', icon: '🌀' },
   circulation_fan: { label: 'Circulation Fan', icon: '🔄' },
   humidifier: { label: 'Humidifier', icon: '💨' },
   dehumidifier: { label: 'Dehumidifier', icon: '🏜️' },
   heater: { label: 'Heater', icon: '🔥' },
-  water_pump: { label: 'Water Pump', icon: '🚿' },
+  water_pump: { label: 'Water Pump 1', icon: '🚿' },
+  water_pump_2: { label: 'Water Pump 2', icon: '🚿' },
   drain_pump: { label: 'Drain Pump', icon: '🔽' }
 }
 

@@ -27,8 +27,8 @@ WORKDIR /app
 COPY app/backend /app/backend
 COPY app/shared /app/shared
 
-# Copy config.yaml for version info
-COPY config.yaml /app/config.yaml
+# Copy config.yaml for version info (to root where code expects it)
+COPY config.yaml /config.yaml
 
 # Copy run script and nginx config
 COPY run.sh /
