@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTent, useTents } from '../hooks/useTents'
 import { SensorChart } from '../components/SensorChart'
 import { EventLog } from '../components/EventLog'
+import { CameraFeed, CameraGrid } from '../components/CameraFeed'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 
 export default function TentDetail() {
@@ -52,6 +53,22 @@ export default function TentDetail() {
       </div>
     )
   }
+
+  // Get configured cameras from sensor config
+  const getCameras = () => {
+    const cameras = tent.sensors?.camera
+    if (!cameras) return []
+    if (Array.isArray(cameras)) {
+      return cameras.map(c => typeof c === 'string' ? c : c?.entity_id).filter(Boolean)
+    }
+    if (typeof cameras === 'string') return [cameras]
+    if (cameras._entities) {
+      return Object.keys(cameras._entities)
+    }
+    return []
+  }
+
+  const cameras = getCameras()
 
   const getActuatorControl = (type, label, icon) => {
     const state = tent.actuators?.[type]?.state || 'unknown'
@@ -107,7 +124,7 @@ export default function TentDetail() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-[#2d3a5c] pb-2">
-        {['overview', 'charts', 'events', 'settings'].map(tab => (
+        {['overview', ...(cameras.length > 0 ? ['cameras'] : []), 'charts', 'events', 'settings'].map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -117,7 +134,7 @@ export default function TentDetail() {
                 : 'text-gray-400 hover:text-white'
             }`}
           >
-            {tab}
+            {tab === 'cameras' ? `📷 ${tab}` : tab}
           </button>
         ))}
       </div>
@@ -138,6 +155,32 @@ export default function TentDetail() {
                     <span>{alert.message}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Camera Preview on Overview */}
+          {cameras.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold">📷 Camera{cameras.length > 1 ? 's' : ''}</h3>
+                {cameras.length > 1 && (
+                  <button
+                    onClick={() => setActiveTab('cameras')}
+                    className="text-sm text-green-400 hover:text-green-300"
+                  >
+                    View all →
+                  </button>
+                )}
+              </div>
+              {/* Show first camera only on overview */}
+              <div className="max-w-xl">
+                <CameraFeed
+                  tentId={tentId}
+                  entityId={cameras[0]}
+                  defaultMode="snapshot"
+                  refreshInterval={10000}
+                />
               </div>
             </div>
           )}
@@ -221,6 +264,16 @@ export default function TentDetail() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Cameras Tab */}
+      {activeTab === 'cameras' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Cameras ({cameras.length})</h3>
+          </div>
+          <CameraGrid tentId={tentId} cameras={cameras} />
         </div>
       )}
 

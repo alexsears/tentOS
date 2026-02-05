@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { getApiBase } from '../utils/api'
 
@@ -76,16 +76,29 @@ function CameraPreview({ tentId, entityId }) {
   const [expanded, setExpanded] = useState(false)
   const [error, setError] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const streamImgRef = useRef(null)
   const apiBase = getApiBase()
 
-  // Auto-refresh snapshot every 5 seconds when not expanded
+  // Auto-refresh snapshot every 10 seconds (slower on dashboard to save bandwidth)
   useEffect(() => {
-    if (expanded || error) return
+    if (error) return
     const interval = setInterval(() => {
       setRefreshKey(k => k + 1)
-    }, 5000)
+    }, 10000)
     return () => clearInterval(interval)
-  }, [expanded, error])
+  }, [error])
+
+  // Cleanup MJPEG stream when closing expanded view
+  useEffect(() => {
+    if (!expanded && streamImgRef.current) {
+      streamImgRef.current.src = ''
+    }
+    return () => {
+      if (streamImgRef.current) {
+        streamImgRef.current.src = ''
+      }
+    }
+  }, [expanded])
 
   const snapshotUrl = `${apiBase}/api/camera/${tentId}/${entityId}/snapshot?t=${refreshKey}`
   const streamUrl = `${apiBase}/api/camera/${tentId}/${entityId}/stream`
@@ -97,6 +110,10 @@ function CameraPreview({ tentId, entityId }) {
           expanded ? 'fixed inset-4 z-50' : 'h-32'
         }`}
         onClick={() => setExpanded(!expanded)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && setExpanded(!expanded)}
+        aria-label={expanded ? 'Close camera view' : 'Expand camera view'}
       >
         {error ? (
           <div className="flex items-center justify-center h-full text-gray-500">
@@ -104,8 +121,9 @@ function CameraPreview({ tentId, entityId }) {
           </div>
         ) : expanded ? (
           <img
+            ref={streamImgRef}
             src={streamUrl}
-            alt="Camera stream"
+            alt={`Live stream from camera`}
             className="w-full h-full object-contain bg-black"
             onError={() => setError(true)}
           />
@@ -113,7 +131,7 @@ function CameraPreview({ tentId, entityId }) {
           <img
             key={refreshKey}
             src={snapshotUrl}
-            alt="Camera snapshot"
+            alt={`Camera snapshot`}
             className="w-full h-full object-cover"
             onError={() => setError(true)}
           />
@@ -122,7 +140,7 @@ function CameraPreview({ tentId, entityId }) {
         {/* Expand/collapse hint */}
         {!error && (
           <div className="absolute bottom-1 right-1 text-xs bg-black/50 text-white px-2 py-0.5 rounded">
-            {expanded ? 'Click to close' : 'Click to expand'}
+            {expanded ? '● LIVE - Click to close' : 'Click for live'}
           </div>
         )}
       </div>
