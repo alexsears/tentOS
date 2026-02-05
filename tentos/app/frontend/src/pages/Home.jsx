@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useTents } from '../hooks/useTents'
 import { TentCard } from '../components/TentCard'
 
@@ -28,9 +29,9 @@ export default function Home() {
         <p className="text-gray-400 mb-4">
           Configure your tents in the Settings tab.
         </p>
-        <a href="#/settings" className="btn btn-primary">
+        <Link to="/settings" className="btn btn-primary">
           Go to Settings
-        </a>
+        </Link>
       </div>
     )
   }
