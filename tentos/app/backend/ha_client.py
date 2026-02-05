@@ -86,7 +86,7 @@ class HAClient:
             headers = {"Authorization": f"Bearer {self.token}"}
             self.ws = await websockets.connect(
                 self.ws_url,
-                additional_headers=headers,
+                extra_headers=headers,
                 ping_interval=30,
                 ping_timeout=10
             )
