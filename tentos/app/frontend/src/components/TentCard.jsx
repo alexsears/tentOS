@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
-import { getApiBase } from '../utils/api'
+import { getApiBase, apiFetch } from '../utils/api'
 
 // Actuator icon definitions with states
 const ACTUATOR_ICONS = {
@@ -184,6 +184,144 @@ function CameraPreview({ tentId, entityId }) {
   )
 }
 
+// Growth stage badge component
+function GrowthStageBadge({ stage, flowerWeek, onFlip, loading }) {
+  const isFlower = stage === 'flower'
+  const isVeg = stage === 'veg'
+
+  return (
+    <div className="flex items-center gap-2">
+      {/* Stage indicator */}
+      <div
+        className={`
+          px-3 py-1.5 rounded-full font-medium text-sm flex items-center gap-2 cursor-pointer
+          transition-all hover:scale-105
+          ${isFlower
+            ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-lg shadow-pink-500/30'
+            : isVeg
+              ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg shadow-green-500/30'
+              : 'bg-gray-700 text-gray-300'
+          }
+        `}
+        onClick={onFlip}
+        title="Click to change growth stage"
+      >
+        <span className="text-lg">{isFlower ? '🌸' : isVeg ? '🌱' : '❓'}</span>
+        <span>{isFlower ? 'Flower' : isVeg ? 'Veg' : 'Unknown'}</span>
+        {isFlower && flowerWeek && (
+          <span className="bg-white/20 px-2 py-0.5 rounded text-xs">
+            Week {flowerWeek}
+          </span>
+        )}
+        {loading && <span className="animate-spin">⏳</span>}
+      </div>
+    </div>
+  )
+}
+
+// Flip stage confirmation modal
+function FlipStageModal({ tent, currentStage, onConfirm, onCancel }) {
+  const [lightOnTime, setLightOnTime] = useState('06:00')
+  const [lightOffTime, setLightOffTime] = useState('18:00')
+  const [createAutomation, setCreateAutomation] = useState(true)
+
+  const isFlippingToFlower = currentStage !== 'flower'
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-[#16213e] rounded-lg w-full max-w-md">
+        <div className="p-4 border-b border-[#2d3a5c]">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            {isFlippingToFlower ? '🌸 Flip to Flower?' : '🌱 Reset to Veg?'}
+          </h3>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {isFlippingToFlower ? (
+            <>
+              <p className="text-gray-300">
+                This will set <strong>{tent.name}</strong> to flower stage and:
+              </p>
+              <ul className="text-sm text-gray-400 list-disc list-inside space-y-1">
+                <li>Start tracking flower week (Week 1)</li>
+                <li>Adjust VPD targets for flowering</li>
+                <li>Update light schedule to 12/12</li>
+              </ul>
+
+              <div className="bg-[#1a1a2e] rounded-lg p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="createAuto"
+                    checked={createAutomation}
+                    onChange={e => setCreateAutomation(e.target.checked)}
+                    className="rounded"
+                  />
+                  <label htmlFor="createAuto" className="text-sm">
+                    Create light schedule automation (12/12)
+                  </label>
+                </div>
+
+                {createAutomation && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Lights On</label>
+                      <input
+                        type="time"
+                        value={lightOnTime}
+                        onChange={e => setLightOnTime(e.target.value)}
+                        className="input w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Lights Off</label>
+                      <input
+                        type="time"
+                        value={lightOffTime}
+                        onChange={e => setLightOffTime(e.target.value)}
+                        className="input w-full"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3 text-sm text-yellow-300">
+                <strong>Note:</strong> Make sure your tent is ready for flower before confirming.
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-300">
+                Reset <strong>{tent.name}</strong> back to vegetative stage?
+              </p>
+              <ul className="text-sm text-gray-400 list-disc list-inside space-y-1">
+                <li>Clear flower start date</li>
+                <li>Reset VPD targets for veg</li>
+                <li>You'll need to manually update light schedule</li>
+              </ul>
+            </>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-[#2d3a5c] flex gap-2 justify-end">
+          <button onClick={onCancel} className="btn">Cancel</button>
+          <button
+            onClick={() => onConfirm({
+              createAutomation,
+              lightOnTime,
+              lightOffTime
+            })}
+            className={`btn ${isFlippingToFlower ? 'bg-pink-600 hover:bg-pink-700' : 'btn-primary'}`}
+          >
+            {isFlippingToFlower ? '🌸 Flip to Flower' : '🌱 Reset to Veg'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Grow tent icon component
 function GrowTentIcon({ color = '#22c55e', size = 40 }) {
   return (
@@ -209,7 +347,7 @@ function GrowTentIcon({ color = '#22c55e', size = 40 }) {
   )
 }
 
-export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlSettings }) {
+export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlSettings, onRefresh }) {
   const { unit, formatTemp, getTempUnit } = useTemperatureUnit()
   const [editMode, setEditMode] = useState(false)
   const [editingSlot, setEditingSlot] = useState(null)
@@ -218,6 +356,41 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
   const [localOrder, setLocalOrder] = useState(null)
   const [localLabels, setLocalLabels] = useState({})
   const [localIcons, setLocalIcons] = useState({})
+  const [showFlipModal, setShowFlipModal] = useState(false)
+  const [flipping, setFlipping] = useState(false)
+
+  // Growth stage from tent data
+  const growthStage = tent.growth_stage || {}
+  const currentStage = growthStage.stage || 'unknown'
+  const flowerWeek = growthStage.flower_week
+
+  // Handle flip stage
+  const handleFlipStage = async (options) => {
+    setFlipping(true)
+    try {
+      if (currentStage === 'flower') {
+        // Reset to veg
+        await apiFetch(`api/tents/${tent.id}/reset-to-veg`, { method: 'POST' })
+      } else {
+        // Flip to flower
+        await apiFetch(`api/tents/${tent.id}/flip-to-flower`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            create_light_automation: options.createAutomation,
+            light_on_time: options.lightOnTime,
+            light_off_time: options.lightOffTime
+          })
+        })
+      }
+      setShowFlipModal(false)
+      if (onRefresh) onRefresh()
+    } catch (e) {
+      console.error('Failed to flip stage:', e)
+    } finally {
+      setFlipping(false)
+    }
+  }
 
   const getSensorValue = (type) => {
     const sensor = tent.sensors?.[type]
@@ -412,7 +585,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
   return (
     <div className="card hover:border-green-600/50 transition-colors">
       {/* Header */}
-      <div className="flex items-start gap-3 mb-4">
+      <div className="flex items-start gap-3 mb-3">
         <GrowTentIcon color={getTentColor()} size={48} />
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between">
@@ -436,6 +609,21 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Growth Stage Badge */}
+      <div className="mb-4 flex items-center justify-between">
+        <GrowthStageBadge
+          stage={currentStage}
+          flowerWeek={flowerWeek}
+          onFlip={() => setShowFlipModal(true)}
+          loading={flipping}
+        />
+        {growthStage.vpd_target && (
+          <div className="text-xs text-gray-400">
+            Target VPD: {growthStage.vpd_target.min}-{growthStage.vpd_target.max} kPa
+          </div>
+        )}
       </div>
 
       {/* Sensors - Real-time values */}
@@ -687,6 +875,16 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           Details →
         </Link>
       </div>
+
+      {/* Flip Stage Modal */}
+      {showFlipModal && (
+        <FlipStageModal
+          tent={tent}
+          currentStage={currentStage}
+          onConfirm={handleFlipStage}
+          onCancel={() => setShowFlipModal(false)}
+        />
+      )}
     </div>
   )
 }

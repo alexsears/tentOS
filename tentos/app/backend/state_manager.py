@@ -54,6 +54,96 @@ def calculate_vpd(temp: float, humidity: float) -> float:
     return round(vpd, 1)
 
 
+def infer_growth_stage(schedules: dict, growth_stage_config: dict = None) -> dict:
+    """
+    Infer growth stage from light schedule.
+
+    - 12 hours of light = Flower
+    - 16+ hours of light = Veg
+    - 13-15 hours = Transition/Unknown
+
+    Returns dict with stage, flower_week, inferred, etc.
+    """
+    result = {
+        "stage": "unknown",
+        "inferred": True,
+        "light_hours": None,
+        "flower_week": None,
+        "flower_start_date": None,
+        "vpd_target": {"min": 0.8, "max": 1.2}  # Default VPD
+    }
+
+    # Check if manually set
+    if growth_stage_config:
+        if growth_stage_config.get("stage"):
+            result["stage"] = growth_stage_config["stage"]
+            result["inferred"] = False
+        if growth_stage_config.get("flower_start_date"):
+            result["flower_start_date"] = growth_stage_config["flower_start_date"]
+            # Calculate flower week
+            try:
+                start = datetime.fromisoformat(growth_stage_config["flower_start_date"].replace('Z', '+00:00'))
+                now = datetime.now(timezone.utc)
+                days = (now - start).days
+                result["flower_week"] = max(1, min(12, (days // 7) + 1))
+            except (ValueError, TypeError):
+                pass
+
+    # Try to infer from photoperiod if not manually set
+    if result["stage"] == "unknown":
+        on_time = schedules.get("photoperiod_on")
+        off_time = schedules.get("photoperiod_off")
+
+        if on_time and off_time:
+            try:
+                # Parse times (HH:MM format)
+                on_hour, on_min = map(int, on_time.split(":"))
+                off_hour, off_min = map(int, off_time.split(":"))
+
+                # Calculate light hours
+                on_minutes = on_hour * 60 + on_min
+                off_minutes = off_hour * 60 + off_min
+
+                if off_minutes > on_minutes:
+                    light_minutes = off_minutes - on_minutes
+                else:
+                    light_minutes = (24 * 60 - on_minutes) + off_minutes
+
+                light_hours = light_minutes / 60
+                result["light_hours"] = round(light_hours, 1)
+
+                if light_hours <= 12.5:
+                    result["stage"] = "flower"
+                elif light_hours >= 16:
+                    result["stage"] = "veg"
+                else:
+                    result["stage"] = "transition"
+
+            except (ValueError, TypeError):
+                pass
+
+    # Set VPD targets based on flower week
+    if result["stage"] == "flower" and result["flower_week"]:
+        week = result["flower_week"]
+        if week <= 2:
+            # Transition to flower - lower VPD
+            result["vpd_target"] = {"min": 0.8, "max": 1.0}
+        elif week <= 6:
+            # Stretch/early flower - medium VPD
+            result["vpd_target"] = {"min": 1.0, "max": 1.2}
+        elif week <= 10:
+            # Bulk/ripen - higher VPD
+            result["vpd_target"] = {"min": 1.2, "max": 1.5}
+        else:
+            # Flush - lower VPD
+            result["vpd_target"] = {"min": 1.0, "max": 1.2}
+    elif result["stage"] == "veg":
+        # Veg - lower VPD for leaf development
+        result["vpd_target"] = {"min": 0.8, "max": 1.0}
+
+    return result
+
+
 def calculate_environment_score(tent_state: dict, targets: dict) -> int:
     """
     Calculate environment score (0-100) based on how well readings match targets.
@@ -126,6 +216,13 @@ class TentState:
         self.environment_score: int = 0
         self.alerts: list[dict] = []
         self.last_updated: datetime | None = None
+        self.growth_stage: dict = {}
+        self._update_growth_stage()
+
+    def _update_growth_stage(self):
+        """Update growth stage info from config and schedules."""
+        growth_stage_config = getattr(self.config, 'growth_stage', None) or {}
+        self.growth_stage = infer_growth_stage(self.config.schedules, growth_stage_config)
 
     def update_sensor(self, sensor_type: str, value: Any, unit: str | None = None, entity_id: str | None = None):
         """Update a sensor value. For multi-entity slots, averages all values.
@@ -239,7 +336,9 @@ class TentState:
             "alerts": self.alerts,
             "last_updated": self.last_updated.isoformat() if self.last_updated else None,
             "targets": self.config.targets,
-            "schedules": self.config.schedules
+            "schedules": self.config.schedules,
+            "growth_stage": self.growth_stage,
+            "control_settings": getattr(self.config, 'control_settings', None) or {}
         }
 
 

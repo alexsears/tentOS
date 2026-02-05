@@ -74,6 +74,8 @@ class TentConfig:
         self.targets = data.get("targets", {})
         self.schedules = data.get("schedules", {})
         self.notifications = data.get("notifications", {})
+        self.control_settings = data.get("control_settings", {})
+        self.growth_stage = data.get("growth_stage", {})
 
     def get_all_entities(self) -> list[str]:
         """Get all configured entity IDs."""
@@ -115,6 +117,39 @@ def load_tents_config() -> list[TentConfig]:
             pass
 
     return []
+
+
+def load_addon_config() -> dict:
+    """Load the full addon configuration."""
+    data_path = get_data_path()
+
+    # First try config.json (saved by tent builder UI)
+    config_path = data_path / "config.json"
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                return json.load(f)
+        except Exception:
+            pass
+
+    # Fallback to options.json (HA add-on config)
+    options_path = get_options_path()
+    if options_path.exists():
+        try:
+            with open(options_path) as f:
+                return json.load(f)
+        except Exception:
+            pass
+
+    return {"tents": []}
+
+
+def save_addon_config(config: dict):
+    """Save the addon configuration to config.json."""
+    data_path = get_data_path()
+    config_path = data_path / "config.json"
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=2)
 
 
 settings = Settings()
