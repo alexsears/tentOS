@@ -329,24 +329,40 @@ export default function Settings() {
     setTimeout(() => setSuccess(null), 3000)
   }
 
-  // Import config from JSON file
-  const handleImport = (event) => {
+  // Import config from JSON file and auto-save
+  const handleImport = async (event) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const imported = JSON.parse(e.target.result)
         if (!imported.tents) {
           setError('Invalid config file: missing tents array')
           return
         }
-        setConfig(imported)
-        setSuccess('Config imported! Click "Save Configuration" to apply.')
-        setTimeout(() => setSuccess(null), 5000)
+
+        // Auto-save the imported config
+        setSaving(true)
+        const res = await apiFetch('api/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(imported)
+        })
+
+        if (res.ok) {
+          setConfig(imported)
+          setSuccess(`Config imported and saved! ${imported.tents?.length || 0} tent(s) restored.`)
+        } else {
+          const data = await res.json()
+          setError('Import failed: ' + (data.detail || 'Unknown error'))
+        }
       } catch (err) {
-        setError('Failed to parse config file: ' + err.message)
+        setError('Failed to import config: ' + err.message)
+      } finally {
+        setSaving(false)
+        setTimeout(() => setSuccess(null), 5000)
       }
     }
     reader.readAsText(file)
