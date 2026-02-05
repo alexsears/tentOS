@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { DndContext, DragOverlay, pointerWithin } from '@dnd-kit/core'
 import EntityInventory from '../components/EntityInventory'
 import TentBuilder from '../components/TentBuilder'
@@ -20,6 +20,9 @@ export default function Settings() {
   const [updateLoading, setUpdateLoading] = useState(false)
   const [rebuilding, setRebuilding] = useState(false)
   const [selectedEntities, setSelectedEntities] = useState([]) // Multi-select for bulk add
+  const [autoSaveStatus, setAutoSaveStatus] = useState(null) // 'saving' | 'saved' | 'error'
+  const isInitialLoad = useRef(true)
+  const autoSaveTimer = useRef(null)
 
   // Load all data
   useEffect(() => {
@@ -39,10 +42,54 @@ export default function Settings() {
         console.error('Failed to load data:', err)
         setError('Failed to load configuration')
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        setLoading(false)
+        // Mark initial load complete after a short delay
+        setTimeout(() => { isInitialLoad.current = false }, 500)
+      })
   }, [])
 
-  // Save config
+  // Auto-save config when it changes (debounced)
+  useEffect(() => {
+    // Skip initial load
+    if (isInitialLoad.current || loading) return
+
+    // Clear existing timer
+    if (autoSaveTimer.current) {
+      clearTimeout(autoSaveTimer.current)
+    }
+
+    // Set new timer for auto-save (1.5 second delay)
+    autoSaveTimer.current = setTimeout(async () => {
+      setAutoSaveStatus('saving')
+      try {
+        const res = await apiFetch('api/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config)
+        })
+
+        if (!res.ok) {
+          throw new Error('Failed to save')
+        }
+
+        setAutoSaveStatus('saved')
+        // Clear "saved" status after 2 seconds
+        setTimeout(() => setAutoSaveStatus(null), 2000)
+      } catch (err) {
+        setAutoSaveStatus('error')
+        setError('Auto-save failed: ' + err.message)
+      }
+    }, 1500)
+
+    return () => {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current)
+      }
+    }
+  }, [config, loading])
+
+  // Save config (manual)
   const saveConfig = async () => {
     setSaving(true)
     setError(null)
@@ -403,20 +450,28 @@ export default function Settings() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Settings</h2>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          {/* Auto-save status indicator */}
+          <div className="flex items-center gap-2 text-sm">
+            {autoSaveStatus === 'saving' && (
+              <span className="text-yellow-400 animate-pulse">Saving...</span>
+            )}
+            {autoSaveStatus === 'saved' && (
+              <span className="text-green-400">✓ Saved</span>
+            )}
+            {autoSaveStatus === 'error' && (
+              <span className="text-red-400">Save failed</span>
+            )}
+            {!autoSaveStatus && !loading && (
+              <span className="text-gray-500">Auto-save on</span>
+            )}
+          </div>
           <button
             onClick={validateConfig}
             className="btn"
             disabled={saving}
           >
             Validate
-          </button>
-          <button
-            onClick={saveConfig}
-            className="btn btn-primary"
-            disabled={saving}
-          >
-            {saving ? 'Saving...' : 'Save Configuration'}
           </button>
         </div>
       </div>
