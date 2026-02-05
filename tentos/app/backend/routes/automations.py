@@ -1,5 +1,6 @@
 """Automation rules API routes."""
 import logging
+import re
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -8,6 +9,48 @@ from automation import AutomationRule, TriggerType, ActionType
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def get_tent_entity_ids(tent) -> set[str]:
+    """Get all entity IDs configured for a tent."""
+    entity_ids = set()
+
+    # Sensors
+    for sensor_type, val in (tent.config.sensors or {}).items():
+        if isinstance(val, list):
+            entity_ids.update(e for e in val if e)
+        elif val:
+            entity_ids.add(val)
+
+    # Actuators
+    for actuator_type, val in (tent.config.actuators or {}).items():
+        if isinstance(val, list):
+            entity_ids.update(e for e in val if e)
+        elif val:
+            entity_ids.add(val)
+
+    return entity_ids
+
+
+def automation_references_entities(automation: dict, entity_ids: set[str]) -> bool:
+    """Check if an automation's name/id suggests it references any of the entities."""
+    auto_id = automation.get("entity_id", "")
+    auto_name = automation.get("attributes", {}).get("friendly_name", "")
+
+    # Convert automation name to searchable text
+    search_text = f"{auto_id} {auto_name}".lower()
+
+    # Check if any entity ID parts appear in the automation name
+    for entity_id in entity_ids:
+        # Extract key parts from entity ID (e.g., "sensor.veg_tent_temperature" -> ["veg", "tent", "temperature"])
+        parts = entity_id.replace(".", "_").split("_")
+        # Check if meaningful parts appear in automation
+        meaningful_parts = [p for p in parts if len(p) > 2 and p not in ("sensor", "switch", "fan", "light", "binary")]
+        for part in meaningful_parts:
+            if part.lower() in search_text:
+                return True
+
+    return False
 
 
 class RuleCreate(BaseModel):
@@ -236,3 +279,85 @@ async def apply_template(template_id: str, tent_id: str, request: Request):
     engine.add_rule(rule)
 
     return {"success": True, "rule": rule.model_dump()}
+
+
+# ==================== Home Assistant Automations ====================
+
+
+@router.get("/ha")
+async def list_ha_automations(request: Request, tent_id: Optional[str] = None):
+    """List Home Assistant automations, optionally filtered by tent."""
+    ha_client = request.app.state.ha_client
+    state_manager = request.app.state.state_manager
+
+    try:
+        all_automations = await ha_client.get_automations()
+    except Exception as e:
+        logger.error(f"Failed to fetch HA automations: {e}")
+        raise HTTPException(status_code=503, detail="Failed to fetch automations from Home Assistant")
+
+    # If no tent filter, return all
+    if not tent_id:
+        return {
+            "automations": all_automations,
+            "count": len(all_automations),
+            "filtered": False
+        }
+
+    # Get the tent and its entities
+    tent = state_manager.get_tent(tent_id)
+    if not tent:
+        raise HTTPException(status_code=404, detail="Tent not found")
+
+    entity_ids = get_tent_entity_ids(tent)
+
+    # Filter automations that reference any of the tent's entities
+    related = [a for a in all_automations if automation_references_entities(a, entity_ids)]
+
+    return {
+        "automations": related,
+        "count": len(related),
+        "filtered": True,
+        "tent_id": tent_id,
+        "tent_entities": list(entity_ids)
+    }
+
+
+@router.post("/ha/{entity_id:path}/trigger")
+async def trigger_ha_automation(entity_id: str, request: Request):
+    """Manually trigger a Home Assistant automation."""
+    ha_client = request.app.state.ha_client
+
+    if not entity_id.startswith("automation."):
+        entity_id = f"automation.{entity_id}"
+
+    try:
+        result = await ha_client.call_service(
+            "automation",
+            "trigger",
+            target={"entity_id": entity_id}
+        )
+        return {"success": True, "result": result}
+    except Exception as e:
+        logger.error(f"Failed to trigger automation {entity_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ha/{entity_id:path}/toggle")
+async def toggle_ha_automation(entity_id: str, request: Request):
+    """Enable/disable a Home Assistant automation."""
+    ha_client = request.app.state.ha_client
+
+    if not entity_id.startswith("automation."):
+        entity_id = f"automation.{entity_id}"
+
+    try:
+        result = await ha_client.call_service(
+            "automation",
+            "toggle",
+            target={"entity_id": entity_id}
+        )
+        return {"success": True, "result": result}
+    except Exception as e:
+        logger.error(f"Failed to toggle automation {entity_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

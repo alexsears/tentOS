@@ -1,10 +1,11 @@
 import { useParams, Link } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTent, useTents } from '../hooks/useTents'
 import { SensorChart } from '../components/SensorChart'
 import { EventLog } from '../components/EventLog'
 import { CameraFeed, CameraGrid } from '../components/CameraFeed'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
+import { apiFetch } from '../utils/api'
 
 export default function TentDetail() {
   const { tentId } = useParams()
@@ -14,6 +15,20 @@ export default function TentDetail() {
   const [activeTab, setActiveTab] = useState('overview')
   const [chartRange, setChartRange] = useState('24h')
   const [actionLoading, setActionLoading] = useState(null)
+  const [haAutomations, setHaAutomations] = useState([])
+  const [automationsLoading, setAutomationsLoading] = useState(false)
+
+  // Fetch HA automations for this tent
+  useEffect(() => {
+    if (activeTab === 'automations' && tentId) {
+      setAutomationsLoading(true)
+      apiFetch(`api/automations/ha?tent_id=${tentId}`)
+        .then(r => r.json())
+        .then(data => setHaAutomations(data.automations || []))
+        .catch(console.error)
+        .finally(() => setAutomationsLoading(false))
+    }
+  }, [activeTab, tentId])
 
   const handleAction = async (action, params = {}) => {
     setActionLoading(action)
@@ -124,7 +139,7 @@ export default function TentDetail() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-[#2d3a5c] pb-2">
-        {['overview', ...(cameras.length > 0 ? ['cameras'] : []), 'charts', 'events', 'settings'].map(tab => (
+        {['overview', ...(cameras.length > 0 ? ['cameras'] : []), 'charts', 'automations', 'events', 'settings'].map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -134,7 +149,7 @@ export default function TentDetail() {
                 : 'text-gray-400 hover:text-white'
             }`}
           >
-            {tab === 'cameras' ? `📷 ${tab}` : tab}
+            {tab === 'cameras' ? `📷 ${tab}` : tab === 'automations' ? `⚡ ${tab}` : tab}
           </button>
         ))}
       </div>
@@ -309,6 +324,110 @@ export default function TentDetail() {
               sensors={['vpd']}
               range={chartRange}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Automations Tab */}
+      {activeTab === 'automations' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">Home Assistant Automations</h3>
+            <span className="text-sm text-gray-400">
+              Automations related to this tent's entities
+            </span>
+          </div>
+
+          {automationsLoading ? (
+            <div className="text-center text-gray-400 py-8">Loading automations...</div>
+          ) : haAutomations.length === 0 ? (
+            <div className="card text-center py-8">
+              <div className="text-gray-400 mb-2">No related automations found</div>
+              <p className="text-sm text-gray-500">
+                Create automations in Home Assistant that use this tent's sensors or actuators,
+                and they'll appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {haAutomations.map(auto => {
+                const isEnabled = auto.state === 'on'
+                const lastTriggered = auto.attributes?.last_triggered
+                const friendlyName = auto.attributes?.friendly_name || auto.entity_id
+
+                return (
+                  <div key={auto.entity_id} className="card">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className={`text-2xl ${isEnabled ? '' : 'opacity-50'}`}>⚡</span>
+                        <div>
+                          <div className="font-medium">{friendlyName}</div>
+                          <div className="text-xs text-gray-500">{auto.entity_id}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        {lastTriggered && (
+                          <div className="text-xs text-gray-400">
+                            Last: {new Date(lastTriggered).toLocaleString()}
+                          </div>
+                        )}
+                        <div className={`px-2 py-1 rounded text-xs ${
+                          isEnabled ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                        }`}>
+                          {isEnabled ? 'Enabled' : 'Disabled'}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              setActionLoading(auto.entity_id)
+                              try {
+                                await apiFetch(`api/automations/ha/${auto.entity_id}/trigger`, { method: 'POST' })
+                                // Refresh automations
+                                const res = await apiFetch(`api/automations/ha?tent_id=${tentId}`)
+                                const data = await res.json()
+                                setHaAutomations(data.automations || [])
+                              } catch (e) {
+                                console.error('Failed to trigger:', e)
+                              } finally {
+                                setActionLoading(null)
+                              }
+                            }}
+                            disabled={actionLoading === auto.entity_id}
+                            className="btn btn-sm btn-primary"
+                          >
+                            {actionLoading === auto.entity_id ? '...' : 'Run'}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              setActionLoading(`toggle-${auto.entity_id}`)
+                              try {
+                                await apiFetch(`api/automations/ha/${auto.entity_id}/toggle`, { method: 'POST' })
+                                // Refresh automations
+                                const res = await apiFetch(`api/automations/ha?tent_id=${tentId}`)
+                                const data = await res.json()
+                                setHaAutomations(data.automations || [])
+                              } catch (e) {
+                                console.error('Failed to toggle:', e)
+                              } finally {
+                                setActionLoading(null)
+                              }
+                            }}
+                            disabled={actionLoading === `toggle-${auto.entity_id}`}
+                            className={`btn btn-sm ${isEnabled ? 'btn-secondary' : 'btn-primary'}`}
+                          >
+                            {actionLoading === `toggle-${auto.entity_id}` ? '...' : (isEnabled ? 'Disable' : 'Enable')}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="text-sm text-gray-500 text-center">
+            Automations are matched by entity names containing keywords from your tent's sensors and actuators.
           </div>
         </div>
       )}

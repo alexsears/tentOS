@@ -322,6 +322,74 @@ class HAClient:
                     logger.error(f"History API error: {resp.status}")
                     return []
 
+    async def get_automations(self) -> list[dict]:
+        """Get all HA automations via REST API."""
+        if self._dev_mode:
+            return self._generate_mock_automations()
+
+        headers = {"Authorization": f"Bearer {self.token}"}
+        url = f"{self.rest_url}/states"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    states = await resp.json()
+                    # Filter to automation entities only
+                    return [s for s in states if s.get("entity_id", "").startswith("automation.")]
+                else:
+                    logger.error(f"States API error: {resp.status}")
+                    return []
+
+    async def get_automation_config(self, automation_id: str) -> dict | None:
+        """Get the configuration/triggers for a specific automation."""
+        if self._dev_mode:
+            return None
+
+        headers = {"Authorization": f"Bearer {self.token}"}
+        # The config API endpoint
+        url = f"{self.rest_url}/config/automation/config/{automation_id}"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                return None
+
+    def _generate_mock_automations(self) -> list[dict]:
+        """Generate mock automations for dev mode."""
+        return [
+            {
+                "entity_id": "automation.veg_tent_lights_on",
+                "state": "on",
+                "attributes": {
+                    "friendly_name": "Veg Tent Lights On",
+                    "last_triggered": "2024-01-15T06:00:00",
+                    "mode": "single",
+                    "current": 0
+                }
+            },
+            {
+                "entity_id": "automation.veg_tent_lights_off",
+                "state": "on",
+                "attributes": {
+                    "friendly_name": "Veg Tent Lights Off",
+                    "last_triggered": "2024-01-15T00:00:00",
+                    "mode": "single",
+                    "current": 0
+                }
+            },
+            {
+                "entity_id": "automation.flower_tent_high_temp_alert",
+                "state": "on",
+                "attributes": {
+                    "friendly_name": "Flower Tent High Temp Alert",
+                    "last_triggered": None,
+                    "mode": "single",
+                    "current": 0
+                }
+            }
+        ]
+
     def _generate_mock_history(self, entity_ids: list[str], start_time: str, end_time: str | None) -> list:
         """Generate mock history data for dev mode."""
         from datetime import datetime, timedelta
