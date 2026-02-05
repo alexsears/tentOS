@@ -307,6 +307,40 @@ async def apply_template(template_id: str, tent_id: str, request: Request):
 # ==================== Home Assistant Automations ====================
 
 
+@router.get("/ha/debug")
+async def debug_ha_automations(request: Request):
+    """Debug endpoint to see raw HA automation data."""
+    ha_client = request.app.state.ha_client
+    import aiohttp
+
+    result = {
+        "ha_url": ha_client.rest_url,
+        "token_set": bool(ha_client.token),
+        "dev_mode": ha_client._dev_mode,
+        "connected": ha_client.connected
+    }
+
+    try:
+        headers = {"Authorization": f"Bearer {ha_client.token}"}
+        url = f"{ha_client.rest_url}/states"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as resp:
+                result["status_code"] = resp.status
+                if resp.status == 200:
+                    states = await resp.json()
+                    automations = [s for s in states if s.get("entity_id", "").startswith("automation.")]
+                    result["total_states"] = len(states)
+                    result["automations_found"] = len(automations)
+                    result["automation_ids"] = [a.get("entity_id") for a in automations[:10]]
+                else:
+                    result["error"] = await resp.text()
+    except Exception as e:
+        result["exception"] = str(e)
+
+    return result
+
+
 @router.get("/ha")
 async def list_ha_automations(
     request: Request,
@@ -321,7 +355,7 @@ async def list_ha_automations(
         all_automations = await ha_client.get_automations()
     except Exception as e:
         logger.error(f"Failed to fetch HA automations: {e}")
-        raise HTTPException(status_code=503, detail="Failed to fetch automations from Home Assistant")
+        raise HTTPException(status_code=503, detail=f"Failed to fetch automations: {str(e)}")
 
     # If no tent filter or show_all, return all
     if not tent_id or show_all:
