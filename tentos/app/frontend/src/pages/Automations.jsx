@@ -427,17 +427,32 @@ export default function Automations() {
 
   const loadData = async () => {
     try {
-      const [rulesRes, tentsRes, configRes, haRes] = await Promise.all([
-        apiFetch('api/automations').then(r => r.json()),
-        apiFetch('api/tents').then(r => r.json()),
-        apiFetch('api/config').then(r => r.json()),
-        apiFetch('api/automations/ha?show_all=true').then(r => r.json()).catch(() => ({ automations: [] }))
+      // Load core data first
+      const [rulesRes, tentsRes, configRes] = await Promise.all([
+        apiFetch('api/automations').then(r => r.json()).catch(() => ({ rules: [] })),
+        apiFetch('api/tents').then(r => r.json()).catch(() => ({ tents: [] })),
+        apiFetch('api/config').then(r => r.json()).catch(() => ({}))
       ])
       setRules(rulesRes.rules || [])
       setTents(tentsRes.tents || [])
       setConfig(configRes)
-      setHaAutomations(haRes.automations || [])
+
+      // Load HA automations separately so failures don't break the page
+      try {
+        const haRes = await apiFetch('api/automations/ha?show_all=true')
+        if (haRes.ok) {
+          const haData = await haRes.json()
+          setHaAutomations(haData.automations || [])
+        } else {
+          console.warn('HA automations endpoint returned', haRes.status)
+          setHaAutomations([])
+        }
+      } catch (haErr) {
+        console.warn('Failed to load HA automations:', haErr)
+        setHaAutomations([])
+      }
     } catch (e) {
+      console.error('Failed to load automations data:', e)
       setError('Failed to load data')
     } finally {
       setLoading(false)
@@ -518,28 +533,12 @@ export default function Automations() {
 
   // Filter HA automations by search/tent
   const filteredHaAutomations = useMemo(() => {
-    if (!selectedTentFilter) return haAutomations
+    // Ensure haAutomations is always an array
+    const automations = Array.isArray(haAutomations) ? haAutomations : []
+    if (!selectedTentFilter) return automations
     const tent = config?.tents?.find(t => t.id === selectedTentFilter)
-    if (!tent) return haAutomations
-
-    // Get all entity IDs for this tent
-    const entityIds = new Set()
-    if (tent.sensors) {
-      Object.values(tent.sensors).forEach(v => {
-        if (Array.isArray(v)) v.forEach(e => e && entityIds.add(e.toLowerCase()))
-        else if (v) entityIds.add(v.toLowerCase())
-      })
-    }
-    if (tent.actuators) {
-      Object.values(tent.actuators).forEach(v => {
-        if (Array.isArray(v)) v.forEach(e => e && entityIds.add(e.toLowerCase()))
-        else if (v) entityIds.add(v.toLowerCase())
-      })
-    }
-
-    // This is a simple filter - in reality we'd need to check the automation config
-    // For now, just show all if filtering doesn't find matches
-    return haAutomations
+    if (!tent) return automations
+    return automations
   }, [haAutomations, selectedTentFilter, config])
 
   return (
