@@ -18,7 +18,7 @@ router = APIRouter()
 # Example: Cloudflare Worker, Vercel serverless, or any simple counter API
 TELEMETRY_ENDPOINT = os.environ.get(
     "TELEMETRY_ENDPOINT",
-    "https://tentos-telemetry.alexsears.workers.dev/ping"  # Replace with your endpoint
+    "https://tentos-telemetry.asears2.workers.dev/ping"
 )
 
 

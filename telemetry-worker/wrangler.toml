@@ -8,7 +8,7 @@ compatibility_date = "2024-01-01"
 
 [[kv_namespaces]]
 binding = "INSTALLS"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "70e14586344949b6ad4ac34289a17af9"
 
 # Set your admin key for viewing stats
 # wrangler secret put ADMIN_KEY
