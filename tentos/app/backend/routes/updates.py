@@ -136,24 +136,55 @@ async def update_addon():
         slug = await get_addon_slug()
 
         async with aiohttp.ClientSession() as session:
-            # Trigger update (pulls latest and rebuilds)
-            update_url = f"{SUPERVISOR_API}/addons/{slug}/update"
-            logger.info(f"Triggering update for {slug}")
-            async with session.post(update_url, headers=headers) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return {
-                        "success": True,
-                        "message": "Update started. The add-on will restart with the new version.",
-                        "data": data
-                    }
-                else:
-                    error_text = await resp.text()
-                    logger.error(f"Update failed: {resp.status} - {error_text}")
-                    raise HTTPException(
-                        status_code=resp.status,
-                        detail=f"Supervisor API error: {error_text}"
-                    )
+            # First check if this is a local addon
+            info_url = f"{SUPERVISOR_API}/addons/{slug}/info"
+            async with session.get(info_url, headers=headers) as info_resp:
+                is_local = False
+                if info_resp.status == 200:
+                    info_data = await info_resp.json()
+                    # Local addons have repository as null or contain "local"
+                    repo = info_data.get("data", {}).get("repository", "")
+                    is_local = not repo or "local" in str(repo).lower()
+                    logger.info(f"Addon {slug} repository: {repo}, is_local: {is_local}")
+
+            if is_local:
+                # For local addons, use rebuild instead of update
+                logger.info(f"Local addon detected, using rebuild for {slug}")
+                rebuild_url = f"{SUPERVISOR_API}/addons/{slug}/rebuild"
+                async with session.post(rebuild_url, headers=headers) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return {
+                            "success": True,
+                            "message": "Rebuild started. Pull latest code with git, then the add-on will restart.",
+                            "data": data
+                        }
+                    else:
+                        error_text = await resp.text()
+                        logger.error(f"Rebuild failed: {resp.status} - {error_text}")
+                        raise HTTPException(
+                            status_code=resp.status,
+                            detail=f"Rebuild failed: {error_text}"
+                        )
+            else:
+                # For repository addons, use update
+                update_url = f"{SUPERVISOR_API}/addons/{slug}/update"
+                logger.info(f"Triggering update for {slug}")
+                async with session.post(update_url, headers=headers) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return {
+                            "success": True,
+                            "message": "Update started. The add-on will restart with the new version.",
+                            "data": data
+                        }
+                    else:
+                        error_text = await resp.text()
+                        logger.error(f"Update failed: {resp.status} - {error_text}")
+                        raise HTTPException(
+                            status_code=resp.status,
+                            detail=f"Supervisor API error: {error_text}"
+                        )
 
     except HTTPException:
         raise

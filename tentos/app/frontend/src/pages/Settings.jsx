@@ -502,10 +502,9 @@ export default function Settings() {
           <div className="card">
             <h3 className="font-semibold mb-4">Add-on Management</h3>
             <p className="text-sm text-gray-400 mb-4">
-              Rebuild pulls the latest code from GitHub and rebuilds the container.
-              Restart just restarts the add-on without pulling new code.
+              Update checks for new versions and installs them. Rebuild rebuilds the current version. Restart is a quick reload.
             </p>
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               {(updateInfo?.update_available || updateInfo?.supervisor_update_available) && (
                 <button
                   onClick={handleUpdate}
@@ -530,7 +529,7 @@ export default function Settings() {
               </button>
             </div>
             <p className="text-xs text-gray-500 mt-3">
-              Note: These actions require the add-on to be running within Home Assistant with Supervisor access.
+              Update ~1-2 min • Rebuild ~1-2 min • Restart ~10 sec
             </p>
           </div>
         </div>
