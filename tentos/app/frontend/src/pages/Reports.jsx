@@ -124,6 +124,11 @@ export default function Reports() {
 
       legend.push(config.label)
 
+      // Determine which Y-axis to use
+      let yAxisIndex = 0 // Default: temperature (left)
+      if (sensor === 'humidity') yAxisIndex = 1 // Right axis
+      if (sensor === 'vpd') yAxisIndex = 2 // Far right axis
+
       // Main line - add light overlay markArea to first series only
       const seriesConfig = {
         name: config.label,
@@ -133,7 +138,7 @@ export default function Reports() {
         lineStyle: { width: 2, color: config.color },
         itemStyle: { color: config.color },
         data: data.map(d => [new Date(d.timestamp).getTime(), d.value]),
-        yAxisIndex: sensor === 'humidity' ? 1 : 0
+        yAxisIndex
       }
 
       // Add light overlay to the first series
@@ -200,7 +205,7 @@ export default function Reports() {
       },
       grid: {
         left: 60,
-        right: 60,
+        right: 100,
         top: 50,
         bottom: 80
       },
@@ -213,21 +218,33 @@ export default function Reports() {
       yAxis: [
         {
           type: 'value',
-          name: 'Temp / VPD',
-          nameTextStyle: { color: '#9ca3af' },
-          axisLine: { lineStyle: { color: '#2d3a5c' } },
+          name: 'Temp',
+          nameTextStyle: { color: '#ef4444' },
+          axisLine: { lineStyle: { color: '#ef4444' } },
           axisLabel: { color: '#9ca3af' },
           splitLine: { lineStyle: { color: '#2d3a5c', opacity: 0.3 } }
         },
         {
           type: 'value',
           name: 'Humidity %',
-          nameTextStyle: { color: '#9ca3af' },
-          axisLine: { lineStyle: { color: '#2d3a5c' } },
+          nameTextStyle: { color: '#3b82f6' },
+          axisLine: { lineStyle: { color: '#3b82f6' } },
           axisLabel: { color: '#9ca3af' },
           splitLine: { show: false },
           min: 0,
           max: 100
+        },
+        {
+          type: 'value',
+          name: 'VPD (kPa)',
+          nameTextStyle: { color: '#22c55e' },
+          position: 'right',
+          offset: 50,
+          axisLine: { lineStyle: { color: '#22c55e' } },
+          axisLabel: { color: '#9ca3af' },
+          splitLine: { show: false },
+          min: 0,
+          max: 3
         }
       ],
       dataZoom: [
