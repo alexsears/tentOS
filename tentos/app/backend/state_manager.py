@@ -127,13 +127,28 @@ class TentState:
         self.alerts: list[dict] = []
         self.last_updated: datetime | None = None
 
-    def update_sensor(self, sensor_type: str, value: Any, unit: str | None = None):
-        """Update a sensor value."""
-        self.sensors[sensor_type] = {
-            "value": value,
-            "unit": unit,
-            "updated": datetime.now(timezone.utc).isoformat()
-        }
+    def update_sensor(self, sensor_type: str, value: Any, unit: str | None = None, entity_id: str | None = None):
+        """Update a sensor value. For multi-entity slots, averages all values."""
+        now = datetime.now(timezone.utc).isoformat()
+
+        if sensor_type in self.sensors and entity_id:
+            # Multi-entity: store per-entity values and average
+            existing = self.sensors[sensor_type]
+            if "_entities" not in existing:
+                existing["_entities"] = {}
+            existing["_entities"][entity_id] = value
+            # Average all entity values
+            values = [v for v in existing["_entities"].values() if v is not None]
+            existing["value"] = round(sum(values) / len(values), 1) if values else None
+            existing["updated"] = now
+        else:
+            # First entity for this sensor type
+            self.sensors[sensor_type] = {
+                "value": value,
+                "unit": unit,
+                "updated": now,
+                "_entities": {entity_id: value} if entity_id else {}
+            }
         self._recalculate()
 
     def update_actuator(self, actuator_type: str, state: str, attributes: dict | None = None):
@@ -144,17 +159,25 @@ class TentState:
             "updated": datetime.now(timezone.utc).isoformat()
         }
 
-    def _get_averaged_value(self, base_type: str) -> float | None:
-        """Get averaged value for sensors with multiple instances (temp, humidity)."""
+    def _get_averaged_value(self, sensor_type: str) -> float | None:
+        """Get averaged value for sensors (handles arrays of entities)."""
         values = []
-        # Check base sensor and numbered variants
-        for key in [base_type, f"{base_type}_2", f"{base_type}_3"]:
-            data = self.sensors.get(key, {})
-            if data.get("value") is not None:
-                try:
-                    values.append(float(data["value"]))
-                except (ValueError, TypeError):
-                    pass
+        # The sensor data is stored by entity_id, not slot type
+        # We need to check all sensors that match this type
+        data = self.sensors.get(sensor_type, {})
+        if isinstance(data, dict) and data.get("value") is not None:
+            try:
+                values.append(float(data["value"]))
+            except (ValueError, TypeError):
+                pass
+        # Also check for _values array (multiple sensors)
+        if isinstance(data, dict) and data.get("values"):
+            for v in data["values"]:
+                if v is not None:
+                    try:
+                        values.append(float(v))
+                    except (ValueError, TypeError):
+                        pass
         if values:
             return round(sum(values) / len(values), 1)
         return None
@@ -221,15 +244,23 @@ class StateManager:
         for config in configs:
             self.tents[config.id] = TentState(config)
 
-            # Map sensors
-            for sensor_type, entity_id in config.sensors.items():
-                if entity_id:
-                    self.entity_to_tent[entity_id] = (config.id, "sensor", sensor_type)
+            # Map sensors (handle both single entity_id and arrays)
+            for sensor_type, entity_ids in config.sensors.items():
+                if isinstance(entity_ids, list):
+                    for entity_id in entity_ids:
+                        if entity_id:
+                            self.entity_to_tent[entity_id] = (config.id, "sensor", sensor_type)
+                elif entity_ids:
+                    self.entity_to_tent[entity_ids] = (config.id, "sensor", sensor_type)
 
-            # Map actuators
-            for actuator_type, entity_id in config.actuators.items():
-                if entity_id:
-                    self.entity_to_tent[entity_id] = (config.id, "actuator", actuator_type)
+            # Map actuators (handle both single entity_id and arrays)
+            for actuator_type, entity_ids in config.actuators.items():
+                if isinstance(entity_ids, list):
+                    for entity_id in entity_ids:
+                        if entity_id:
+                            self.entity_to_tent[entity_id] = (config.id, "actuator", actuator_type)
+                elif entity_ids:
+                    self.entity_to_tent[entity_ids] = (config.id, "actuator", actuator_type)
 
         logger.info(f"Loaded {len(self.tents)} tent configurations")
 
@@ -314,7 +345,7 @@ class StateManager:
                 value = state_value
 
             unit = attributes.get("unit_of_measurement")
-            tent.update_sensor(item_type, value, unit)
+            tent.update_sensor(item_type, value, unit, entity_id)
 
             # Trigger automation rules for sensor updates
             if self.automation_engine and isinstance(value, (int, float)):

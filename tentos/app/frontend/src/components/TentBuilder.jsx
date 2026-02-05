@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 
-function Slot({ slotType, slotDef, entityId, entity, onClear, category, tentId, onSelect, isSelected }) {
+function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, tentId, onSelect, isSelected }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `${tentId}.${category}.${slotType}`,
-    data: { slotType, slotDef, category, tentId }
+    data: { slotType, slotDef, category, tentId, multiple: slotDef.multiple }
   })
 
-  const isEmpty = !entityId
+  // Normalize to array
+  const ids = Array.isArray(entityIds) ? entityIds : (entityIds ? [entityIds] : [])
+  const isEmpty = ids.length === 0
 
   const handleClick = (e) => {
-    if (isEmpty && onSelect) {
+    if (onSelect) {
       e.stopPropagation()
       onSelect({ category, slotType, slotDef })
     }
@@ -20,14 +22,14 @@ function Slot({ slotType, slotDef, entityId, entity, onClear, category, tentId, 
     <div
       ref={setNodeRef}
       onClick={handleClick}
-      className={`p-3 rounded-lg border-2 border-dashed transition-all
-        ${isEmpty
-          ? isOver
-            ? 'border-green-500 bg-green-500/10'
-            : isSelected
-              ? 'border-green-500 bg-green-500/20 ring-2 ring-green-500/50'
-              : 'border-[#2d3a5c] hover:border-[#3d4a6c] cursor-pointer'
-          : 'border-transparent bg-[#1a1a2e]'
+      className={`p-3 rounded-lg border-2 border-dashed transition-all cursor-pointer
+        ${isOver
+          ? 'border-green-500 bg-green-500/10'
+          : isSelected
+            ? 'border-green-500 bg-green-500/20 ring-2 ring-green-500/50'
+            : isEmpty
+              ? 'border-[#2d3a5c] hover:border-[#3d4a6c]'
+              : 'border-[#2d3a5c] bg-[#1a1a2e]'
         }
         ${slotDef.required && isEmpty && !isSelected ? 'border-yellow-500/50' : ''}
       `}
@@ -35,32 +37,40 @@ function Slot({ slotType, slotDef, entityId, entity, onClear, category, tentId, 
       <div className="flex items-center gap-2 mb-1">
         <span className="text-lg">{slotDef.icon}</span>
         <span className="font-medium text-sm">{slotDef.label}</span>
-        {slotDef.required && (
+        {slotDef.required && isEmpty && (
           <span className="text-xs text-yellow-500">Required</span>
+        )}
+        {ids.length > 0 && (
+          <span className="text-xs text-gray-500">({ids.length})</span>
         )}
       </div>
 
       {isEmpty ? (
         <div className="text-xs text-gray-500 italic">
-          Drop {slotDef.domains?.join(' or ')} here
+          Click or drop to add
         </div>
       ) : (
-        <div className="flex items-center gap-2 mt-2">
-          <div className="flex-1 min-w-0">
-            <div className="text-sm truncate">
-              {entity?.friendly_name || entityId}
-            </div>
-            <div className="text-xs text-gray-500 font-mono truncate">
-              {entityId}
-            </div>
-          </div>
-          <button
-            onClick={() => onClear(category, slotType)}
-            className="p-1 hover:bg-red-500/20 rounded text-red-400 hover:text-red-300"
-            title="Remove"
-          >
-            ✕
-          </button>
+        <div className="space-y-1 mt-2">
+          {ids.map((entityId, idx) => {
+            const entity = getEntity(entityId)
+            return (
+              <div key={entityId} className="flex items-center gap-2 bg-[#0d1117] rounded px-2 py-1">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs truncate">
+                    {entity?.friendly_name || entityId}
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRemove(category, slotType, idx) }}
+                  className="p-0.5 hover:bg-red-500/20 rounded text-red-400 hover:text-red-300 text-xs"
+                  title="Remove"
+                >
+                  ✕
+                </button>
+              </div>
+            )
+          })}
+          <div className="text-xs text-gray-500 italic pt-1">+ Drop more</div>
         </div>
       )}
     </div>
@@ -76,29 +86,20 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
   // Get entity details by ID
   const getEntity = (entityId) => entities.find(e => e.entity_id === entityId)
 
-  // Filter slots to only show _2 if _1 is filled, _3 if _2 is filled
-  const filterSlots = (slotEntries, category) => {
-    return slotEntries.filter(([slotType, slotDef]) => {
-      // Check for numbered suffix pattern (e.g., temperature_2, light_3)
-      const match = slotType.match(/^(.+)_([23])$/)
-      if (!match) return true // Always show base slots
-
-      const [, baseName, num] = match
-      const prevNum = parseInt(num) - 1
-      const prevSlot = prevNum === 1 ? baseName : `${baseName}_${prevNum}`
-
-      // Only show if previous slot is filled
-      const data = category === 'sensors' ? tent.sensors : tent.actuators
-      return !!data?.[prevSlot]
-    })
-  }
-
-  // Clear a slot
-  const clearSlot = (category, slotType) => {
+  // Remove an entity from a slot (by index for arrays)
+  const removeFromSlot = (category, slotType, index) => {
     const updated = { ...tent }
     if (updated[category]) {
       updated[category] = { ...updated[category] }
-      delete updated[category][slotType]
+      const current = updated[category][slotType]
+      if (Array.isArray(current)) {
+        updated[category][slotType] = current.filter((_, i) => i !== index)
+        if (updated[category][slotType].length === 0) {
+          delete updated[category][slotType]
+        }
+      } else {
+        delete updated[category][slotType]
+      }
     }
     onUpdate(updated)
   }
@@ -174,14 +175,14 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
           <div>
             <h4 className="text-sm font-medium text-gray-400 mb-2">Sensors</h4>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-              {filterSlots(Object.entries(slots?.sensors || {}), 'sensors').map(([slotType, slotDef]) => (
+              {Object.entries(slots?.sensors || {}).map(([slotType, slotDef]) => (
                 <Slot
                   key={slotType}
                   slotType={slotType}
                   slotDef={slotDef}
-                  entityId={tent.sensors?.[slotType]}
-                  entity={getEntity(tent.sensors?.[slotType])}
-                  onClear={clearSlot}
+                  entityIds={tent.sensors?.[slotType]}
+                  getEntity={getEntity}
+                  onRemove={removeFromSlot}
                   category="sensors"
                   tentId={tent.id}
                   onSelect={onSlotSelect}
@@ -195,14 +196,14 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
           <div>
             <h4 className="text-sm font-medium text-gray-400 mb-2">Actuators</h4>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-              {filterSlots(Object.entries(slots?.actuators || {}), 'actuators').map(([slotType, slotDef]) => (
+              {Object.entries(slots?.actuators || {}).map(([slotType, slotDef]) => (
                 <Slot
                   key={slotType}
                   slotType={slotType}
                   slotDef={slotDef}
-                  entityId={tent.actuators?.[slotType]}
-                  entity={getEntity(tent.actuators?.[slotType])}
-                  onClear={clearSlot}
+                  entityIds={tent.actuators?.[slotType]}
+                  getEntity={getEntity}
+                  onRemove={removeFromSlot}
                   category="actuators"
                   tentId={tent.id}
                   onSelect={onSlotSelect}

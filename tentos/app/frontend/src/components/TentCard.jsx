@@ -4,21 +4,13 @@ import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 
 // Actuator icon definitions with states
 const ACTUATOR_ICONS = {
-  light: { icon: '💡', activeColor: 'text-yellow-400', label: 'Light 1' },
-  light_2: { icon: '💡', activeColor: 'text-yellow-400', label: 'Light 2' },
-  light_3: { icon: '💡', activeColor: 'text-yellow-400', label: 'Light 3' },
-  exhaust_fan: { icon: '🌀', activeColor: 'text-blue-400', label: 'Exhaust 1' },
-  exhaust_fan_2: { icon: '🌀', activeColor: 'text-blue-400', label: 'Exhaust 2' },
-  exhaust_fan_3: { icon: '🌀', activeColor: 'text-blue-400', label: 'Exhaust 3' },
-  circulation_fan: { icon: '🔄', activeColor: 'text-cyan-400', label: 'Circ 1' },
-  circulation_fan_2: { icon: '🔄', activeColor: 'text-cyan-400', label: 'Circ 2' },
-  circulation_fan_3: { icon: '🔄', activeColor: 'text-cyan-400', label: 'Circ 3' },
+  light: { icon: '💡', activeColor: 'text-yellow-400', label: 'Light' },
+  exhaust_fan: { icon: '🌀', activeColor: 'text-blue-400', label: 'Exhaust' },
+  circulation_fan: { icon: '🔄', activeColor: 'text-cyan-400', label: 'Circ Fan' },
   humidifier: { icon: '💨', activeColor: 'text-blue-300', label: 'Humid' },
   dehumidifier: { icon: '🏜️', activeColor: 'text-orange-400', label: 'Dehumid' },
   heater: { icon: '🔥', activeColor: 'text-red-400', label: 'Heater' },
-  water_pump: { icon: '🚿', activeColor: 'text-blue-400', label: 'Water 1' },
-  water_pump_2: { icon: '🚿', activeColor: 'text-blue-400', label: 'Water 2' },
-  water_pump_3: { icon: '🚿', activeColor: 'text-blue-400', label: 'Water 3' },
+  water_pump: { icon: '🚿', activeColor: 'text-blue-400', label: 'Water' },
   drain_pump: { icon: '🔽', activeColor: 'text-gray-400', label: 'Drain' }
 }
 

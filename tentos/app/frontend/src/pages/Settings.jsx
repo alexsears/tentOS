@@ -112,6 +112,7 @@ export default function Settings() {
     if (parts.length !== 3) return
 
     const [tentId, category, slotType] = parts
+    const isMultiple = over.data.current?.multiple
 
     // Find the target tent
     const tentIndex = config.tents?.findIndex(t => t.id === tentId)
@@ -121,7 +122,20 @@ export default function Settings() {
     const targetTent = { ...updatedTents[tentIndex] }
 
     if (!targetTent[category]) targetTent[category] = {}
-    targetTent[category] = { ...targetTent[category], [slotType]: entityId }
+    targetTent[category] = { ...targetTent[category] }
+
+    if (isMultiple) {
+      // Append to array for multi-entity slots
+      const current = targetTent[category][slotType]
+      const arr = Array.isArray(current) ? [...current] : (current ? [current] : [])
+      if (!arr.includes(entityId)) {
+        arr.push(entityId)
+      }
+      targetTent[category][slotType] = arr
+    } else {
+      // Single entity slot
+      targetTent[category][slotType] = entityId
+    }
 
     updatedTents[tentIndex] = targetTent
     setConfig({ ...config, tents: updatedTents })
@@ -132,10 +146,18 @@ export default function Settings() {
     const assigned = {}
     for (const tent of config.tents || []) {
       for (const [key, val] of Object.entries(tent.sensors || {})) {
-        if (val) assigned[val] = true
+        if (Array.isArray(val)) {
+          val.forEach(v => { if (v) assigned[v] = true })
+        } else if (val) {
+          assigned[val] = true
+        }
       }
       for (const [key, val] of Object.entries(tent.actuators || {})) {
-        if (val) assigned[val] = true
+        if (Array.isArray(val)) {
+          val.forEach(v => { if (v) assigned[v] = true })
+        } else if (val) {
+          assigned[val] = true
+        }
       }
     }
     return assigned

@@ -19,43 +19,17 @@ CONFIG_BACKUP_PATH = Path("/data/config.backup.json")
 SLOT_DEFINITIONS = {
     "sensors": {
         "temperature": {
-            "label": "Temperature 1",
+            "label": "Temperature",
             "required": True,
-            "domains": ["sensor"],
-            "device_classes": ["temperature"],
-            "icon": "🌡️"
-        },
-        "temperature_2": {
-            "label": "Temperature 2",
-            "required": False,
-            "domains": ["sensor"],
-            "device_classes": ["temperature"],
-            "icon": "🌡️"
-        },
-        "temperature_3": {
-            "label": "Temperature 3",
-            "required": False,
+            "multiple": True,
             "domains": ["sensor"],
             "device_classes": ["temperature"],
             "icon": "🌡️"
         },
         "humidity": {
-            "label": "Humidity 1",
+            "label": "Humidity",
             "required": True,
-            "domains": ["sensor"],
-            "device_classes": ["humidity"],
-            "icon": "💧"
-        },
-        "humidity_2": {
-            "label": "Humidity 2",
-            "required": False,
-            "domains": ["sensor"],
-            "device_classes": ["humidity"],
-            "icon": "💧"
-        },
-        "humidity_3": {
-            "label": "Humidity 3",
-            "required": False,
+            "multiple": True,
             "domains": ["sensor"],
             "device_classes": ["humidity"],
             "icon": "💧"
@@ -98,64 +72,25 @@ SLOT_DEFINITIONS = {
     },
     "actuators": {
         "light": {
-            "label": "Grow Light 1",
+            "label": "Grow Lights",
             "required": False,
-            "domains": ["switch", "light"],
-            "device_classes": [None],
-            "icon": "💡"
-        },
-        "light_2": {
-            "label": "Grow Light 2",
-            "required": False,
-            "domains": ["switch", "light"],
-            "device_classes": [None],
-            "icon": "💡"
-        },
-        "light_3": {
-            "label": "Grow Light 3",
-            "required": False,
+            "multiple": True,
             "domains": ["switch", "light"],
             "device_classes": [None],
             "icon": "💡"
         },
         "exhaust_fan": {
-            "label": "Exhaust Fan 1",
+            "label": "Exhaust Fans",
             "required": False,
-            "domains": ["fan", "switch"],
-            "device_classes": [None],
-            "icon": "🌀"
-        },
-        "exhaust_fan_2": {
-            "label": "Exhaust Fan 2",
-            "required": False,
-            "domains": ["fan", "switch"],
-            "device_classes": [None],
-            "icon": "🌀"
-        },
-        "exhaust_fan_3": {
-            "label": "Exhaust Fan 3",
-            "required": False,
+            "multiple": True,
             "domains": ["fan", "switch"],
             "device_classes": [None],
             "icon": "🌀"
         },
         "circulation_fan": {
-            "label": "Circulation Fan 1",
+            "label": "Circulation Fans",
             "required": False,
-            "domains": ["fan", "switch"],
-            "device_classes": [None],
-            "icon": "🔄"
-        },
-        "circulation_fan_2": {
-            "label": "Circulation Fan 2",
-            "required": False,
-            "domains": ["fan", "switch"],
-            "device_classes": [None],
-            "icon": "🔄"
-        },
-        "circulation_fan_3": {
-            "label": "Circulation Fan 3",
-            "required": False,
+            "multiple": True,
             "domains": ["fan", "switch"],
             "device_classes": [None],
             "icon": "🔄"
@@ -182,22 +117,9 @@ SLOT_DEFINITIONS = {
             "icon": "🔥"
         },
         "water_pump": {
-            "label": "Water Pump 1",
+            "label": "Water Pumps",
             "required": False,
-            "domains": ["switch"],
-            "device_classes": [None],
-            "icon": "🚿"
-        },
-        "water_pump_2": {
-            "label": "Water Pump 2",
-            "required": False,
-            "domains": ["switch"],
-            "device_classes": [None],
-            "icon": "🚿"
-        },
-        "water_pump_3": {
-            "label": "Water Pump 3",
-            "required": False,
+            "multiple": True,
             "domains": ["switch"],
             "device_classes": [None],
             "icon": "🚿"
