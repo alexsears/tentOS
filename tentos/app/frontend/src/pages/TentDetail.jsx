@@ -233,6 +233,7 @@ export default function TentDetail() {
               {tent.actuators?.humidifier && getActuatorControl('humidifier', 'Humidifier', '💨')}
               {tent.actuators?.dehumidifier && getActuatorControl('dehumidifier', 'Dehumidifier', '🏜️')}
               {tent.actuators?.heater && getActuatorControl('heater', 'Heater', '🔥')}
+              {tent.actuators?.ac && getActuatorControl('ac', 'A/C', '❄️')}
               {tent.actuators?.water_pump && getActuatorControl('water_pump', 'Water Pump 1', '🚿')}
               {tent.actuators?.water_pump_2 && getActuatorControl('water_pump_2', 'Water Pump 2', '🚿')}
               {tent.actuators?.water_pump_3 && getActuatorControl('water_pump_3', 'Water Pump 3', '🚿')}

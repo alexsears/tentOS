@@ -11,6 +11,7 @@ const ACTUATOR_ICONS = {
   humidifier: { icon: '💨', activeColor: 'text-blue-300', label: 'Humid' },
   dehumidifier: { icon: '🏜️', activeColor: 'text-orange-400', label: 'Dehumid' },
   heater: { icon: '🔥', activeColor: 'text-red-400', label: 'Heater' },
+  ac: { icon: '❄️', activeColor: 'text-cyan-400', label: 'A/C' },
   water_pump: { icon: '🚿', activeColor: 'text-blue-400', label: 'Water' },
   drain_pump: { icon: '🔽', activeColor: 'text-gray-400', label: 'Drain' }
 }

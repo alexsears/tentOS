@@ -124,6 +124,13 @@ SLOT_DEFINITIONS = {
             "device_classes": [None],
             "icon": "🔥"
         },
+        "ac": {
+            "label": "A/C",
+            "required": False,
+            "domains": ["switch", "climate"],
+            "device_classes": [None],
+            "icon": "❄️"
+        },
         "water_pump": {
             "label": "Water Pumps",
             "required": False,
