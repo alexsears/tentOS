@@ -128,6 +128,33 @@ async def check_for_updates():
         }
 
 
+@router.post("/refresh")
+async def refresh_store():
+    """Refresh the add-on store to check for updates."""
+    try:
+        headers = await get_supervisor_headers()
+
+        async with aiohttp.ClientSession() as session:
+            # Reload the add-on store (refreshes all repositories)
+            reload_url = f"{SUPERVISOR_API}/store/reload"
+            logger.info("Refreshing add-on store...")
+            async with session.post(reload_url, headers=headers) as resp:
+                if resp.status == 200:
+                    return {"success": True, "message": "Add-on store refreshed"}
+                else:
+                    error_text = await resp.text()
+                    logger.error(f"Store reload failed: {resp.status} - {error_text}")
+                    raise HTTPException(
+                        status_code=resp.status,
+                        detail=f"Failed to refresh store: {error_text}"
+                    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Refresh error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/update")
 async def update_addon():
     """Update the add-on to latest version via Supervisor API."""
@@ -136,19 +163,28 @@ async def update_addon():
         slug = await get_addon_slug()
 
         async with aiohttp.ClientSession() as session:
-            # First check if this is a local addon
+            # First refresh the store to get latest version info
+            reload_url = f"{SUPERVISOR_API}/store/reload"
+            logger.info("Refreshing add-on store before update...")
+            async with session.post(reload_url, headers=headers) as reload_resp:
+                if reload_resp.status != 200:
+                    logger.warning(f"Store reload returned {reload_resp.status}, continuing anyway")
+
+            # Check if this is a local addon
             info_url = f"{SUPERVISOR_API}/addons/{slug}/info"
             async with session.get(info_url, headers=headers) as info_resp:
                 is_local = False
+                update_available = False
                 if info_resp.status == 200:
                     info_data = await info_resp.json()
-                    # Local addons have repository as null or contain "local"
-                    repo = info_data.get("data", {}).get("repository", "")
+                    addon_info = info_data.get("data", {})
+                    repo = addon_info.get("repository", "")
                     is_local = not repo or "local" in str(repo).lower()
-                    logger.info(f"Addon {slug} repository: {repo}, is_local: {is_local}")
+                    update_available = addon_info.get("update_available", False)
+                    logger.info(f"Addon {slug}: repository={repo}, is_local={is_local}, update_available={update_available}")
 
             if is_local:
-                # For local addons, use rebuild instead of update
+                # For local addons, use rebuild
                 logger.info(f"Local addon detected, using rebuild for {slug}")
                 rebuild_url = f"{SUPERVISOR_API}/addons/{slug}/rebuild"
                 async with session.post(rebuild_url, headers=headers) as resp:
@@ -156,7 +192,7 @@ async def update_addon():
                         data = await resp.json()
                         return {
                             "success": True,
-                            "message": "Rebuild started. Pull latest code with git, then the add-on will restart.",
+                            "message": "Rebuild started. The add-on will restart.",
                             "data": data
                         }
                     else:
@@ -181,9 +217,15 @@ async def update_addon():
                     else:
                         error_text = await resp.text()
                         logger.error(f"Update failed: {resp.status} - {error_text}")
+                        # If 403, give helpful message about permissions
+                        if resp.status == 403:
+                            raise HTTPException(
+                                status_code=403,
+                                detail="Permission denied. Please reinstall the add-on to enable update permissions, or update from the HA Add-ons page."
+                            )
                         raise HTTPException(
                             status_code=resp.status,
-                            detail=f"Supervisor API error: {error_text}"
+                            detail=f"Update failed: {error_text}"
                         )
 
     except HTTPException:

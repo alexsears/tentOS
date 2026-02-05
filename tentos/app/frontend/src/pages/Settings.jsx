@@ -166,16 +166,19 @@ export default function Settings() {
     }
   }
 
-  // Update add-on (pull latest + rebuild)
+  // Update add-on (refresh store + update)
   const handleUpdate = async () => {
-    if (!confirm('This will update the add-on to the latest version. The app will restart. Continue?')) return
+    if (!confirm('This will check for updates and install the latest version. The app will restart. Continue?')) return
     setRebuilding(true)
     setError(null)
+    setSuccess(null)
     try {
       const res = await apiFetch('api/updates/update', { method: 'POST' })
       const data = await res.json()
-      if (data.success) {
+      if (res.ok && data.success) {
         setSuccess('Update started! The add-on will restart with the new version.')
+      } else if (res.status === 403) {
+        setError('Permission denied. Please reinstall the add-on from HA Settings → Add-ons to enable update permissions.')
       } else {
         setError(data.detail || 'Update failed')
       }
@@ -501,19 +504,14 @@ export default function Settings() {
 
           <div className="card">
             <h3 className="font-semibold mb-4">Add-on Management</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Update checks for new versions and installs them. Rebuild rebuilds the current version. Restart is a quick reload.
-            </p>
-            <div className="flex gap-3 flex-wrap">
-              {(updateInfo?.update_available || updateInfo?.supervisor_update_available) && (
-                <button
-                  onClick={handleUpdate}
-                  disabled={rebuilding}
-                  className="btn bg-green-600 hover:bg-green-700 text-white"
-                >
-                  {rebuilding ? 'Updating...' : 'Update to Latest'}
-                </button>
-              )}
+            <div className="flex gap-3 flex-wrap mb-4">
+              <button
+                onClick={handleUpdate}
+                disabled={rebuilding}
+                className="btn bg-green-600 hover:bg-green-700 text-white"
+              >
+                {rebuilding ? 'Updating...' : '🔄 Refresh & Update'}
+              </button>
               <button
                 onClick={handleRebuild}
                 disabled={rebuilding}
@@ -528,9 +526,11 @@ export default function Settings() {
                 Restart
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-3">
-              Update ~1-2 min • Rebuild ~1-2 min • Restart ~10 sec
-            </p>
+            <div className="text-xs text-gray-500 space-y-1">
+              <p><strong>Refresh & Update:</strong> Checks for new versions and installs (~1-2 min)</p>
+              <p><strong>Rebuild:</strong> Rebuilds current version (~1-2 min)</p>
+              <p><strong>Restart:</strong> Quick restart without rebuild (~10 sec)</p>
+            </div>
           </div>
         </div>
       )}

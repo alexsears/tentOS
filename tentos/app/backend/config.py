@@ -88,16 +88,33 @@ class TentConfig:
 
 
 def load_tents_config() -> list[TentConfig]:
-    """Load tent configurations from add-on options."""
+    """Load tent configurations from config.json (tent builder) or fallback to options.json."""
+    data_path = get_data_path()
+
+    # First try config.json (saved by tent builder UI)
+    config_path = data_path / "config.json"
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                config = json.load(f)
+            tents = config.get("tents", [])
+            if tents:
+                return [TentConfig(t) for t in tents]
+        except Exception:
+            pass
+
+    # Fallback to options.json (HA add-on config)
     options_path = get_options_path()
-    if not options_path.exists():
-        return []
+    if options_path.exists():
+        try:
+            with open(options_path) as f:
+                options = json.load(f)
+            tents = options.get("tents", [])
+            return [TentConfig(t) for t in tents]
+        except Exception:
+            pass
 
-    with open(options_path) as f:
-        options = json.load(f)
-
-    tents = options.get("tents", [])
-    return [TentConfig(t) for t in tents]
+    return []
 
 
 settings = Settings()
