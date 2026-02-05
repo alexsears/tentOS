@@ -42,4 +42,11 @@ export function getWsUrl(endpoint) {
   return `${protocol}//${window.location.host}${path}`
 }
 
+/**
+ * Get the base URL for API calls (for constructing image/stream URLs).
+ */
+export function getApiBase() {
+  return BASE_URL
+}
+
 export { BASE_URL }

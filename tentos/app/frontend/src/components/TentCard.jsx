@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
+import { getApiBase } from '../utils/api'
 
 // Actuator icon definitions with states
 const ACTUATOR_ICONS = {
@@ -67,6 +68,72 @@ function SensorDisplay({ value, unit, label, icon, color = 'text-white' }) {
         {value != null && unit && <span className="text-xs text-gray-400 ml-0.5">{unit}</span>}
       </div>
       <div className="text-xs text-gray-400">{label}</div>
+    </div>
+  )
+}
+
+function CameraPreview({ tentId, entityId }) {
+  const [expanded, setExpanded] = useState(false)
+  const [error, setError] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const apiBase = getApiBase()
+
+  // Auto-refresh snapshot every 5 seconds when not expanded
+  useEffect(() => {
+    if (expanded || error) return
+    const interval = setInterval(() => {
+      setRefreshKey(k => k + 1)
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [expanded, error])
+
+  const snapshotUrl = `${apiBase}/api/camera/${tentId}/${entityId}/snapshot?t=${refreshKey}`
+  const streamUrl = `${apiBase}/api/camera/${tentId}/${entityId}/stream`
+
+  return (
+    <div className="relative">
+      <div
+        className={`relative rounded-lg overflow-hidden cursor-pointer bg-gray-900 ${
+          expanded ? 'fixed inset-4 z-50' : 'h-32'
+        }`}
+        onClick={() => setExpanded(!expanded)}
+      >
+        {error ? (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            <span>📷 Camera unavailable</span>
+          </div>
+        ) : expanded ? (
+          <img
+            src={streamUrl}
+            alt="Camera stream"
+            className="w-full h-full object-contain bg-black"
+            onError={() => setError(true)}
+          />
+        ) : (
+          <img
+            key={refreshKey}
+            src={snapshotUrl}
+            alt="Camera snapshot"
+            className="w-full h-full object-cover"
+            onError={() => setError(true)}
+          />
+        )}
+
+        {/* Expand/collapse hint */}
+        {!error && (
+          <div className="absolute bottom-1 right-1 text-xs bg-black/50 text-white px-2 py-0.5 rounded">
+            {expanded ? 'Click to close' : 'Click to expand'}
+          </div>
+        )}
+      </div>
+
+      {/* Backdrop when expanded */}
+      {expanded && (
+        <div
+          className="fixed inset-0 bg-black/80 z-40"
+          onClick={() => setExpanded(false)}
+        />
+      )}
     </div>
   )
 }
@@ -157,6 +224,22 @@ export function TentCard({ tent, onAction, onToggle, isPending }) {
     }
   }
 
+  // Get configured cameras
+  const getCameras = () => {
+    const cameras = tent.sensors?.camera
+    if (!cameras) return []
+    if (Array.isArray(cameras)) {
+      // Handle array of entity IDs or objects with entity_id
+      return cameras.map(c => typeof c === 'string' ? c : c?.entity_id).filter(Boolean)
+    }
+    if (typeof cameras === 'string') return [cameras]
+    // Handle object with _entities
+    if (cameras._entities) {
+      return Object.keys(cameras._entities)
+    }
+    return []
+  }
+
   const checkPending = (slot) => {
     return isPending ? isPending(tent.id, slot) : false
   }
@@ -239,6 +322,22 @@ export function TentCard({ tent, onAction, onToggle, isPending }) {
           />
         )}
       </div>
+
+      {/* Camera Preview */}
+      {getCameras().length > 0 && (
+        <div className="mb-4">
+          <div className="text-xs text-gray-500 mb-2">Camera{getCameras().length > 1 ? 's' : ''}</div>
+          <div className={`grid gap-2 ${getCameras().length > 1 ? 'grid-cols-2' : ''}`}>
+            {getCameras().map(cameraId => (
+              <CameraPreview
+                key={cameraId}
+                tentId={tent.id}
+                entityId={cameraId}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Actuators - Clickable Controls */}
       {configuredActuators.length > 0 && (

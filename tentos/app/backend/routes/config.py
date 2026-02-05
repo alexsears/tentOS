@@ -68,6 +68,14 @@ SLOT_DEFINITIONS = {
             "domains": ["sensor"],
             "device_classes": ["power", "energy"],
             "icon": "⚡"
+        },
+        "camera": {
+            "label": "Camera",
+            "required": False,
+            "multiple": True,
+            "domains": ["camera"],
+            "device_classes": [None],
+            "icon": "📷"
         }
     },
     "actuators": {

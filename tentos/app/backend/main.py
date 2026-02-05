@@ -34,7 +34,7 @@ def get_version():
     return "1.0.0"
 from database import init_db, get_db
 from ha_client import HAClient
-from routes import tents, events, alerts, system, config, automations, reports, updates
+from routes import tents, events, alerts, system, config, automations, reports, updates, camera
 from state_manager import StateManager
 from automation import AutomationEngine
 
@@ -121,6 +121,7 @@ app.include_router(config.router, prefix="/api/config", tags=["config"])
 app.include_router(automations.router, prefix="/api/automations", tags=["automations"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(updates.router, prefix="/api/updates", tags=["updates"])
+app.include_router(camera.router, prefix="/api/camera", tags=["camera"])
 
 
 @app.get("/api/health")
