@@ -1,0 +1,18 @@
+name = "tentos-telemetry"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Create KV namespace first:
+# wrangler kv:namespace create INSTALLS
+# Then paste the id below
+
+[[kv_namespaces]]
+binding = "INSTALLS"
+id = "YOUR_KV_NAMESPACE_ID"
+
+# Set your admin key for viewing stats
+# wrangler secret put ADMIN_KEY
+# Then enter a secret key when prompted
+
+[vars]
+# ADMIN_KEY is set via `wrangler secret put ADMIN_KEY`
