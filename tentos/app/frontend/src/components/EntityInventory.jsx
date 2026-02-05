@@ -194,7 +194,7 @@ export default function EntityInventory({
   return (
     <div className="h-full flex flex-col">
       <div className="p-3 border-b border-[#2d3a5c] space-y-2">
-        <h3 className="font-semibold text-sm">Entity Inventory</h3>
+        <h3 className="font-semibold text-sm">Available Entities</h3>
 
         {/* Slot filter indicator */}
         {slotFilter && (
