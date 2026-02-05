@@ -18,6 +18,69 @@ GITHUB_REPO = "alexsears/tentOS"
 # Cache the addon slug
 _addon_slug = None
 
+# Cache for changelog (refreshed every 5 minutes)
+_changelog_cache = {"commits": [], "timestamp": 0}
+CHANGELOG_CACHE_TTL = 300  # 5 minutes
+
+
+async def fetch_recent_commits(limit: int = 15) -> list[dict]:
+    """Fetch recent commits from GitHub as changelog entries."""
+    import time
+    global _changelog_cache
+
+    # Check cache
+    now = time.time()
+    if _changelog_cache["commits"] and (now - _changelog_cache["timestamp"]) < CHANGELOG_CACHE_TTL:
+        return _changelog_cache["commits"]
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/commits?per_page={limit}"
+            headers = {"Accept": "application/vnd.github.v3+json"}
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    commits = await resp.json()
+                    changelog = []
+                    for commit in commits:
+                        commit_data = commit.get("commit", {})
+                        message = commit_data.get("message", "").split("\n")[0]  # First line only
+                        author = commit_data.get("author", {}).get("name", "Unknown")
+                        date = commit_data.get("author", {}).get("date", "")
+                        sha = commit.get("sha", "")[:7]
+
+                        # Skip merge commits and bot commits
+                        if message.startswith("Merge ") or "bot" in author.lower():
+                            continue
+
+                        changelog.append({
+                            "sha": sha,
+                            "message": message,
+                            "author": author,
+                            "date": date
+                        })
+
+                    _changelog_cache = {"commits": changelog, "timestamp": now}
+                    return changelog
+    except Exception as e:
+        logger.debug(f"Failed to fetch commits: {e}")
+
+    return []
+
+
+def format_changelog(commits: list[dict]) -> str:
+    """Format commit list as readable changelog text."""
+    if not commits:
+        return ""
+
+    lines = ["## Recent Changes\n"]
+    for commit in commits[:10]:  # Limit to 10 most recent
+        date = commit.get("date", "")[:10]  # YYYY-MM-DD
+        message = commit.get("message", "")
+        sha = commit.get("sha", "")
+        lines.append(f"- **{date}** `{sha}` {message}")
+
+    return "\n".join(lines)
+
 
 async def get_addon_slug():
     """Get our addon slug from Supervisor."""
@@ -104,10 +167,17 @@ async def check_for_updates():
 
                     if latest_version:
                         update_available = is_newer_version(latest_version, current)
+
+                        # Fetch recent commits as changelog
+                        commits = await fetch_recent_commits()
+                        changelog = format_changelog(commits)
+
                         return {
                             "current_version": current,
                             "latest_version": latest_version,
                             "update_available": update_available,
+                            "release_notes": changelog,
+                            "commits": commits[:10],  # Include raw commit data too
                             "source": "github",
                             "repo_url": f"https://github.com/{GITHUB_REPO}"
                         }
@@ -132,10 +202,16 @@ async def check_for_updates():
                     if not update_available and latest:
                         update_available = is_newer_version(latest, current)
 
+                    # Still fetch changelog from GitHub commits
+                    commits = await fetch_recent_commits()
+                    changelog = format_changelog(commits)
+
                     return {
                         "current_version": current,
                         "latest_version": latest,
                         "update_available": update_available,
+                        "release_notes": changelog,
+                        "commits": commits[:10],
                         "source": "supervisor",
                         "repo_url": f"https://github.com/{GITHUB_REPO}"
                     }
@@ -510,3 +586,16 @@ async def get_addon_info():
 
     except Exception as e:
         return {"error": str(e), "version": get_current_version()}
+
+
+@router.get("/changelog")
+async def get_changelog(limit: int = 15):
+    """Get recent commits as changelog."""
+    commits = await fetch_recent_commits(limit)
+    changelog = format_changelog(commits)
+
+    return {
+        "changelog": changelog,
+        "commits": commits,
+        "count": len(commits)
+    }
