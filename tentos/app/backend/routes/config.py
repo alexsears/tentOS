@@ -119,14 +119,42 @@ SLOT_DEFINITIONS = {
             "icon": "💡"
         },
         "exhaust_fan": {
-            "label": "Exhaust Fan",
+            "label": "Exhaust Fan 1",
+            "required": False,
+            "domains": ["fan", "switch"],
+            "device_classes": [None],
+            "icon": "🌀"
+        },
+        "exhaust_fan_2": {
+            "label": "Exhaust Fan 2",
+            "required": False,
+            "domains": ["fan", "switch"],
+            "device_classes": [None],
+            "icon": "🌀"
+        },
+        "exhaust_fan_3": {
+            "label": "Exhaust Fan 3",
             "required": False,
             "domains": ["fan", "switch"],
             "device_classes": [None],
             "icon": "🌀"
         },
         "circulation_fan": {
-            "label": "Circulation Fan",
+            "label": "Circulation Fan 1",
+            "required": False,
+            "domains": ["fan", "switch"],
+            "device_classes": [None],
+            "icon": "🔄"
+        },
+        "circulation_fan_2": {
+            "label": "Circulation Fan 2",
+            "required": False,
+            "domains": ["fan", "switch"],
+            "device_classes": [None],
+            "icon": "🔄"
+        },
+        "circulation_fan_3": {
+            "label": "Circulation Fan 3",
             "required": False,
             "domains": ["fan", "switch"],
             "device_classes": [None],
