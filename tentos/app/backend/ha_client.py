@@ -343,10 +343,9 @@ class HAClient:
     async def get_automation_config(self, automation_id: str) -> dict | None:
         """Get the configuration/triggers for a specific automation."""
         if self._dev_mode:
-            return None
+            return self._get_mock_automation_config(automation_id)
 
         headers = {"Authorization": f"Bearer {self.token}"}
-        # The config API endpoint
         url = f"{self.rest_url}/config/automation/config/{automation_id}"
 
         async with aiohttp.ClientSession() as session:
@@ -354,6 +353,78 @@ class HAClient:
                 if resp.status == 200:
                     return await resp.json()
                 return None
+
+    def _get_mock_automation_config(self, automation_id: str) -> dict | None:
+        """Return mock automation config for dev mode."""
+        return {
+            "id": automation_id,
+            "alias": f"Mock Automation {automation_id}",
+            "description": "A mock automation for development",
+            "trigger": [{"platform": "state", "entity_id": "sensor.mock"}],
+            "condition": [],
+            "action": [{"service": "switch.turn_on", "target": {"entity_id": "switch.mock"}}]
+        }
+
+    async def create_automation(self, config: dict) -> dict:
+        """Create a new automation via HA config API."""
+        if self._dev_mode:
+            logger.info(f"Dev mode: create_automation {config.get('alias')}")
+            return {"success": True}
+
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+        url = f"{self.rest_url}/config/automation/config/{config['id']}"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=config) as resp:
+                if resp.status in (200, 201):
+                    # Reload automations
+                    await self.call_service("automation", "reload")
+                    return {"success": True}
+                else:
+                    error = await resp.text()
+                    raise Exception(f"Failed to create automation: {error}")
+
+    async def update_automation(self, automation_id: str, config: dict) -> dict:
+        """Update an existing automation via HA config API."""
+        if self._dev_mode:
+            logger.info(f"Dev mode: update_automation {automation_id}")
+            return {"success": True}
+
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+        url = f"{self.rest_url}/config/automation/config/{automation_id}"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.put(url, headers=headers, json=config) as resp:
+                if resp.status == 200:
+                    await self.call_service("automation", "reload")
+                    return {"success": True}
+                else:
+                    error = await resp.text()
+                    raise Exception(f"Failed to update automation: {error}")
+
+    async def delete_automation(self, automation_id: str) -> dict:
+        """Delete an automation via HA config API."""
+        if self._dev_mode:
+            logger.info(f"Dev mode: delete_automation {automation_id}")
+            return {"success": True}
+
+        headers = {"Authorization": f"Bearer {self.token}"}
+        url = f"{self.rest_url}/config/automation/config/{automation_id}"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.delete(url, headers=headers) as resp:
+                if resp.status in (200, 204):
+                    await self.call_service("automation", "reload")
+                    return {"success": True}
+                else:
+                    error = await resp.text()
+                    raise Exception(f"Failed to delete automation: {error}")
 
     def _generate_mock_automations(self) -> list[dict]:
         """Generate mock automations for dev mode."""

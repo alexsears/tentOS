@@ -4,6 +4,7 @@ import { useTent, useTents } from '../hooks/useTents'
 import { SensorChart } from '../components/SensorChart'
 import { EventLog } from '../components/EventLog'
 import { CameraFeed, CameraGrid } from '../components/CameraFeed'
+import { AutomationEditor } from '../components/AutomationEditor'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { apiFetch } from '../utils/api'
 
@@ -17,18 +18,32 @@ export default function TentDetail() {
   const [actionLoading, setActionLoading] = useState(null)
   const [haAutomations, setHaAutomations] = useState([])
   const [automationsLoading, setAutomationsLoading] = useState(false)
+  const [showAllAutomations, setShowAllAutomations] = useState(false)
+  const [editingAutomation, setEditingAutomation] = useState(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   // Fetch HA automations for this tent
+  const fetchAutomations = async () => {
+    setAutomationsLoading(true)
+    try {
+      const url = showAllAutomations
+        ? `api/automations/ha?show_all=true`
+        : `api/automations/ha?tent_id=${tentId}`
+      const res = await apiFetch(url)
+      const data = await res.json()
+      setHaAutomations(data.automations || [])
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setAutomationsLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'automations' && tentId) {
-      setAutomationsLoading(true)
-      apiFetch(`api/automations/ha?tent_id=${tentId}`)
-        .then(r => r.json())
-        .then(data => setHaAutomations(data.automations || []))
-        .catch(console.error)
-        .finally(() => setAutomationsLoading(false))
+      fetchAutomations()
     }
-  }, [activeTab, tentId])
+  }, [activeTab, tentId, showAllAutomations])
 
   const handleAction = async (action, params = {}) => {
     setActionLoading(action)
@@ -332,21 +347,44 @@ export default function TentDetail() {
       {activeTab === 'automations' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Home Assistant Automations</h3>
-            <span className="text-sm text-gray-400">
-              Automations related to this tent's entities
-            </span>
+            <div>
+              <h3 className="font-semibold">Home Assistant Automations</h3>
+              <p className="text-sm text-gray-400">Create and manage automations for this tent</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-400">
+                <input
+                  type="checkbox"
+                  checked={showAllAutomations}
+                  onChange={e => setShowAllAutomations(e.target.checked)}
+                  className="rounded"
+                />
+                Show all
+              </label>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="btn btn-primary"
+              >
+                + New Automation
+              </button>
+            </div>
           </div>
 
           {automationsLoading ? (
             <div className="text-center text-gray-400 py-8">Loading automations...</div>
           ) : haAutomations.length === 0 ? (
             <div className="card text-center py-8">
-              <div className="text-gray-400 mb-2">No related automations found</div>
-              <p className="text-sm text-gray-500">
-                Create automations in Home Assistant that use this tent's sensors or actuators,
-                and they'll appear here.
+              <div className="text-4xl mb-4">⚡</div>
+              <div className="text-gray-400 mb-2">No automations found</div>
+              <p className="text-sm text-gray-500 mb-4">
+                Create your first automation to control this tent automatically.
               </p>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="btn btn-primary"
+              >
+                Create Automation
+              </button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -356,68 +394,85 @@ export default function TentDetail() {
                 const friendlyName = auto.attributes?.friendly_name || auto.entity_id
 
                 return (
-                  <div key={auto.entity_id} className="card">
+                  <div key={auto.entity_id} className="card hover:border-green-600/30 transition-colors">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
                         <span className={`text-2xl ${isEnabled ? '' : 'opacity-50'}`}>⚡</span>
-                        <div>
-                          <div className="font-medium">{friendlyName}</div>
-                          <div className="text-xs text-gray-500">{auto.entity_id}</div>
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{friendlyName}</div>
+                          <div className="text-xs text-gray-500 truncate">{auto.entity_id}</div>
+                          {lastTriggered && (
+                            <div className="text-xs text-gray-400 mt-1">
+                              Last triggered: {new Date(lastTriggered).toLocaleString()}
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        {lastTriggered && (
-                          <div className="text-xs text-gray-400">
-                            Last: {new Date(lastTriggered).toLocaleString()}
-                          </div>
-                        )}
+                      <div className="flex items-center gap-2">
                         <div className={`px-2 py-1 rounded text-xs ${
                           isEnabled ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
                         }`}>
-                          {isEnabled ? 'Enabled' : 'Disabled'}
+                          {isEnabled ? 'On' : 'Off'}
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={async () => {
-                              setActionLoading(auto.entity_id)
+                        <button
+                          onClick={async () => {
+                            setActionLoading(auto.entity_id)
+                            try {
+                              await apiFetch(`api/automations/ha/${auto.entity_id}/trigger`, { method: 'POST' })
+                              fetchAutomations()
+                            } catch (e) {
+                              console.error('Failed to trigger:', e)
+                            } finally {
+                              setActionLoading(null)
+                            }
+                          }}
+                          disabled={actionLoading === auto.entity_id}
+                          className="btn btn-sm"
+                          title="Run now"
+                        >
+                          {actionLoading === auto.entity_id ? '...' : '▶'}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setActionLoading(`toggle-${auto.entity_id}`)
+                            try {
+                              await apiFetch(`api/automations/ha/${auto.entity_id}/toggle`, { method: 'POST' })
+                              fetchAutomations()
+                            } catch (e) {
+                              console.error('Failed to toggle:', e)
+                            } finally {
+                              setActionLoading(null)
+                            }
+                          }}
+                          disabled={actionLoading === `toggle-${auto.entity_id}`}
+                          className={`btn btn-sm ${isEnabled ? '' : 'btn-primary'}`}
+                          title={isEnabled ? 'Disable' : 'Enable'}
+                        >
+                          {actionLoading === `toggle-${auto.entity_id}` ? '...' : (isEnabled ? '⏸' : '▶')}
+                        </button>
+                        <button
+                          onClick={() => setEditingAutomation(auto)}
+                          className="btn btn-sm"
+                          title="Edit"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (confirm(`Delete "${friendlyName}"?`)) {
                               try {
-                                await apiFetch(`api/automations/ha/${auto.entity_id}/trigger`, { method: 'POST' })
-                                // Refresh automations
-                                const res = await apiFetch(`api/automations/ha?tent_id=${tentId}`)
-                                const data = await res.json()
-                                setHaAutomations(data.automations || [])
+                                await apiFetch(`api/automations/ha/${auto.entity_id}`, { method: 'DELETE' })
+                                fetchAutomations()
                               } catch (e) {
-                                console.error('Failed to trigger:', e)
-                              } finally {
-                                setActionLoading(null)
+                                console.error('Failed to delete:', e)
                               }
-                            }}
-                            disabled={actionLoading === auto.entity_id}
-                            className="btn btn-sm btn-primary"
-                          >
-                            {actionLoading === auto.entity_id ? '...' : 'Run'}
-                          </button>
-                          <button
-                            onClick={async () => {
-                              setActionLoading(`toggle-${auto.entity_id}`)
-                              try {
-                                await apiFetch(`api/automations/ha/${auto.entity_id}/toggle`, { method: 'POST' })
-                                // Refresh automations
-                                const res = await apiFetch(`api/automations/ha?tent_id=${tentId}`)
-                                const data = await res.json()
-                                setHaAutomations(data.automations || [])
-                              } catch (e) {
-                                console.error('Failed to toggle:', e)
-                              } finally {
-                                setActionLoading(null)
-                              }
-                            }}
-                            disabled={actionLoading === `toggle-${auto.entity_id}`}
-                            className={`btn btn-sm ${isEnabled ? 'btn-secondary' : 'btn-primary'}`}
-                          >
-                            {actionLoading === `toggle-${auto.entity_id}` ? '...' : (isEnabled ? 'Disable' : 'Enable')}
-                          </button>
-                        </div>
+                            }
+                          }}
+                          className="btn btn-sm text-red-400 hover:bg-red-500/20"
+                          title="Delete"
+                        >
+                          🗑️
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -425,11 +480,32 @@ export default function TentDetail() {
               })}
             </div>
           )}
-
-          <div className="text-sm text-gray-500 text-center">
-            Automations are matched by entity names containing keywords from your tent's sensors and actuators.
-          </div>
         </div>
+      )}
+
+      {/* Create Automation Modal */}
+      {showCreateModal && (
+        <AutomationEditor
+          tent={tent}
+          onClose={() => setShowCreateModal(false)}
+          onSave={() => {
+            setShowCreateModal(false)
+            fetchAutomations()
+          }}
+        />
+      )}
+
+      {/* Edit Automation Modal */}
+      {editingAutomation && (
+        <AutomationEditor
+          tent={tent}
+          automation={editingAutomation}
+          onClose={() => setEditingAutomation(null)}
+          onSave={() => {
+            setEditingAutomation(null)
+            fetchAutomations()
+          }}
+        />
       )}
 
       {/* Events Tab */}
