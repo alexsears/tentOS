@@ -35,7 +35,7 @@ export function EventLog({ tentId, limit = 10 }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      await fetch('/api/events', {
+      await fetch('api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

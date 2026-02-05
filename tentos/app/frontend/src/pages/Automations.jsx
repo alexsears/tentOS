@@ -637,8 +637,8 @@ export default function Automations() {
   const loadData = async () => {
     try {
       const [rulesRes, tentsRes] = await Promise.all([
-        fetch('/api/automations').then(r => r.json()),
-        fetch('/api/tents').then(r => r.json())
+        fetch('api/automations').then(r => r.json()),
+        fetch('api/tents').then(r => r.json())
       ])
       setRules(rulesRes.rules || [])
       setTents(tentsRes.tents || [])
@@ -651,7 +651,7 @@ export default function Automations() {
 
   const handleSave = async (formData) => {
     try {
-      const url = editingRule ? `/api/automations/${editingRule.id}` : '/api/automations'
+      const url = editingRule ? `api/automations/${editingRule.id}` : 'api/automations'
       const method = editingRule ? 'PUT' : 'POST'
 
       const res = await fetch(url, {

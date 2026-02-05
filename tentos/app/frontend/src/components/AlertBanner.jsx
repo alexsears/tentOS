@@ -5,7 +5,7 @@ export function AlertBanner() {
   const [dismissed, setDismissed] = useState(new Set())
 
   useEffect(() => {
-    fetch('/api/alerts?active_only=true')
+    fetch('api/alerts?active_only=true')
       .then(r => r.json())
       .then(data => setAlerts(data.alerts?.filter(a => a.severity === 'critical') || []))
       .catch(console.error)

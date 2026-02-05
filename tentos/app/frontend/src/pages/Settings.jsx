@@ -21,10 +21,10 @@ export default function Settings() {
   // Load all data
   useEffect(() => {
     Promise.all([
-      fetch('/api/system/status').then(r => r.json()),
-      fetch('/api/system/entities').then(r => r.json()),
-      fetch('/api/config/slots').then(r => r.json()),
-      fetch('/api/config').then(r => r.json())
+      fetch('api/system/status').then(r => r.json()),
+      fetch('api/system/entities').then(r => r.json()),
+      fetch('api/config/slots').then(r => r.json()),
+      fetch('api/config').then(r => r.json())
     ])
       .then(([statusData, entitiesData, slotsData, configData]) => {
         setStatus(statusData)
@@ -46,7 +46,7 @@ export default function Settings() {
     setSuccess(null)
 
     try {
-      const res = await fetch('/api/config', {
+      const res = await fetch('api/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -69,7 +69,7 @@ export default function Settings() {
   // Validate config
   const validateConfig = async () => {
     try {
-      const res = await fetch('/api/config/validate', {
+      const res = await fetch('api/config/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -143,7 +143,7 @@ export default function Settings() {
   const checkForUpdates = async () => {
     setUpdateLoading(true)
     try {
-      const res = await fetch('/api/updates/check')
+      const res = await fetch('api/updates/check')
       const data = await res.json()
       setUpdateInfo(data)
     } catch (err) {
@@ -159,7 +159,7 @@ export default function Settings() {
     setRebuilding(true)
     setError(null)
     try {
-      const res = await fetch('/api/updates/rebuild', { method: 'POST' })
+      const res = await fetch('api/updates/rebuild', { method: 'POST' })
       const data = await res.json()
       if (data.success) {
         setSuccess('Rebuild started! The add-on will restart automatically.')
@@ -177,7 +177,7 @@ export default function Settings() {
   const handleRestart = async () => {
     if (!confirm('This will restart the add-on. Continue?')) return
     try {
-      const res = await fetch('/api/updates/restart', { method: 'POST' })
+      const res = await fetch('api/updates/restart', { method: 'POST' })
       const data = await res.json()
       if (data.success) {
         setSuccess('Restart initiated! Reconnecting...')

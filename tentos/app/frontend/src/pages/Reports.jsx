@@ -59,7 +59,7 @@ export default function Reports() {
 
   // Load tents
   useEffect(() => {
-    fetch('/api/tents')
+    fetch('api/tents')
       .then(r => r.json())
       .then(data => {
         setTents(data.tents || [])

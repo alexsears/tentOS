@@ -1,0 +1,41 @@
+{
+  "log_level": "debug",
+  "tents": [
+    {
+      "name": "Veg Tent",
+      "description": "Vegetative growth tent",
+      "sensors": {
+        "temperature": "sensor.veg_tent_temperature",
+        "humidity": "sensor.veg_tent_humidity"
+      },
+      "actuators": {
+        "light": "switch.veg_tent_light",
+        "exhaust_fan": "switch.veg_tent_exhaust"
+      },
+      "targets": {
+        "temp_day_min": 22,
+        "temp_day_max": 28,
+        "humidity_day_min": 50,
+        "humidity_day_max": 70
+      }
+    },
+    {
+      "name": "Flower Tent",
+      "description": "Flowering tent",
+      "sensors": {
+        "temperature": "sensor.flower_tent_temperature",
+        "humidity": "sensor.flower_tent_humidity"
+      },
+      "actuators": {
+        "light": "switch.flower_tent_light",
+        "exhaust_fan": "switch.flower_tent_exhaust"
+      },
+      "targets": {
+        "temp_day_min": 20,
+        "temp_day_max": 26,
+        "humidity_day_min": 40,
+        "humidity_day_max": 55
+      }
+    }
+  ]
+}

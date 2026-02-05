@@ -8,10 +8,11 @@ export function useWebSocket(url) {
 
   const connect = useCallback(() => {
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${protocol}//${window.location.host}${url}`
+      // Build WebSocket URL relative to current page (works with ingress)
+      const wsUrl = new URL(url.replace(/^\//, ''), window.location.href)
+      wsUrl.protocol = wsUrl.protocol.replace('http', 'ws')
 
-      wsRef.current = new WebSocket(wsUrl)
+      wsRef.current = new WebSocket(wsUrl.href)
 
       wsRef.current.onopen = () => {
         setReadyState(WebSocket.OPEN)

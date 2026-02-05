@@ -12,11 +12,11 @@ import { AlertBanner } from './components/AlertBanner'
 function App() {
   const location = useLocation()
   const [alerts, setAlerts] = useState([])
-  const { lastMessage } = useWebSocket('/api/ws')
+  const { lastMessage } = useWebSocket('api/ws')
 
   useEffect(() => {
     // Fetch initial alerts
-    fetch('/api/alerts/summary')
+    fetch('api/alerts/summary')
       .then(r => r.json())
       .then(data => setAlerts(data))
       .catch(console.error)

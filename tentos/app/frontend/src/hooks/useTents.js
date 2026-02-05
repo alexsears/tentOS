@@ -6,11 +6,11 @@ export function useTents() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [pending, setPending] = useState({}) // Track pending actions
-  const { lastMessage, readyState } = useWebSocket('/api/ws')
+  const { lastMessage, readyState } = useWebSocket('api/ws')
 
   const fetchTents = useCallback(async () => {
     try {
-      const response = await fetch('/api/tents')
+      const response = await fetch('api/tents')
       if (!response.ok) throw new Error('Failed to fetch tents')
       const data = await response.json()
       setTents(data.tents || [])
@@ -52,7 +52,7 @@ export function useTents() {
 
   const performAction = useCallback(async (tentId, action, params = {}) => {
     try {
-      const response = await fetch(`/api/tents/${tentId}/actions`, {
+      const response = await fetch(`api/tents/${tentId}/actions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, ...params })
@@ -72,7 +72,7 @@ export function useTents() {
     setPending(prev => ({ ...prev, [key]: true }))
 
     try {
-      const response = await fetch(`/api/tents/${tentId}/actuators/${slot}/toggle`, {
+      const response = await fetch(`api/tents/${tentId}/actuators/${slot}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -107,12 +107,12 @@ export function useTent(tentId) {
   const [tent, setTent] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const { lastMessage } = useWebSocket('/api/ws')
+  const { lastMessage } = useWebSocket('api/ws')
 
   const fetchTent = useCallback(async () => {
     if (!tentId) return
     try {
-      const response = await fetch(`/api/tents/${tentId}`)
+      const response = await fetch(`api/tents/${tentId}`)
       if (!response.ok) throw new Error('Failed to fetch tent')
       const data = await response.json()
       setTent(data)
