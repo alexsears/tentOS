@@ -76,6 +76,23 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
   // Get entity details by ID
   const getEntity = (entityId) => entities.find(e => e.entity_id === entityId)
 
+  // Filter slots to only show _2 if _1 is filled, _3 if _2 is filled
+  const filterSlots = (slotEntries, category) => {
+    return slotEntries.filter(([slotType, slotDef]) => {
+      // Check for numbered suffix pattern (e.g., temperature_2, light_3)
+      const match = slotType.match(/^(.+)_([23])$/)
+      if (!match) return true // Always show base slots
+
+      const [, baseName, num] = match
+      const prevNum = parseInt(num) - 1
+      const prevSlot = prevNum === 1 ? baseName : `${baseName}_${prevNum}`
+
+      // Only show if previous slot is filled
+      const data = category === 'sensors' ? tent.sensors : tent.actuators
+      return !!data?.[prevSlot]
+    })
+  }
+
   // Clear a slot
   const clearSlot = (category, slotType) => {
     const updated = { ...tent }
@@ -157,7 +174,7 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
           <div>
             <h4 className="text-sm font-medium text-gray-400 mb-2">Sensors</h4>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-              {Object.entries(slots?.sensors || {}).map(([slotType, slotDef]) => (
+              {filterSlots(Object.entries(slots?.sensors || {}), 'sensors').map(([slotType, slotDef]) => (
                 <Slot
                   key={slotType}
                   slotType={slotType}
@@ -178,7 +195,7 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
           <div>
             <h4 className="text-sm font-medium text-gray-400 mb-2">Actuators</h4>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-              {Object.entries(slots?.actuators || {}).map(([slotType, slotDef]) => (
+              {filterSlots(Object.entries(slots?.actuators || {}), 'actuators').map(([slotType, slotDef]) => (
                 <Slot
                   key={slotType}
                   slotType={slotType}
