@@ -6,6 +6,22 @@ from pydantic_settings import BaseSettings
 from pydantic import Field
 
 
+def get_data_path() -> Path:
+    """Get data path - local dev or HA container."""
+    if Path("/data").exists():
+        return Path("/data")
+    # Local dev - use ./data relative to this file
+    local_data = Path(__file__).parent / "data"
+    local_data.mkdir(exist_ok=True)
+    return local_data
+
+
+def get_options_path() -> Path:
+    """Get options.json path."""
+    data = get_data_path()
+    return data / "options.json"
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment and add-on options."""
 
@@ -14,21 +30,32 @@ class Settings(BaseSettings):
     supervisor_token: str = Field(default="")
     hassio_token: str = Field(default="")
     ingress_path: str = Field(default="")
-    data_path: Path = Field(default=Path("/data"))
-    db_path: Path = Field(default=Path("/data/tent_garden.db"))
 
     class Config:
         env_prefix = ""
         case_sensitive = False
 
     @property
+    def data_path(self) -> Path:
+        return get_data_path()
+
+    @property
+    def db_path(self) -> Path:
+        return self.data_path / "tent_garden.db"
+
+    @property
     def ha_token(self) -> str:
         """Get the HA API token."""
         return self.supervisor_token or self.hassio_token
 
+    @property
+    def is_dev_mode(self) -> bool:
+        """Check if running in local dev mode."""
+        return not Path("/data").exists()
+
     def load_addon_options(self) -> dict:
-        """Load add-on options from /data/options.json."""
-        options_path = Path("/data/options.json")
+        """Load add-on options from options.json."""
+        options_path = get_options_path()
         if options_path.exists():
             with open(options_path) as f:
                 return json.load(f)
@@ -62,7 +89,7 @@ class TentConfig:
 
 def load_tents_config() -> list[TentConfig]:
     """Load tent configurations from add-on options."""
-    options_path = Path("/data/options.json")
+    options_path = get_options_path()
     if not options_path.exists():
         return []
 

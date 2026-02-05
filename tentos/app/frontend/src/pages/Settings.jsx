@@ -14,6 +14,9 @@ export default function Settings() {
   const [success, setSuccess] = useState(null)
   const [activeDragEntity, setActiveDragEntity] = useState(null)
   const [activeTab, setActiveTab] = useState('builder')
+  const [updateInfo, setUpdateInfo] = useState(null)
+  const [updateLoading, setUpdateLoading] = useState(false)
+  const [rebuilding, setRebuilding] = useState(false)
 
   // Load all data
   useEffect(() => {
@@ -136,6 +139,56 @@ export default function Settings() {
     return assigned
   }
 
+  // Check for updates
+  const checkForUpdates = async () => {
+    setUpdateLoading(true)
+    try {
+      const res = await fetch('/api/updates/check')
+      const data = await res.json()
+      setUpdateInfo(data)
+    } catch (err) {
+      setError('Failed to check for updates')
+    } finally {
+      setUpdateLoading(false)
+    }
+  }
+
+  // Rebuild add-on
+  const handleRebuild = async () => {
+    if (!confirm('This will rebuild the add-on with the latest code. The app will restart. Continue?')) return
+    setRebuilding(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/updates/rebuild', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        setSuccess('Rebuild started! The add-on will restart automatically.')
+      } else {
+        setError(data.detail || 'Rebuild failed')
+      }
+    } catch (err) {
+      setError('Failed to trigger rebuild: ' + err.message)
+    } finally {
+      setRebuilding(false)
+    }
+  }
+
+  // Restart add-on (quick)
+  const handleRestart = async () => {
+    if (!confirm('This will restart the add-on. Continue?')) return
+    try {
+      const res = await fetch('/api/updates/restart', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        setSuccess('Restart initiated! Reconnecting...')
+      } else {
+        setError(data.detail || 'Restart failed')
+      }
+    } catch (err) {
+      setError('Failed to restart: ' + err.message)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -209,6 +262,16 @@ export default function Settings() {
           }`}
         >
           VPD Reference
+        </button>
+        <button
+          onClick={() => { setActiveTab('updates'); checkForUpdates() }}
+          className={`px-4 py-2 -mb-px border-b-2 transition-colors ${
+            activeTab === 'updates'
+              ? 'border-green-500 text-green-400'
+              : 'border-transparent text-gray-400 hover:text-white'
+          }`}
+        >
+          Updates
         </button>
       </div>
 
@@ -312,6 +375,117 @@ export default function Settings() {
           </div>
           <div className="text-xs text-gray-500 font-mono">
             VPD = SVP × (1 - RH/100), where SVP = 0.6108 × exp(17.27 × T / (T + 237.3))
+          </div>
+        </div>
+      )}
+
+      {/* Updates Tab */}
+      {activeTab === 'updates' && (
+        <div className="space-y-4">
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">Version Information</h3>
+              <button
+                onClick={checkForUpdates}
+                disabled={updateLoading}
+                className="btn btn-sm"
+              >
+                {updateLoading ? 'Checking...' : 'Check for Updates'}
+              </button>
+            </div>
+
+            {updateInfo ? (
+              <div className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="p-3 bg-[#1a1a2e] rounded">
+                    <div className="text-sm text-gray-400">Current Version</div>
+                    <div className="text-xl font-bold">{updateInfo.current_version}</div>
+                  </div>
+                  <div className="p-3 bg-[#1a1a2e] rounded">
+                    <div className="text-sm text-gray-400">Latest Version</div>
+                    <div className="text-xl font-bold">
+                      {updateInfo.latest_version || updateInfo.latest_commit || 'Unknown'}
+                    </div>
+                    {updateInfo.published_at && (
+                      <div className="text-xs text-gray-500">
+                        Released: {new Date(updateInfo.published_at).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {updateInfo.update_available && (
+                  <div className="p-3 bg-green-500/20 border border-green-500/50 rounded">
+                    <div className="flex items-center gap-2 text-green-400">
+                      <span>Update available!</span>
+                    </div>
+                    {updateInfo.release_notes && (
+                      <div className="mt-2 text-sm text-gray-300 whitespace-pre-wrap max-h-40 overflow-auto">
+                        {updateInfo.release_notes}
+                      </div>
+                    )}
+                    {updateInfo.latest_commit_message && (
+                      <div className="mt-2 text-sm text-gray-300">
+                        Latest: {updateInfo.latest_commit_message}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!updateInfo.update_available && !updateInfo.error && (
+                  <div className="p-3 bg-blue-500/20 border border-blue-500/50 rounded text-blue-300">
+                    You're running the latest version!
+                  </div>
+                )}
+
+                {updateInfo.error && (
+                  <div className="p-3 bg-yellow-500/20 border border-yellow-500/50 rounded text-yellow-300">
+                    Could not check for updates: {updateInfo.error}
+                  </div>
+                )}
+
+                {updateInfo.repo_url && (
+                  <a
+                    href={updateInfo.repo_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-400 hover:underline"
+                  >
+                    View on GitHub
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div className="text-gray-400">
+                Click "Check for Updates" to see version information
+              </div>
+            )}
+          </div>
+
+          <div className="card">
+            <h3 className="font-semibold mb-4">Add-on Management</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Rebuild pulls the latest code from GitHub and rebuilds the container.
+              Restart just restarts the add-on without pulling new code.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleRebuild}
+                disabled={rebuilding}
+                className="btn btn-primary"
+              >
+                {rebuilding ? 'Rebuilding...' : 'Rebuild Add-on'}
+              </button>
+              <button
+                onClick={handleRestart}
+                className="btn"
+              >
+                Restart Add-on
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-3">
+              Note: These actions require the add-on to be running within Home Assistant with Supervisor access.
+            </p>
           </div>
         </div>
       )}

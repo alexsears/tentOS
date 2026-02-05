@@ -2,15 +2,32 @@
 import asyncio
 import logging
 import os
+import yaml
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
+
+
+def get_version():
+    """Read version from config.yaml."""
+    config_paths = [
+        "/config.yaml",
+        os.path.join(os.path.dirname(__file__), "../../config.yaml"),
+    ]
+    for path in config_paths:
+        try:
+            with open(path) as f:
+                config = yaml.safe_load(f)
+                return config.get("version", "1.0.0")
+        except FileNotFoundError:
+            continue
+    return "1.0.0"
 from database import init_db, get_db
 from ha_client import HAClient
-from routes import tents, events, alerts, system, config, automations, reports
+from routes import tents, events, alerts, system, config, automations, reports, updates
 from state_manager import StateManager
 from automation import AutomationEngine
 
@@ -74,7 +91,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Tent Garden Manager",
     description="Monitor and automate indoor grow tents",
-    version="1.0.0",
+    version=get_version(),
     lifespan=lifespan,
     root_path=os.environ.get("INGRESS_PATH", "")
 )
@@ -96,6 +113,7 @@ app.include_router(system.router, prefix="/api/system", tags=["system"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
 app.include_router(automations.router, prefix="/api/automations", tags=["automations"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
+app.include_router(updates.router, prefix="/api/updates", tags=["updates"])
 
 
 @app.get("/api/health")

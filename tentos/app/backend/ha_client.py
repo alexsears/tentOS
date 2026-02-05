@@ -2,6 +2,8 @@
 import asyncio
 import json
 import logging
+import random
+from datetime import datetime, timedelta
 from typing import Any, Callable
 import aiohttp
 import websockets
@@ -25,8 +27,60 @@ class HAClient:
         self.state_callbacks: list[Callable] = []
         self._pending_responses: dict[int, asyncio.Future] = {}
         self._receive_task: asyncio.Task | None = None
+        self._dev_mode = settings.is_dev_mode
+        self._mock_states: dict[str, dict] = {}
 
     async def connect(self):
+        """Connect to Home Assistant WebSocket API."""
+        if self._dev_mode:
+            logger.info("Running in dev mode - using mock data")
+            self.connected = True
+            self._init_mock_states()
+            # Start mock state updates
+            self._receive_task = asyncio.create_task(self._mock_state_loop())
+            return
+
+        await self._real_connect()
+
+    def _init_mock_states(self):
+        """Initialize mock states for dev mode."""
+        self._mock_states = {
+            "sensor.veg_tent_temperature": {"state": "24.5", "attributes": {"unit_of_measurement": "°C"}},
+            "sensor.veg_tent_humidity": {"state": "65", "attributes": {"unit_of_measurement": "%"}},
+            "sensor.flower_tent_temperature": {"state": "23.0", "attributes": {"unit_of_measurement": "°C"}},
+            "sensor.flower_tent_humidity": {"state": "52", "attributes": {"unit_of_measurement": "%"}},
+            "switch.veg_tent_light": {"state": "on", "attributes": {}},
+            "switch.veg_tent_exhaust": {"state": "on", "attributes": {}},
+            "switch.flower_tent_light": {"state": "on", "attributes": {}},
+            "switch.flower_tent_exhaust": {"state": "off", "attributes": {}},
+        }
+
+    async def _mock_state_loop(self):
+        """Simulate state changes in dev mode."""
+        while self.connected:
+            await asyncio.sleep(5)  # Update every 5 seconds
+            # Simulate small temperature/humidity changes
+            for entity_id, state in self._mock_states.items():
+                if "temperature" in entity_id:
+                    current = float(state["state"])
+                    state["state"] = str(round(current + random.uniform(-0.5, 0.5), 1))
+                elif "humidity" in entity_id:
+                    current = float(state["state"])
+                    new_val = current + random.uniform(-2, 2)
+                    state["state"] = str(round(max(30, min(90, new_val)), 0))
+
+                # Trigger callbacks
+                for callback in self.state_callbacks:
+                    try:
+                        await callback({
+                            "entity_id": entity_id,
+                            "new_state": {"entity_id": entity_id, **state},
+                            "old_state": None
+                        })
+                    except Exception as e:
+                        logger.error(f"Mock callback error: {e}")
+
+    async def _real_connect(self):
         """Connect to Home Assistant WebSocket API."""
         try:
             headers = {"Authorization": f"Bearer {self.token}"}
@@ -133,6 +187,10 @@ class HAClient:
         """Subscribe to state change events."""
         self.state_callbacks.append(callback)
 
+        if self._dev_mode:
+            logger.info("Dev mode: registered state callback")
+            return
+
         # Send subscription request
         result = await self._send_command({
             "type": "subscribe_events",
@@ -146,6 +204,12 @@ class HAClient:
 
     async def get_states(self) -> list[dict]:
         """Get all current states."""
+        if self._dev_mode:
+            return [
+                {"entity_id": eid, **data}
+                for eid, data in self._mock_states.items()
+            ]
+
         result = await self._send_command({"type": "get_states"})
         if result.get("success"):
             return result.get("result", [])
@@ -153,6 +217,12 @@ class HAClient:
 
     async def get_state(self, entity_id: str) -> dict | None:
         """Get state for a specific entity."""
+        if self._dev_mode:
+            state = self._mock_states.get(entity_id)
+            if state:
+                return {"entity_id": entity_id, **state}
+            return None
+
         states = await self.get_states()
         for state in states:
             if state.get("entity_id") == entity_id:
@@ -167,6 +237,10 @@ class HAClient:
         target: dict | None = None
     ) -> dict:
         """Call a Home Assistant service."""
+        if self._dev_mode:
+            logger.info(f"Dev mode: call_service {domain}.{service} -> {target}")
+            return {"success": True}
+
         command = {
             "type": "call_service",
             "domain": domain,
@@ -183,6 +257,12 @@ class HAClient:
 
     async def turn_on(self, entity_id: str, **kwargs):
         """Turn on an entity."""
+        if self._dev_mode:
+            if entity_id in self._mock_states:
+                self._mock_states[entity_id]["state"] = "on"
+            logger.info(f"Dev mode: turn_on {entity_id}")
+            return {"success": True}
+
         domain = entity_id.split(".")[0]
         return await self.call_service(
             domain,
@@ -193,6 +273,12 @@ class HAClient:
 
     async def turn_off(self, entity_id: str):
         """Turn off an entity."""
+        if self._dev_mode:
+            if entity_id in self._mock_states:
+                self._mock_states[entity_id]["state"] = "off"
+            logger.info(f"Dev mode: turn_off {entity_id}")
+            return {"success": True}
+
         domain = entity_id.split(".")[0]
         return await self.call_service(
             domain,
@@ -217,6 +303,9 @@ class HAClient:
         end_time: str | None = None
     ) -> list:
         """Get history from HA REST API."""
+        if self._dev_mode:
+            return self._generate_mock_history(entity_ids, start_time, end_time)
+
         headers = {"Authorization": f"Bearer {self.token}"}
         params = {"filter_entity_id": ",".join(entity_ids)}
 
@@ -232,3 +321,39 @@ class HAClient:
                 else:
                     logger.error(f"History API error: {resp.status}")
                     return []
+
+    def _generate_mock_history(self, entity_ids: list[str], start_time: str, end_time: str | None) -> list:
+        """Generate mock history data for dev mode."""
+        from datetime import datetime, timedelta
+        import random
+
+        result = []
+        now = datetime.now()
+
+        for entity_id in entity_ids:
+            history = []
+            # Generate 24 hours of data, one point every 5 minutes
+            for i in range(288):
+                ts = now - timedelta(minutes=i * 5)
+
+                if "temperature" in entity_id:
+                    # Simulate day/night cycle
+                    hour = ts.hour
+                    base = 24 if 6 <= hour <= 18 else 20
+                    value = base + random.uniform(-2, 2)
+                elif "humidity" in entity_id:
+                    hour = ts.hour
+                    base = 55 if 6 <= hour <= 18 else 65
+                    value = base + random.uniform(-5, 5)
+                else:
+                    value = random.choice(["on", "off"])
+
+                history.append({
+                    "entity_id": entity_id,
+                    "state": str(round(value, 1)) if isinstance(value, float) else value,
+                    "last_changed": ts.isoformat()
+                })
+
+            result.append(history[::-1])  # Reverse to chronological order
+
+        return result
