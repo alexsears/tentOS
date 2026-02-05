@@ -87,6 +87,35 @@ class SensorHistory(Base):
     )
 
 
+class ChatMessage(Base):
+    """Chat message for developer chat room."""
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(64), nullable=False, index=True)
+    ha_user_id = Column(String(64), nullable=True)  # Hidden - for moderation
+    ha_user_name = Column(String(128), nullable=True)  # Hidden - for moderation
+    display_name = Column(String(32), nullable=False)  # Public display
+    content = Column(Text, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    is_developer = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False)
+
+
+class ChatUser(Base):
+    """Chat user profile linking session to nickname."""
+    __tablename__ = "chat_users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(64), nullable=False, unique=True, index=True)
+    ha_user_id = Column(String(64), nullable=True)
+    ha_user_name = Column(String(128), nullable=True)
+    nickname = Column(String(32), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_seen = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    is_banned = Column(Boolean, default=False)
+
+
 # Database engine and session
 engine = create_async_engine(
     f"sqlite+aiosqlite:///{settings.db_path}",

@@ -34,7 +34,7 @@ def get_version():
     return "1.0.0"
 from database import init_db, get_db
 from ha_client import HAClient
-from routes import tents, events, alerts, system, config, automations, reports, updates, camera
+from routes import tents, events, alerts, system, config, automations, reports, updates, camera, chat
 from state_manager import StateManager
 from automation import AutomationEngine
 
@@ -122,6 +122,7 @@ app.include_router(automations.router, prefix="/api/automations", tags=["automat
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(updates.router, prefix="/api/updates", tags=["updates"])
 app.include_router(camera.router, prefix="/api/camera", tags=["camera"])
+app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 
 
 @app.get("/api/health")
@@ -132,6 +133,89 @@ async def health_check():
         "version": get_version(),
         "ha_connected": ha_client.connected if ha_client else False
     }
+
+
+async def handle_chat_message(websocket: WebSocket, msg: dict, state_manager):
+    """Handle incoming chat message via WebSocket."""
+    from routes.chat import (
+        check_rate_limit, sanitize_content, generate_display_name,
+        is_developer, broadcast_chat_message
+    )
+    from database import get_db, ChatMessage, ChatUser
+    from sqlalchemy import select
+
+    session_id = msg.get("session_id", "")
+    content = msg.get("content", "")
+
+    if not session_id or not content:
+        await websocket.send_text(json.dumps({
+            "type": "chat_error",
+            "error": "Missing session_id or content"
+        }))
+        return
+
+    # Rate limit
+    if not check_rate_limit(session_id):
+        await websocket.send_text(json.dumps({
+            "type": "chat_error",
+            "error": "Rate limited. Wait a moment."
+        }))
+        return
+
+    # Sanitize
+    content = sanitize_content(content)
+    if not content:
+        return
+
+    async for db_session in get_db():
+        # Get or create user
+        result = await db_session.execute(
+            select(ChatUser).where(ChatUser.session_id == session_id)
+        )
+        user = result.scalar_one_or_none()
+
+        if not user:
+            user = ChatUser(session_id=session_id)
+            db_session.add(user)
+            await db_session.commit()
+            await db_session.refresh(user)
+
+        # Check if banned
+        if user.is_banned:
+            await websocket.send_text(json.dumps({
+                "type": "chat_error",
+                "error": "You have been banned from chat"
+            }))
+            return
+
+        # Create message
+        display_name = generate_display_name(session_id, user.nickname)
+        dev = is_developer(user.ha_user_name)
+
+        message = ChatMessage(
+            session_id=session_id,
+            ha_user_id=user.ha_user_id,
+            ha_user_name=user.ha_user_name,
+            display_name=display_name,
+            content=content,
+            is_developer=dev
+        )
+        db_session.add(message)
+        await db_session.commit()
+        await db_session.refresh(message)
+
+        # Broadcast to all clients
+        msg_data = {
+            "id": message.id,
+            "display_name": message.display_name,
+            "content": message.content,
+            "timestamp": message.timestamp.isoformat(),
+            "is_developer": message.is_developer
+        }
+
+        disconnected = await broadcast_chat_message(state_manager.ws_clients, msg_data)
+        for ws in disconnected:
+            state_manager.ws_clients.remove(ws)
 
 
 @app.websocket("/api/ws")
@@ -172,6 +256,9 @@ async def websocket_endpoint(websocket: WebSocket):
                         "tent_id": tent_id,
                         "data": tent.to_dict()
                     }))
+            elif msg.get("type") == "chat_message":
+                # Handle real-time chat message
+                await handle_chat_message(websocket, msg, state_manager)
 
             logger.debug(f"Received WS message: {data}")
     except WebSocketDisconnect:

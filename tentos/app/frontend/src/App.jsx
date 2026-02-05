@@ -6,6 +6,7 @@ import Events from './pages/Events'
 import Settings from './pages/Settings'
 import Automations from './pages/Automations'
 import Reports from './pages/Reports'
+import Chat from './pages/Chat'
 import { useWebSocket } from './hooks/useWebSocket'
 import { AlertBanner } from './components/AlertBanner'
 import { apiFetch } from './utils/api'
@@ -56,6 +57,7 @@ function AppContent() {
     { path: '/reports', label: 'Reports', icon: '📊' },
     { path: '/automations', label: 'Automations', icon: '🤖' },
     { path: '/events', label: 'Events', icon: '📋' },
+    { path: '/chat', label: 'Chat', icon: '💬' },
     { path: '/settings', label: 'Settings', icon: '⚙️' },
   ]
 
@@ -119,6 +121,7 @@ function AppContent() {
           <Route path="/reports" element={<Reports />} />
           <Route path="/automations" element={<Automations />} />
           <Route path="/events" element={<Events />} />
+          <Route path="/chat" element={<Chat />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
