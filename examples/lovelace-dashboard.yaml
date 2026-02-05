@@ -1,0 +1,199 @@
+# TentOS Lovelace Dashboard
+# Add this as a new dashboard or individual cards
+
+title: Grow Tents
+views:
+  - title: Overview
+    path: tents
+    icon: mdi:sprout
+    cards:
+      # Tent 1 - Main Status Card
+      - type: custom:mushroom-template-card
+        primary: Main Tent
+        secondary: >-
+          {{ states('sensor.tent_temperature') }}°C |
+          {{ states('sensor.tent_humidity') }}% |
+          VPD: {{ (0.6108 * e ** (17.27 * states('sensor.tent_temperature') | float / (states('sensor.tent_temperature') | float + 237.3)) * (1 - states('sensor.tent_humidity') | float / 100)) | round(2) }} kPa
+        icon: mdi:greenhouse
+        icon_color: >-
+          {% if states('switch.tent_light') == 'on' %}
+            amber
+          {% else %}
+            grey
+          {% endif %}
+        tap_action:
+          action: navigate
+          navigation_path: /tentos
+
+      # Environment Gauges
+      - type: horizontal-stack
+        cards:
+          - type: gauge
+            entity: sensor.tent_temperature
+            name: Temperature
+            min: 15
+            max: 35
+            severity:
+              green: 22
+              yellow: 28
+              red: 32
+
+          - type: gauge
+            entity: sensor.tent_humidity
+            name: Humidity
+            min: 20
+            max: 100
+            severity:
+              green: 50
+              yellow: 40
+              red: 30
+
+      # Sensor History
+      - type: history-graph
+        entities:
+          - entity: sensor.tent_temperature
+            name: Temperature
+          - entity: sensor.tent_humidity
+            name: Humidity
+        hours_to_show: 24
+        refresh_interval: 60
+
+      # Quick Controls
+      - type: entities
+        title: Controls
+        show_header_toggle: false
+        entities:
+          - entity: switch.tent_light
+            name: Light
+            icon: mdi:lightbulb
+          - entity: fan.tent_exhaust
+            name: Exhaust Fan
+          - entity: switch.tent_humidifier
+            name: Humidifier
+          - type: button
+            name: Open TentOS
+            icon: mdi:open-in-new
+            tap_action:
+              action: navigate
+              navigation_path: /tentos
+
+      # Alerts Card (requires custom:auto-entities)
+      - type: conditional
+        conditions:
+          - entity: binary_sensor.tent_leak
+            state: "on"
+        card:
+          type: markdown
+          content: "⚠️ **LEAK DETECTED** in Main Tent!"
+          card_mod:
+            style: |
+              ha-card {
+                background-color: rgba(244, 67, 54, 0.2);
+                border: 1px solid #f44336;
+              }
+
+  - title: Charts
+    path: charts
+    icon: mdi:chart-line
+    cards:
+      # Temperature over time
+      - type: custom:apexcharts-card
+        header:
+          title: Temperature (24h)
+          show: true
+        graph_span: 24h
+        series:
+          - entity: sensor.tent_temperature
+            name: Temperature
+            color: "#ef4444"
+
+      # Humidity over time
+      - type: custom:apexcharts-card
+        header:
+          title: Humidity (24h)
+          show: true
+        graph_span: 24h
+        series:
+          - entity: sensor.tent_humidity
+            name: Humidity
+            color: "#3b82f6"
+
+      # Combined chart
+      - type: custom:apexcharts-card
+        header:
+          title: Environment (7 days)
+          show: true
+        graph_span: 7d
+        series:
+          - entity: sensor.tent_temperature
+            name: Temp
+            color: "#ef4444"
+            group_by:
+              func: avg
+              duration: 1h
+          - entity: sensor.tent_humidity
+            name: Humidity
+            color: "#3b82f6"
+            group_by:
+              func: avg
+              duration: 1h
+
+  - title: Maintenance
+    path: maintenance
+    icon: mdi:wrench
+    cards:
+      # Manual event logging buttons
+      - type: vertical-stack
+        cards:
+          - type: markdown
+            content: "## Log Events"
+
+          - type: horizontal-stack
+            cards:
+              - type: button
+                name: Watering
+                icon: mdi:water
+                tap_action:
+                  action: call-service
+                  service: rest_command.tentos_log_event
+                  service_data:
+                    tent_id: main_tent
+                    event_type: watering
+
+              - type: button
+                name: Refill
+                icon: mdi:bucket
+                tap_action:
+                  action: call-service
+                  service: rest_command.tentos_log_event
+                  service_data:
+                    tent_id: main_tent
+                    event_type: refill
+
+              - type: button
+                name: Filter Change
+                icon: mdi:air-filter
+                tap_action:
+                  action: call-service
+                  service: rest_command.tentos_log_event
+                  service_data:
+                    tent_id: main_tent
+                    event_type: filter_change
+
+      # Link to TentOS for full event log
+      - type: button
+        name: View Full Event Log
+        icon: mdi:clipboard-list
+        tap_action:
+          action: navigate
+          navigation_path: /tentos/events
+
+# Optional: REST command for logging events from Lovelace
+# Add to configuration.yaml:
+#
+# rest_command:
+#   tentos_log_event:
+#     url: "http://localhost:8099/api/events"
+#     method: POST
+#     content_type: "application/json"
+#     payload: '{"tent_id": "{{ tent_id }}", "event_type": "{{ event_type }}"}'

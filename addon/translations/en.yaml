@@ -1,0 +1,10 @@
+configuration:
+  log_level:
+    name: Log Level
+    description: Logging verbosity level
+  ha_url:
+    name: Home Assistant URL
+    description: Optional custom HA URL (leave empty for default)
+  tents:
+    name: Tents
+    description: List of tent configurations

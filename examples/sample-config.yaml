@@ -1,0 +1,89 @@
+# TentOS Sample Configuration
+# Copy relevant sections to your add-on configuration
+
+log_level: info
+
+tents:
+  # Example: Single tent with basic sensors
+  - name: "Main Tent"
+    description: "4x4 grow tent"
+    sensors:
+      temperature: sensor.tent_temperature
+      humidity: sensor.tent_humidity
+    actuators:
+      light: switch.tent_light
+      exhaust_fan: fan.tent_exhaust
+    targets:
+      temp_day_min: 22
+      temp_day_max: 28
+      humidity_day_min: 50
+      humidity_day_max: 70
+    schedules:
+      photoperiod_on: "06:00"
+      photoperiod_off: "22:00"
+    notifications:
+      enabled: true
+
+  # Example: Advanced tent with all sensors
+  - name: "Veg Chamber"
+    description: "Vegetative growth with CO2 enrichment"
+    sensors:
+      temperature: sensor.veg_temp
+      humidity: sensor.veg_humidity
+      co2: sensor.veg_co2
+      light_level: sensor.veg_lux
+      reservoir_level: sensor.veg_reservoir
+      leak_sensor: binary_sensor.veg_leak
+      power_usage: sensor.veg_power
+    actuators:
+      light: switch.veg_light
+      exhaust_fan: fan.veg_exhaust
+      circulation_fan: fan.veg_circulation
+      humidifier: switch.veg_humidifier
+      dehumidifier: switch.veg_dehumidifier
+      heater: switch.veg_heater
+      water_pump: switch.veg_pump
+      drain_pump: switch.veg_drain
+    targets:
+      temp_day_min: 24
+      temp_day_max: 28
+      temp_night_min: 20
+      temp_night_max: 24
+      humidity_day_min: 60
+      humidity_day_max: 75
+      humidity_night_min: 55
+      humidity_night_max: 70
+      co2_target: 1000
+      max_fan_speed: 80
+    schedules:
+      photoperiod_on: "05:00"
+      photoperiod_off: "23:00"
+      quiet_hours_start: "22:00"
+      quiet_hours_end: "07:00"
+    notifications:
+      enabled: true
+      alert_temp_out_of_range: true
+      alert_humidity_out_of_range: true
+      alert_leak_detected: true
+      alert_reservoir_low: true
+      alert_device_unavailable: true
+
+  # Example: Seedling/clone tent (lower VPD targets)
+  - name: "Propagation"
+    description: "Seedlings and clones"
+    sensors:
+      temperature: sensor.prop_temp
+      humidity: sensor.prop_humidity
+    actuators:
+      light: switch.prop_light
+      humidifier: switch.prop_humidifier
+    targets:
+      temp_day_min: 24
+      temp_day_max: 26
+      humidity_day_min: 70
+      humidity_day_max: 85
+    schedules:
+      photoperiod_on: "06:00"
+      photoperiod_off: "00:00"  # 18/6 schedule
+    notifications:
+      enabled: true
