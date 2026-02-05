@@ -16,10 +16,14 @@ const ACTUATOR_ICONS = {
   drain_pump: { icon: '🔽', activeColor: 'text-gray-400', label: 'Drain' }
 }
 
-function ActuatorButton({ slot, state, pending, onToggle, config }) {
+function ActuatorButton({ slot, state, pending, onToggle, customLabel, customIcon }) {
   const def = ACTUATOR_ICONS[slot] || { icon: '⚡', activeColor: 'text-green-400', label: slot }
   const isOn = state === 'on' || state === 'playing' || state === 'open'
   const isUnavailable = state === 'unavailable' || state === 'unknown'
+
+  // Use custom label/icon if provided
+  const displayLabel = customLabel || def.label
+  const displayIcon = customIcon || def.icon
 
   return (
     <button
@@ -36,18 +40,18 @@ function ActuatorButton({ slot, state, pending, onToggle, config }) {
         }
         ${pending ? 'animate-pulse' : ''}
       `}
-      title={`${def.label}: ${state || 'unknown'}`}
+      title={`${displayLabel}: ${state || 'unknown'}`}
     >
       {/* Icon with animation for fans */}
       <span className={`text-2xl ${isOn ? def.activeColor : 'text-gray-500'}
         ${isOn && (slot.includes('fan')) ? 'animate-spin' : ''}
       `} style={{ animationDuration: '2s' }}>
-        {def.icon}
+        {displayIcon}
       </span>
 
       {/* Label */}
       <span className={`text-xs mt-1 ${isOn ? 'text-white' : 'text-gray-500'}`}>
-        {def.label}
+        {displayLabel}
       </span>
 
       {/* State indicator dot */}
@@ -255,10 +259,37 @@ export function TentCard({ tent, onAction, onToggle, isPending }) {
     return 'text-red-400'
   }
 
-  // Get configured actuators
-  const configuredActuators = Object.keys(tent.actuators || {}).filter(slot =>
-    tent.actuators[slot]?.state !== undefined
-  )
+  // Get configured actuators with custom order support
+  const getOrderedActuators = () => {
+    const available = Object.keys(tent.actuators || {}).filter(slot =>
+      tent.actuators[slot]?.state !== undefined
+    )
+
+    // If custom order is defined, use it (filtering to only available actuators)
+    const customOrder = tent.control_settings?.order
+    if (customOrder && Array.isArray(customOrder)) {
+      const ordered = customOrder.filter(slot => available.includes(slot))
+      // Add any actuators not in custom order at the end
+      const remaining = available.filter(slot => !ordered.includes(slot))
+      return [...ordered, ...remaining]
+    }
+
+    return available
+  }
+
+  const configuredActuators = getOrderedActuators()
+
+  // Get custom label for actuator
+  const getCustomLabel = (slot) => {
+    const labels = tent.control_settings?.labels
+    return labels?.[slot] || null
+  }
+
+  // Get custom icon for actuator
+  const getCustomIcon = (slot) => {
+    const icons = tent.control_settings?.icons
+    return icons?.[slot] || null
+  }
 
   const handleToggle = (slot) => {
     if (onToggle) {
@@ -393,6 +424,8 @@ export function TentCard({ tent, onAction, onToggle, isPending }) {
                 state={getActuatorState(slot)}
                 pending={checkPending(slot)}
                 onToggle={handleToggle}
+                customLabel={getCustomLabel(slot)}
+                customIcon={getCustomIcon(slot)}
               />
             ))}
           </div>

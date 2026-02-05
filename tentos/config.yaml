@@ -1,6 +1,6 @@
 name: "TentOS"
 description: "Monitor and automate indoor grow tents with scheduling, alerts, and visualization"
-version: "1.1.42"
+version: "1.1.43"
 slug: "tentos"
 url: "https://github.com/alexsears/tentOS"
 arch:
@@ -78,6 +78,11 @@ schema:
         alert_leak_detected: "bool?"
         alert_reservoir_low: "bool?"
         alert_device_unavailable: "bool?"
+      control_settings:
+        order:
+          - "str?"
+        labels: "str?"
+        icons: "str?"
 startup: "application"
 boot: "auto"
 ports_description:

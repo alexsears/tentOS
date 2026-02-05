@@ -77,6 +77,175 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
   )
 }
 
+function ControlCustomizer({ tent, onUpdate }) {
+  const [editingSlot, setEditingSlot] = useState(null)
+  const [tempLabel, setTempLabel] = useState('')
+  const [tempIcon, setTempIcon] = useState('')
+
+  // Get current actuator slots that have entities assigned
+  const configuredActuators = Object.keys(tent.actuators || {}).filter(
+    slot => tent.actuators[slot]
+  )
+
+  // Get ordered list (custom order or default)
+  const getOrderedList = () => {
+    const order = tent.control_settings?.order
+    if (order && Array.isArray(order)) {
+      const ordered = order.filter(s => configuredActuators.includes(s))
+      const remaining = configuredActuators.filter(s => !ordered.includes(s))
+      return [...ordered, ...remaining]
+    }
+    return configuredActuators
+  }
+
+  const orderedActuators = getOrderedList()
+
+  const moveUp = (slot) => {
+    const idx = orderedActuators.indexOf(slot)
+    if (idx <= 0) return
+    const newOrder = [...orderedActuators]
+    ;[newOrder[idx - 1], newOrder[idx]] = [newOrder[idx], newOrder[idx - 1]]
+    onUpdate({
+      ...tent,
+      control_settings: { ...tent.control_settings, order: newOrder }
+    })
+  }
+
+  const moveDown = (slot) => {
+    const idx = orderedActuators.indexOf(slot)
+    if (idx >= orderedActuators.length - 1) return
+    const newOrder = [...orderedActuators]
+    ;[newOrder[idx], newOrder[idx + 1]] = [newOrder[idx + 1], newOrder[idx]]
+    onUpdate({
+      ...tent,
+      control_settings: { ...tent.control_settings, order: newOrder }
+    })
+  }
+
+  const startEdit = (slot) => {
+    setEditingSlot(slot)
+    setTempLabel(tent.control_settings?.labels?.[slot] || '')
+    setTempIcon(tent.control_settings?.icons?.[slot] || '')
+  }
+
+  const saveEdit = () => {
+    const labels = { ...(tent.control_settings?.labels || {}) }
+    const icons = { ...(tent.control_settings?.icons || {}) }
+
+    if (tempLabel.trim()) {
+      labels[editingSlot] = tempLabel.trim()
+    } else {
+      delete labels[editingSlot]
+    }
+
+    if (tempIcon.trim()) {
+      icons[editingSlot] = tempIcon.trim()
+    } else {
+      delete icons[editingSlot]
+    }
+
+    onUpdate({
+      ...tent,
+      control_settings: { ...tent.control_settings, labels, icons }
+    })
+    setEditingSlot(null)
+  }
+
+  const defaultLabels = {
+    light: 'Light', exhaust_fan: 'Exhaust', circulation_fan: 'Circ Fan',
+    humidifier: 'Humid', dehumidifier: 'Dehumid', heater: 'Heater',
+    ac: 'A/C', water_pump: 'Water', drain_pump: 'Drain'
+  }
+
+  const defaultIcons = {
+    light: '💡', exhaust_fan: '🌀', circulation_fan: '🔄',
+    humidifier: '💨', dehumidifier: '🏜️', heater: '🔥',
+    ac: '❄️', water_pump: '🚿', drain_pump: '🔽'
+  }
+
+  if (configuredActuators.length === 0) return null
+
+  return (
+    <div className="mt-4 pt-4 border-t border-[#2d3a5c]">
+      <h4 className="text-sm font-medium text-gray-400 mb-2">Customize Controls</h4>
+      <div className="space-y-1">
+        {orderedActuators.map((slot, idx) => {
+          const label = tent.control_settings?.labels?.[slot] || defaultLabels[slot] || slot
+          const icon = tent.control_settings?.icons?.[slot] || defaultIcons[slot] || '⚡'
+
+          return (
+            <div key={slot} className="flex items-center gap-2 bg-[#1a1a2e] rounded p-2">
+              {/* Reorder buttons */}
+              <div className="flex flex-col gap-0.5">
+                <button
+                  onClick={() => moveUp(slot)}
+                  disabled={idx === 0}
+                  className="text-xs text-gray-400 hover:text-white disabled:opacity-30"
+                  title="Move up"
+                >▲</button>
+                <button
+                  onClick={() => moveDown(slot)}
+                  disabled={idx === orderedActuators.length - 1}
+                  className="text-xs text-gray-400 hover:text-white disabled:opacity-30"
+                  title="Move down"
+                >▼</button>
+              </div>
+
+              {/* Icon and label */}
+              <span className="text-lg">{icon}</span>
+              <span className="flex-1 text-sm">{label}</span>
+              <span className="text-xs text-gray-500">{slot}</span>
+
+              {/* Edit button */}
+              <button
+                onClick={() => startEdit(slot)}
+                className="p-1 hover:bg-[#2d3a5c] rounded text-gray-400 hover:text-white"
+                title="Edit label & icon"
+              >✏️</button>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Edit modal */}
+      {editingSlot && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setEditingSlot(null)}>
+          <div className="bg-[#16213e] rounded-lg p-4 w-80" onClick={e => e.stopPropagation()}>
+            <h4 className="font-semibold mb-3">Edit "{editingSlot}"</h4>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Custom Label</label>
+                <input
+                  type="text"
+                  value={tempLabel}
+                  onChange={e => setTempLabel(e.target.value)}
+                  placeholder={defaultLabels[editingSlot] || editingSlot}
+                  className="input w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Custom Icon (emoji)</label>
+                <input
+                  type="text"
+                  value={tempIcon}
+                  onChange={e => setTempIcon(e.target.value)}
+                  placeholder={defaultIcons[editingSlot] || '⚡'}
+                  className="input w-full"
+                  maxLength={4}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setEditingSlot(null)} className="btn">Cancel</button>
+                <button onClick={saveEdit} className="btn btn-primary">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, selectedSlot }) {
   const [expanded, setExpanded] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -212,6 +381,9 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
               ))}
             </div>
           </div>
+
+          {/* Control Customization */}
+          <ControlCustomizer tent={tent} onUpdate={onUpdate} />
         </div>
       )}
     </div>
