@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import TentDetail from './pages/TentDetail'
 import Events from './pages/Events'
 import Settings from './pages/Settings'
+import Automations from './pages/Automations'
 import { useWebSocket } from './hooks/useWebSocket'
 import { AlertBanner } from './components/AlertBanner'
 
@@ -28,6 +29,7 @@ function App() {
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: '🌱' },
+    { path: '/automations', label: 'Automations', icon: '🤖' },
     { path: '/events', label: 'Events', icon: '📋' },
     { path: '/settings', label: 'Settings', icon: '⚙️' },
   ]
@@ -87,6 +89,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/tent/:tentId" element={<TentDetail />} />
+          <Route path="/automations" element={<Automations />} />
           <Route path="/events" element={<Events />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>

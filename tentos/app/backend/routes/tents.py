@@ -206,6 +206,40 @@ async def tent_action(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/{tent_id}/actuators/{slot}/toggle")
+async def toggle_actuator(
+    tent_id: str,
+    slot: str,
+    request: Request,
+    state_manager: StateManager = Depends(get_state_manager)
+):
+    """Toggle an actuator on/off."""
+    tent = state_manager.get_tent(tent_id)
+    if not tent:
+        raise HTTPException(status_code=404, detail="Tent not found")
+
+    entity_id = tent.config.actuators.get(slot)
+    if not entity_id:
+        raise HTTPException(status_code=400, detail=f"No {slot} configured")
+
+    ha_client = request.app.state.ha_client
+    current_state = tent.actuators.get(slot, {}).get("state", "off")
+
+    try:
+        if current_state in ["on", "playing", "open"]:
+            await ha_client.turn_off(entity_id)
+            new_state = "off"
+        else:
+            await ha_client.turn_on(entity_id)
+            new_state = "on"
+
+        return {"success": True, "slot": slot, "new_state": new_state}
+
+    except Exception as e:
+        logger.error(f"Toggle failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{tent_id}/history")
 async def get_tent_history(
     tent_id: str,

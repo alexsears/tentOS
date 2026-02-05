@@ -169,8 +169,9 @@ class TentState:
 class StateManager:
     """Manages state for all tents and handles alerts."""
 
-    def __init__(self, ha_client: HAClient):
+    def __init__(self, ha_client: HAClient, automation_engine=None):
         self.ha_client = ha_client
+        self.automation_engine = automation_engine
         self.tents: dict[str, TentState] = {}
         self.entity_to_tent: dict[str, tuple[str, str, str]] = {}  # entity_id -> (tent_id, category, type)
         self.ws_clients: list[WebSocket] = []
@@ -259,6 +260,20 @@ class StateManager:
 
             unit = attributes.get("unit_of_measurement")
             tent.update_sensor(item_type, value, unit)
+
+            # Trigger automation rules for sensor updates
+            if self.automation_engine and isinstance(value, (int, float)):
+                try:
+                    await self.automation_engine.evaluate_sensor_rules(
+                        tent_id, item_type, value, tent.config
+                    )
+                    # Also evaluate VPD-based rules if temp or humidity changed
+                    if item_type in ("temperature", "humidity") and tent.vpd is not None:
+                        await self.automation_engine.evaluate_sensor_rules(
+                            tent_id, "vpd", tent.vpd, tent.config
+                        )
+                except Exception as e:
+                    logger.error(f"Automation rule evaluation error: {e}")
 
         elif category == "actuator":
             tent.update_actuator(item_type, state_value, attributes)

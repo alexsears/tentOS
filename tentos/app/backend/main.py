@@ -10,8 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import init_db, get_db
 from ha_client import HAClient
-from routes import tents, events, alerts, system, config
+from routes import tents, events, alerts, system, config, automations
 from state_manager import StateManager
+from automation import AutomationEngine
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper()),
@@ -22,12 +23,13 @@ logger = logging.getLogger(__name__)
 # Global state
 ha_client: HAClient | None = None
 state_manager: StateManager | None = None
+automation_engine: AutomationEngine | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle."""
-    global ha_client, state_manager
+    global ha_client, state_manager, automation_engine
 
     logger.info("Initializing Tent Garden Manager...")
 
@@ -38,8 +40,12 @@ async def lifespan(app: FastAPI):
     ha_client = HAClient()
     app.state.ha_client = ha_client
 
-    # Initialize state manager
-    state_manager = StateManager(ha_client)
+    # Initialize automation engine
+    automation_engine = AutomationEngine(ha_client)
+    app.state.automation_engine = automation_engine
+
+    # Initialize state manager with automation engine
+    state_manager = StateManager(ha_client, automation_engine)
     app.state.state_manager = state_manager
 
     # Connect to Home Assistant
@@ -47,8 +53,9 @@ async def lifespan(app: FastAPI):
         await ha_client.connect()
         logger.info("Connected to Home Assistant")
 
-        # Start state subscription
+        # Start state subscription and automation engine
         asyncio.create_task(state_manager.start())
+        asyncio.create_task(automation_engine.start())
     except Exception as e:
         logger.error(f"Failed to connect to Home Assistant: {e}")
 
@@ -56,6 +63,8 @@ async def lifespan(app: FastAPI):
 
     # Cleanup
     logger.info("Shutting down...")
+    if automation_engine:
+        await automation_engine.stop()
     if state_manager:
         await state_manager.stop()
     if ha_client:
@@ -85,6 +94,7 @@ app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
 app.include_router(system.router, prefix="/api/system", tags=["system"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
+app.include_router(automations.router, prefix="/api/automations", tags=["automations"])
 
 
 @app.get("/api/health")
@@ -109,10 +119,32 @@ async def websocket_endpoint(websocket: WebSocket):
     state_manager.add_websocket_client(websocket)
 
     try:
+        # Send initial snapshot of all tents
+        import json
+        initial_data = {
+            "type": "initial_state",
+            "tents": state_manager.get_all_tents()
+        }
+        await websocket.send_text(json.dumps(initial_data))
+
         while True:
             # Keep connection alive, handle incoming messages
             data = await websocket.receive_text()
-            # Handle client messages if needed (e.g., subscribe to specific tent)
+            msg = json.loads(data) if data else {}
+
+            # Handle client commands
+            if msg.get("type") == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
+            elif msg.get("type") == "get_tent":
+                tent_id = msg.get("tent_id")
+                tent = state_manager.get_tent(tent_id)
+                if tent:
+                    await websocket.send_text(json.dumps({
+                        "type": "tent_state",
+                        "tent_id": tent_id,
+                        "data": tent.to_dict()
+                    }))
+
             logger.debug(f"Received WS message: {data}")
     except WebSocketDisconnect:
         state_manager.remove_websocket_client(websocket)

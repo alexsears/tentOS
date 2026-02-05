@@ -1,27 +1,80 @@
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
 
-export function TentCard({ tent, onAction }) {
-  const [actionLoading, setActionLoading] = useState(null)
+// Actuator icon definitions with states
+const ACTUATOR_ICONS = {
+  light: { icon: '💡', activeColor: 'text-yellow-400', label: 'Light' },
+  exhaust_fan: { icon: '🌀', activeColor: 'text-blue-400', label: 'Exhaust' },
+  circulation_fan: { icon: '🔄', activeColor: 'text-cyan-400', label: 'Circ Fan' },
+  humidifier: { icon: '💨', activeColor: 'text-blue-300', label: 'Humid' },
+  dehumidifier: { icon: '🏜️', activeColor: 'text-orange-400', label: 'Dehumid' },
+  heater: { icon: '🔥', activeColor: 'text-red-400', label: 'Heater' },
+  water_pump: { icon: '🚿', activeColor: 'text-blue-400', label: 'Water' },
+  drain_pump: { icon: '🔽', activeColor: 'text-gray-400', label: 'Drain' }
+}
 
-  const handleAction = async (action, params = {}) => {
-    setActionLoading(action)
-    try {
-      await onAction(tent.id, action, params)
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setActionLoading(null)
-    }
-  }
+function ActuatorButton({ slot, state, pending, onToggle, config }) {
+  const def = ACTUATOR_ICONS[slot] || { icon: '⚡', activeColor: 'text-green-400', label: slot }
+  const isOn = state === 'on' || state === 'playing' || state === 'open'
+  const isUnavailable = state === 'unavailable' || state === 'unknown'
 
+  return (
+    <button
+      onClick={() => onToggle(slot)}
+      disabled={pending || isUnavailable}
+      className={`
+        relative flex flex-col items-center justify-center p-3 rounded-lg
+        transition-all duration-200 min-w-[70px]
+        ${isUnavailable
+          ? 'bg-gray-800 cursor-not-allowed opacity-50'
+          : isOn
+            ? 'bg-green-900/30 hover:bg-green-900/50 border border-green-600/50'
+            : 'bg-[#1a1a2e] hover:bg-[#2d3a5c] border border-transparent'
+        }
+        ${pending ? 'animate-pulse' : ''}
+      `}
+      title={`${def.label}: ${state || 'unknown'}`}
+    >
+      {/* Icon with animation for fans */}
+      <span className={`text-2xl ${isOn ? def.activeColor : 'text-gray-500'}
+        ${isOn && (slot.includes('fan')) ? 'animate-spin' : ''}
+      `} style={{ animationDuration: '2s' }}>
+        {def.icon}
+      </span>
+
+      {/* Label */}
+      <span className={`text-xs mt-1 ${isOn ? 'text-white' : 'text-gray-500'}`}>
+        {def.label}
+      </span>
+
+      {/* State indicator dot */}
+      <span className={`absolute top-1 right-1 w-2 h-2 rounded-full
+        ${pending ? 'bg-yellow-400 animate-pulse' :
+          isUnavailable ? 'bg-gray-600' :
+          isOn ? 'bg-green-400' : 'bg-gray-600'}
+      `} />
+    </button>
+  )
+}
+
+function SensorDisplay({ value, unit, label, icon, color = 'text-white' }) {
+  return (
+    <div className="text-center">
+      <div className="text-xs text-gray-500 mb-1">{icon}</div>
+      <div className={`text-xl font-bold ${color}`}>
+        {value != null ? value : '--'}
+        {value != null && unit && <span className="text-sm text-gray-400">{unit}</span>}
+      </div>
+      <div className="text-xs text-gray-400">{label}</div>
+    </div>
+  )
+}
+
+export function TentCard({ tent, onAction, onToggle, isPending }) {
   const getSensorValue = (type) => {
     const sensor = tent.sensors?.[type]
     if (!sensor) return null
-    return {
-      value: sensor.value,
-      unit: sensor.unit || ''
-    }
+    return sensor.value
   }
 
   const getActuatorState = (type) => {
@@ -30,13 +83,53 @@ export function TentCard({ tent, onAction }) {
 
   const temp = getSensorValue('temperature')
   const humidity = getSensorValue('humidity')
-  const lightState = getActuatorState('light')
-  const fanState = getActuatorState('exhaust_fan')
+  const co2 = getSensorValue('co2')
+
+  // Determine VPD color
+  const getVpdColor = (vpd) => {
+    if (vpd == null) return 'text-gray-400'
+    if (vpd >= 0.8 && vpd <= 1.2) return 'text-green-400'
+    if (vpd >= 0.4 && vpd <= 1.6) return 'text-yellow-400'
+    return 'text-red-400'
+  }
 
   const getScoreColor = (score) => {
     if (score >= 80) return 'text-green-400'
     if (score >= 60) return 'text-yellow-400'
     return 'text-red-400'
+  }
+
+  // Get temp color based on targets
+  const getTempColor = () => {
+    if (temp == null) return 'text-white'
+    const min = tent.targets?.temp_day_min || 18
+    const max = tent.targets?.temp_day_max || 30
+    if (temp >= min && temp <= max) return 'text-green-400'
+    return 'text-red-400'
+  }
+
+  // Get humidity color based on targets
+  const getHumidityColor = () => {
+    if (humidity == null) return 'text-white'
+    const min = tent.targets?.humidity_day_min || 40
+    const max = tent.targets?.humidity_day_max || 70
+    if (humidity >= min && humidity <= max) return 'text-green-400'
+    return 'text-red-400'
+  }
+
+  // Get configured actuators
+  const configuredActuators = Object.keys(tent.actuators || {}).filter(slot =>
+    tent.actuators[slot]?.state !== undefined
+  )
+
+  const handleToggle = (slot) => {
+    if (onToggle) {
+      onToggle(tent.id, slot)
+    }
+  }
+
+  const checkPending = (slot) => {
+    return isPending ? isPending(tent.id, slot) : false
   }
 
   return (
@@ -51,73 +144,101 @@ export function TentCard({ tent, onAction }) {
             <p className="text-sm text-gray-400">{tent.description}</p>
           )}
         </div>
-        {tent.alerts?.length > 0 && (
-          <span className="badge badge-danger">
-            {tent.alerts.length} Alert{tent.alerts.length !== 1 && 's'}
+        <div className="flex items-center gap-2">
+          {tent.alerts?.length > 0 && (
+            <span className="badge badge-danger animate-pulse">
+              {tent.alerts.length} Alert{tent.alerts.length !== 1 && 's'}
+            </span>
+          )}
+          <span className={`text-2xl font-bold ${getScoreColor(tent.environment_score)}`}>
+            {tent.environment_score || '--'}
           </span>
+        </div>
+      </div>
+
+      {/* Sensors - Real-time values */}
+      <div className="grid grid-cols-4 gap-2 mb-4 p-3 bg-[#1a1a2e] rounded-lg">
+        <SensorDisplay
+          value={temp != null ? temp.toFixed(1) : null}
+          unit="°"
+          label="Temp"
+          icon="🌡️"
+          color={getTempColor()}
+        />
+        <SensorDisplay
+          value={humidity != null ? humidity.toFixed(0) : null}
+          unit="%"
+          label="Humidity"
+          icon="💧"
+          color={getHumidityColor()}
+        />
+        <SensorDisplay
+          value={tent.vpd != null ? tent.vpd.toFixed(2) : null}
+          unit=""
+          label="VPD"
+          icon="🫧"
+          color={getVpdColor(tent.vpd)}
+        />
+        {co2 != null ? (
+          <SensorDisplay
+            value={co2.toFixed(0)}
+            unit="ppm"
+            label="CO2"
+            icon="💨"
+            color="text-white"
+          />
+        ) : (
+          <SensorDisplay
+            value={tent.last_updated ? 'Live' : null}
+            unit=""
+            label="Status"
+            icon="📡"
+            color="text-green-400"
+          />
         )}
       </div>
 
-      {/* Sensors */}
-      <div className="grid grid-cols-4 gap-4 mb-4">
-        <div className="text-center">
-          <div className="text-2xl font-bold">
-            {temp ? `${temp.value}°` : '--'}
+      {/* Actuators - Clickable Controls */}
+      {configuredActuators.length > 0 && (
+        <div className="mb-4">
+          <div className="text-xs text-gray-500 mb-2">Controls (click to toggle)</div>
+          <div className="flex flex-wrap gap-2">
+            {configuredActuators.map(slot => (
+              <ActuatorButton
+                key={slot}
+                slot={slot}
+                state={getActuatorState(slot)}
+                pending={checkPending(slot)}
+                onToggle={handleToggle}
+              />
+            ))}
           </div>
-          <div className="text-xs text-gray-400">Temperature</div>
         </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold">
-            {humidity ? `${humidity.value}%` : '--'}
-          </div>
-          <div className="text-xs text-gray-400">Humidity</div>
-        </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold">
-            {tent.vpd != null ? tent.vpd.toFixed(2) : '--'}
-          </div>
-          <div className="text-xs text-gray-400">VPD (kPa)</div>
-        </div>
-        <div className="text-center">
-          <div className={`text-2xl font-bold ${getScoreColor(tent.environment_score)}`}>
-            {tent.environment_score || '--'}
-          </div>
-          <div className="text-xs text-gray-400">Score</div>
-        </div>
-      </div>
+      )}
 
-      {/* Status indicators */}
-      <div className="flex items-center gap-4 mb-4 text-sm">
-        <div className="flex items-center gap-2">
-          <span className={lightState === 'on' ? 'text-yellow-400' : 'text-gray-500'}>💡</span>
-          <span className={lightState === 'on' ? 'text-yellow-400' : 'text-gray-400'}>
-            Light {lightState}
-          </span>
+      {/* Alerts */}
+      {tent.alerts?.length > 0 && (
+        <div className="mb-4 space-y-1">
+          {tent.alerts.slice(0, 2).map((alert, i) => (
+            <div
+              key={i}
+              className={`text-xs p-2 rounded ${
+                alert.severity === 'critical'
+                  ? 'bg-red-900/30 text-red-300'
+                  : 'bg-yellow-900/30 text-yellow-300'
+              }`}
+            >
+              {alert.message}
+            </div>
+          ))}
         </div>
-        <div className="flex items-center gap-2">
-          <span className={fanState === 'on' ? 'text-blue-400' : 'text-gray-500'}>🌀</span>
-          <span className={fanState === 'on' ? 'text-blue-400' : 'text-gray-400'}>
-            Fan {fanState}
-          </span>
-        </div>
-      </div>
+      )}
 
-      {/* Quick Actions */}
-      <div className="flex gap-2 pt-3 border-t border-[#2d3a5c]">
-        <button
-          onClick={() => handleAction('toggle_light')}
-          disabled={actionLoading === 'toggle_light'}
-          className="btn btn-secondary btn-sm flex-1"
-        >
-          {actionLoading === 'toggle_light' ? '...' : '💡 Toggle Light'}
-        </button>
-        <button
-          onClick={() => handleAction('set_fan', { entity_type: 'exhaust_fan' })}
-          disabled={actionLoading === 'set_fan'}
-          className="btn btn-secondary btn-sm flex-1"
-        >
-          {actionLoading === 'set_fan' ? '...' : '🌀 Toggle Fan'}
-        </button>
+      {/* Footer */}
+      <div className="flex items-center justify-between pt-3 border-t border-[#2d3a5c]">
+        <div className="text-xs text-gray-500">
+          {tent.last_updated && `Updated: ${new Date(tent.last_updated).toLocaleTimeString()}`}
+        </div>
         <Link to={`/tent/${tent.id}`} className="btn btn-primary btn-sm">
           Details →
         </Link>

@@ -2,7 +2,7 @@ import { useTents } from '../hooks/useTents'
 import { TentCard } from '../components/TentCard'
 
 export default function Home() {
-  const { tents, loading, error, performAction } = useTents()
+  const { tents, loading, error, connected, performAction, toggleActuator, isPending } = useTents()
 
   if (loading) {
     return (
@@ -26,13 +26,10 @@ export default function Home() {
         <div className="text-4xl mb-4">🌱</div>
         <h2 className="text-xl font-semibold mb-2">No Tents Configured</h2>
         <p className="text-gray-400 mb-4">
-          Add your first tent in the add-on configuration.
+          Configure your tents in the Settings tab.
         </p>
-        <a
-          href="/hassio/addon/tent_garden_manager/config"
-          className="btn btn-primary"
-        >
-          Open Add-on Config
+        <a href="#/settings" className="btn btn-primary">
+          Go to Settings
         </a>
       </div>
     )
@@ -43,7 +40,15 @@ export default function Home() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold">Dashboard</h2>
-          <p className="text-gray-400">{tents.length} tent{tents.length !== 1 && 's'} configured</p>
+          <p className="text-gray-400">
+            {tents.length} tent{tents.length !== 1 && 's'} configured
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+          <span className="text-sm text-gray-400">
+            {connected ? 'Live' : 'Disconnected'}
+          </span>
         </div>
       </div>
 
@@ -53,6 +58,8 @@ export default function Home() {
             key={tent.id}
             tent={tent}
             onAction={performAction}
+            onToggle={toggleActuator}
+            isPending={isPending}
           />
         ))}
       </div>
