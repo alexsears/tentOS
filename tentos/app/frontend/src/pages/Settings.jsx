@@ -19,7 +19,6 @@ export default function Settings() {
   const [updateInfo, setUpdateInfo] = useState(null)
   const [updateLoading, setUpdateLoading] = useState(false)
   const [rebuilding, setRebuilding] = useState(false)
-  const [telemetry, setTelemetry] = useState({ opted_in: false, install_id: '' })
   const [selectedEntities, setSelectedEntities] = useState([]) // Multi-select for bulk add
   const [autoSaveStatus, setAutoSaveStatus] = useState(null) // 'saving' | 'saved' | 'error'
   const isInitialLoad = useRef(true)
@@ -31,15 +30,13 @@ export default function Settings() {
       apiFetch('api/system/status').then(r => r.json()),
       apiFetch('api/system/entities').then(r => r.json()),
       apiFetch('api/config/slots').then(r => r.json()),
-      apiFetch('api/config').then(r => r.json()),
-      apiFetch('api/telemetry/status').then(r => r.json()).catch(() => ({ opted_in: false }))
+      apiFetch('api/config').then(r => r.json())
     ])
-      .then(([statusData, entitiesData, slotsData, configData, telemetryData]) => {
+      .then(([statusData, entitiesData, slotsData, configData]) => {
         setStatus(statusData)
         setEntities(entitiesData.entities || [])
         setSlots(slotsData)
         setConfig(configData)
-        setTelemetry(telemetryData)
       })
       .catch(err => {
         console.error('Failed to load data:', err)
@@ -558,16 +555,6 @@ export default function Settings() {
         >
           Updates
         </button>
-        <button
-          onClick={() => setActiveTab('privacy')}
-          className={`px-4 py-2 -mb-px border-b-2 transition-colors ${
-            activeTab === 'privacy'
-              ? 'border-green-500 text-green-400'
-              : 'border-transparent text-gray-400 hover:text-white'
-          }`}
-        >
-          Privacy
-        </button>
       </div>
 
       {/* Tent Builder Tab */}
@@ -865,76 +852,6 @@ automation:
         </div>
       )}
 
-      {/* Privacy Tab */}
-      {activeTab === 'privacy' && (
-        <div className="space-y-4">
-          <div className="card">
-            <h3 className="font-semibold mb-4">Anonymous Usage Statistics</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Help improve TentOS by sharing anonymous usage data. This helps the developer understand
-              how many people use TentOS and prioritize features.
-            </p>
-
-            <div className="p-4 bg-[#1a1a2e] rounded-lg mb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium">Share Anonymous Statistics</div>
-                  <div className="text-sm text-gray-400">
-                    Only sends: install count, version, and architecture
-                  </div>
-                </div>
-                <button
-                  onClick={async () => {
-                    const newValue = !telemetry.opted_in
-                    try {
-                      await apiFetch('api/telemetry/opt-in', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ opted_in: newValue })
-                      })
-                      setTelemetry(prev => ({ ...prev, opted_in: newValue }))
-                      setSuccess(newValue ? 'Thanks for helping improve TentOS!' : 'Telemetry disabled')
-                      setTimeout(() => setSuccess(null), 3000)
-                    } catch (e) {
-                      setError('Failed to update preference')
-                    }
-                  }}
-                  className={`relative w-14 h-7 rounded-full transition-colors ${
-                    telemetry.opted_in ? 'bg-green-600' : 'bg-gray-600'
-                  }`}
-                >
-                  <span className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform ${
-                    telemetry.opted_in ? 'translate-x-8' : 'translate-x-1'
-                  }`} />
-                </button>
-              </div>
-            </div>
-
-            <div className="text-xs text-gray-500 space-y-2">
-              <p><strong>What we collect:</strong></p>
-              <ul className="list-disc list-inside ml-2 space-y-1">
-                <li>Anonymous install ID (random, not linked to you)</li>
-                <li>TentOS version number</li>
-                <li>System architecture (arm64, amd64, etc.)</li>
-                <li>Startup events (to count active installs)</li>
-              </ul>
-              <p className="mt-3"><strong>What we DON'T collect:</strong></p>
-              <ul className="list-disc list-inside ml-2 space-y-1">
-                <li>Your IP address or location</li>
-                <li>Your tent configuration or sensor data</li>
-                <li>Your Home Assistant info or entity names</li>
-                <li>Any personal information</li>
-              </ul>
-            </div>
-
-            {telemetry.install_id && (
-              <div className="mt-4 text-xs text-gray-500">
-                Your anonymous ID: <code className="text-gray-400">{telemetry.install_id}</code>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
