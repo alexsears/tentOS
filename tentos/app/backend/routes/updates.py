@@ -11,10 +11,40 @@ router = APIRouter()
 # HA Supervisor API
 SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN")
 SUPERVISOR_API = "http://supervisor"
-ADDON_SLUG = "local_tentos"  # Local add-on slug
 
 # GitHub repo for version checking
 GITHUB_REPO = "alexsears/tentOS"
+
+# Cache the addon slug
+_addon_slug = None
+
+
+async def get_addon_slug():
+    """Get our addon slug from Supervisor."""
+    global _addon_slug
+    if _addon_slug:
+        return _addon_slug
+
+    headers = await get_supervisor_headers()
+
+    # Try to get slug from hostname or environment
+    hostname = os.environ.get("HOSTNAME", "")
+    if hostname:
+        _addon_slug = hostname.replace("-", "_")
+        return _addon_slug
+
+    # Try common slug patterns
+    async with aiohttp.ClientSession() as session:
+        for slug in ["c3032025_tentos", "local_tentos", "tentos"]:
+            url = f"{SUPERVISOR_API}/addons/{slug}/info"
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    _addon_slug = slug
+                    logger.info(f"Found addon slug: {slug}")
+                    return slug
+
+    _addon_slug = "local_tentos"
+    return _addon_slug
 
 
 def get_current_version():
@@ -98,27 +128,51 @@ async def check_for_updates():
         }
 
 
+@router.post("/update")
+async def update_addon():
+    """Update the add-on to latest version via Supervisor API."""
+    try:
+        headers = await get_supervisor_headers()
+        slug = await get_addon_slug()
+
+        async with aiohttp.ClientSession() as session:
+            # Trigger update (pulls latest and rebuilds)
+            update_url = f"{SUPERVISOR_API}/addons/{slug}/update"
+            logger.info(f"Triggering update for {slug}")
+            async with session.post(update_url, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return {
+                        "success": True,
+                        "message": "Update started. The add-on will restart with the new version.",
+                        "data": data
+                    }
+                else:
+                    error_text = await resp.text()
+                    logger.error(f"Update failed: {resp.status} - {error_text}")
+                    raise HTTPException(
+                        status_code=resp.status,
+                        detail=f"Supervisor API error: {error_text}"
+                    )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Update error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/rebuild")
 async def rebuild_addon():
     """Trigger add-on rebuild via Supervisor API."""
     try:
         headers = await get_supervisor_headers()
+        slug = await get_addon_slug()
 
         async with aiohttp.ClientSession() as session:
-            # First, try to get add-on info to confirm we can access Supervisor
-            info_url = f"{SUPERVISOR_API}/addons/{ADDON_SLUG}/info"
-            async with session.get(info_url, headers=headers) as resp:
-                if resp.status != 200:
-                    # Try alternate slug formats
-                    for slug in ["local_tentos", "tentos", "a]_tentos"]:
-                        info_url = f"{SUPERVISOR_API}/addons/{slug}/info"
-                        async with session.get(info_url, headers=headers) as alt_resp:
-                            if alt_resp.status == 200:
-                                ADDON_SLUG = slug
-                                break
-
             # Trigger rebuild
-            rebuild_url = f"{SUPERVISOR_API}/addons/{ADDON_SLUG}/rebuild"
+            rebuild_url = f"{SUPERVISOR_API}/addons/{slug}/rebuild"
+            logger.info(f"Triggering rebuild for {slug}")
             async with session.post(rebuild_url, headers=headers) as resp:
                 if resp.status == 200:
                     data = await resp.json()
@@ -147,9 +201,10 @@ async def restart_addon():
     """Restart the add-on (faster than rebuild, but won't pull new code)."""
     try:
         headers = await get_supervisor_headers()
+        slug = await get_addon_slug()
 
         async with aiohttp.ClientSession() as session:
-            restart_url = f"{SUPERVISOR_API}/addons/{ADDON_SLUG}/restart"
+            restart_url = f"{SUPERVISOR_API}/addons/{slug}/restart"
             async with session.post(restart_url, headers=headers) as resp:
                 if resp.status == 200:
                     return {
@@ -172,9 +227,10 @@ async def get_addon_info():
     """Get add-on info from Supervisor."""
     try:
         headers = await get_supervisor_headers()
+        slug = await get_addon_slug()
 
         async with aiohttp.ClientSession() as session:
-            info_url = f"{SUPERVISOR_API}/addons/{ADDON_SLUG}/info"
+            info_url = f"{SUPERVISOR_API}/addons/{slug}/info"
             async with session.get(info_url, headers=headers) as resp:
                 if resp.status == 200:
                     data = await resp.json()
@@ -182,10 +238,11 @@ async def get_addon_info():
                     return {
                         "name": addon_data.get("name"),
                         "version": addon_data.get("version"),
+                        "version_latest": addon_data.get("version_latest"),
                         "state": addon_data.get("state"),
                         "update_available": addon_data.get("update_available"),
                         "repository": addon_data.get("repository"),
-                        "build": addon_data.get("build")
+                        "slug": slug
                     }
                 else:
                     return {"error": "Could not get add-on info", "status": resp.status}

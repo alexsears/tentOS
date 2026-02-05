@@ -143,9 +143,20 @@ export default function Settings() {
   const checkForUpdates = async () => {
     setUpdateLoading(true)
     try {
-      const res = await fetch('api/updates/check')
-      const data = await res.json()
-      setUpdateInfo(data)
+      // Get both GitHub info and Supervisor info
+      const [checkRes, infoRes] = await Promise.all([
+        fetch('api/updates/check'),
+        fetch('api/updates/info')
+      ])
+      const checkData = await checkRes.json()
+      const infoData = await infoRes.json()
+
+      setUpdateInfo({
+        ...checkData,
+        supervisor_update_available: infoData.update_available,
+        version_latest: infoData.version_latest,
+        slug: infoData.slug
+      })
     } catch (err) {
       setError('Failed to check for updates')
     } finally {
@@ -153,9 +164,29 @@ export default function Settings() {
     }
   }
 
+  // Update add-on (pull latest + rebuild)
+  const handleUpdate = async () => {
+    if (!confirm('This will update the add-on to the latest version. The app will restart. Continue?')) return
+    setRebuilding(true)
+    setError(null)
+    try {
+      const res = await fetch('api/updates/update', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        setSuccess('Update started! The add-on will restart with the new version.')
+      } else {
+        setError(data.detail || 'Update failed')
+      }
+    } catch (err) {
+      setError('Failed to trigger update: ' + err.message)
+    } finally {
+      setRebuilding(false)
+    }
+  }
+
   // Rebuild add-on
   const handleRebuild = async () => {
-    if (!confirm('This will rebuild the add-on with the latest code. The app will restart. Continue?')) return
+    if (!confirm('This will rebuild the add-on. The app will restart. Continue?')) return
     setRebuilding(true)
     setError(null)
     try {
@@ -469,18 +500,27 @@ export default function Settings() {
               Restart just restarts the add-on without pulling new code.
             </p>
             <div className="flex gap-3">
+              {(updateInfo?.update_available || updateInfo?.supervisor_update_available) && (
+                <button
+                  onClick={handleUpdate}
+                  disabled={rebuilding}
+                  className="btn bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {rebuilding ? 'Updating...' : 'Update to Latest'}
+                </button>
+              )}
               <button
                 onClick={handleRebuild}
                 disabled={rebuilding}
-                className="btn btn-primary"
+                className="btn"
               >
-                {rebuilding ? 'Rebuilding...' : 'Rebuild Add-on'}
+                {rebuilding ? 'Rebuilding...' : 'Rebuild'}
               </button>
               <button
                 onClick={handleRestart}
                 className="btn"
               >
-                Restart Add-on
+                Restart
               </button>
             </div>
             <p className="text-xs text-gray-500 mt-3">
