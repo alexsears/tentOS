@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import init_db, get_db
 from ha_client import HAClient
-from routes import tents, events, alerts, system, config, automations
+from routes import tents, events, alerts, system, config, automations, reports
 from state_manager import StateManager
 from automation import AutomationEngine
 
@@ -95,6 +95,7 @@ app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
 app.include_router(system.router, prefix="/api/system", tags=["system"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
 app.include_router(automations.router, prefix="/api/automations", tags=["automations"])
+app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 
 
 @app.get("/api/health")
