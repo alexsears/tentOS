@@ -121,6 +121,7 @@ async def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
+        "version": get_version(),
         "ha_connected": ha_client.connected if ha_client else False
     }
 

@@ -12,6 +12,7 @@ import { AlertBanner } from './components/AlertBanner'
 function App() {
   const location = useLocation()
   const [alerts, setAlerts] = useState([])
+  const [version, setVersion] = useState('')
   const { lastMessage } = useWebSocket('api/ws')
 
   useEffect(() => {
@@ -19,6 +20,12 @@ function App() {
     fetch('api/alerts/summary')
       .then(r => r.json())
       .then(data => setAlerts(data))
+      .catch(console.error)
+
+    // Fetch version
+    fetch('api/health')
+      .then(r => r.json())
+      .then(data => setVersion(data.version || ''))
       .catch(console.error)
   }, [])
 
@@ -45,6 +52,7 @@ function App() {
             <div className="flex items-center gap-3">
               <span className="text-2xl">🌿</span>
               <h1 className="text-xl font-semibold">TentOS</h1>
+              {version && <span className="text-xs text-gray-500">v{version}</span>}
             </div>
 
             <nav className="flex items-center gap-1">
