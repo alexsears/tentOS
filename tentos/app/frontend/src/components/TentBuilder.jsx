@@ -1,26 +1,35 @@
 import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 
-function Slot({ slotType, slotDef, entityId, entity, onClear, category, tentId }) {
+function Slot({ slotType, slotDef, entityId, entity, onClear, category, tentId, onSelect, isSelected }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `${tentId}.${category}.${slotType}`,
     data: { slotType, slotDef, category, tentId }
   })
 
   const isEmpty = !entityId
-  const isCompatible = true // Will be validated by parent
+
+  const handleClick = (e) => {
+    if (isEmpty && onSelect) {
+      e.stopPropagation()
+      onSelect({ category, slotType, slotDef })
+    }
+  }
 
   return (
     <div
       ref={setNodeRef}
+      onClick={handleClick}
       className={`p-3 rounded-lg border-2 border-dashed transition-all
         ${isEmpty
           ? isOver
             ? 'border-green-500 bg-green-500/10'
-            : 'border-[#2d3a5c] hover:border-[#3d4a6c]'
+            : isSelected
+              ? 'border-green-500 bg-green-500/20 ring-2 ring-green-500/50'
+              : 'border-[#2d3a5c] hover:border-[#3d4a6c] cursor-pointer'
           : 'border-transparent bg-[#1a1a2e]'
         }
-        ${slotDef.required && isEmpty ? 'border-yellow-500/50' : ''}
+        ${slotDef.required && isEmpty && !isSelected ? 'border-yellow-500/50' : ''}
       `}
     >
       <div className="flex items-center gap-2 mb-1">
@@ -58,7 +67,7 @@ function Slot({ slotType, slotDef, entityId, entity, onClear, category, tentId }
   )
 }
 
-function TentCard({ tent, slots, entities, onUpdate, onDelete }) {
+function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, selectedSlot }) {
   const [expanded, setExpanded] = useState(true)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(tent.name)
@@ -158,6 +167,8 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete }) {
                   onClear={clearSlot}
                   category="sensors"
                   tentId={tent.id}
+                  onSelect={onSlotSelect}
+                  isSelected={selectedSlot?.category === 'sensors' && selectedSlot?.slotType === slotType}
                 />
               ))}
             </div>
@@ -177,6 +188,8 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete }) {
                   onClear={clearSlot}
                   category="actuators"
                   tentId={tent.id}
+                  onSelect={onSlotSelect}
+                  isSelected={selectedSlot?.category === 'actuators' && selectedSlot?.slotType === slotType}
                 />
               ))}
             </div>
@@ -325,7 +338,7 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete }) {
   )
 }
 
-export default function TentBuilder({ config, slots, entities, onConfigChange }) {
+export default function TentBuilder({ config, slots, entities, onConfigChange, onSlotSelect, selectedSlot }) {
   // Generate unique tent ID
   const generateId = () => `tent_${Date.now()}`
 
@@ -414,6 +427,8 @@ export default function TentBuilder({ config, slots, entities, onConfigChange })
             entities={entities}
             onUpdate={(updated) => updateTent(tent.id, updated)}
             onDelete={deleteTent}
+            onSlotSelect={onSlotSelect}
+            selectedSlot={selectedSlot}
           />
         ))
       )}

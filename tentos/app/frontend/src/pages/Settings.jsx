@@ -15,6 +15,7 @@ export default function Settings() {
   const [success, setSuccess] = useState(null)
   const [activeDragEntity, setActiveDragEntity] = useState(null)
   const [activeTab, setActiveTab] = useState('builder')
+  const [slotFilter, setSlotFilter] = useState(null) // { category, slotType, slotDef }
   const [updateInfo, setUpdateInfo] = useState(null)
   const [updateLoading, setUpdateLoading] = useState(false)
   const [rebuilding, setRebuilding] = useState(false)
@@ -321,6 +322,8 @@ export default function Settings() {
                 entities={entities}
                 slots={slots}
                 assignedEntities={getAssignedEntities()}
+                slotFilter={slotFilter}
+                onClearFilter={() => setSlotFilter(null)}
               />
             </div>
 
@@ -331,6 +334,8 @@ export default function Settings() {
                 slots={slots}
                 entities={entities}
                 onConfigChange={setConfig}
+                onSlotSelect={setSlotFilter}
+                selectedSlot={slotFilter}
               />
             </div>
           </div>

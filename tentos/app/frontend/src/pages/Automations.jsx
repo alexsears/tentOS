@@ -590,18 +590,18 @@ function RuleCard({ rule, onToggle, onEdit, onDelete }) {
   }
 
   return (
-    <div className={`card flex items-center gap-4 ${!rule.enabled ? 'opacity-60' : ''}`}>
-      <div className="text-3xl">{sensor?.icon || actuator?.icon || '⚡'}</div>
+    <div className={`flex items-center gap-4 p-3 rounded-lg bg-[#1a1a2e] ${!rule.enabled ? 'opacity-60' : ''}`}>
+      <div className="text-2xl">{sensor?.icon || actuator?.icon || '⚡'}</div>
 
-      <div className="flex-1">
-        <div className="font-semibold">{rule.name}</div>
-        <div className="text-sm text-gray-400">
+      <div className="flex-1 min-w-0">
+        <div className="font-medium truncate">{rule.name}</div>
+        <div className="text-sm text-gray-400 truncate">
           <span className="text-blue-400">IF</span> {getTriggerText()}{' '}
           <span className="text-green-400">THEN</span> {rule.action_type.replace('_', ' ')} {actuator?.label || rule.action_actuator}
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-shrink-0">
         <button
           onClick={() => onToggle(rule.id, !rule.enabled)}
           className={`px-3 py-1 rounded text-xs font-medium ${
@@ -630,6 +630,7 @@ export default function Automations() {
   const [editingRule, setEditingRule] = useState(null)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
+  const [collapsedGroups, setCollapsedGroups] = useState({})
 
   useEffect(() => {
     loadData()
@@ -757,20 +758,48 @@ export default function Automations() {
             const tentRules = rules.filter(r => r.tent_id === tent.id)
             if (tentRules.length === 0) return null
 
+            const isCollapsed = collapsedGroups[tent.id]
+            const toggleCollapse = () => setCollapsedGroups(prev => ({
+              ...prev,
+              [tent.id]: !prev[tent.id]
+            }))
+
             return (
-              <div key={tent.id}>
-                <h3 className="text-sm font-medium text-gray-400 mb-2">{tent.name}</h3>
-                <div className="space-y-2">
-                  {tentRules.map(rule => (
-                    <RuleCard
-                      key={rule.id}
-                      rule={rule}
-                      onToggle={handleToggle}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                    />
-                  ))}
-                </div>
+              <div key={tent.id} className="card p-0 overflow-hidden">
+                <button
+                  onClick={toggleCollapse}
+                  className="w-full flex items-center gap-3 p-4 hover:bg-[#1a1a2e] transition-colors text-left"
+                >
+                  <span className="text-lg">{isCollapsed ? '▶' : '▼'}</span>
+                  <div className="flex-1">
+                    <h3 className="font-medium">{tent.name}</h3>
+                    <span className="text-sm text-gray-400">
+                      {tentRules.length} automation{tentRules.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${
+                      tentRules.every(r => r.enabled) ? 'bg-green-500' :
+                      tentRules.some(r => r.enabled) ? 'bg-yellow-500' : 'bg-gray-500'
+                    }`} />
+                    <span className="text-xs text-gray-400">
+                      {tentRules.filter(r => r.enabled).length}/{tentRules.length} active
+                    </span>
+                  </div>
+                </button>
+                {!isCollapsed && (
+                  <div className="border-t border-[#2d3a5c] p-4 space-y-2">
+                    {tentRules.map(rule => (
+                      <RuleCard
+                        key={rule.id}
+                        rule={rule}
+                        onToggle={handleToggle}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}

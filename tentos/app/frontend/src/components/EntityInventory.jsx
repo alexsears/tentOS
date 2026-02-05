@@ -41,7 +41,7 @@ function DraggableEntity({ entity, slotType }) {
   )
 }
 
-export default function EntityInventory({ entities, slots, assignedEntities = {} }) {
+export default function EntityInventory({ entities, slots, assignedEntities = {}, slotFilter, onClearFilter }) {
   const [search, setSearch] = useState('')
   const [domainFilter, setDomainFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -83,6 +83,23 @@ export default function EntityInventory({ entities, slots, assignedEntities = {}
       // Exclude already assigned
       if (assignedIds.has(entity.entity_id)) return false
 
+      // If slot filter is active, filter by slot's domains and device_classes
+      if (slotFilter?.slotDef) {
+        const { domains = [], device_classes = [] } = slotFilter.slotDef
+        // Must match domain
+        if (domains.length > 0 && !domains.includes(entity.domain)) return false
+        // If device_classes specified, must match
+        if (device_classes.length > 0 && !device_classes.includes(entity.device_class)) return false
+        // Apply search within slot-filtered results
+        if (search) {
+          const searchLower = search.toLowerCase()
+          const matchesId = entity.entity_id.toLowerCase().includes(searchLower)
+          const matchesName = entity.friendly_name?.toLowerCase().includes(searchLower)
+          if (!matchesId && !matchesName) return false
+        }
+        return true
+      }
+
       // Search filter
       if (search) {
         const searchLower = search.toLowerCase()
@@ -103,7 +120,7 @@ export default function EntityInventory({ entities, slots, assignedEntities = {}
 
       return true
     })
-  }, [entities, search, domainFilter, categoryFilter, assignedIds, slotCompatibility])
+  }, [entities, search, domainFilter, categoryFilter, assignedIds, slotCompatibility, slotFilter])
 
   // Group by domain
   const groupedEntities = useMemo(() => {
@@ -134,6 +151,23 @@ export default function EntityInventory({ entities, slots, assignedEntities = {}
       <div className="p-3 border-b border-[#2d3a5c] space-y-2">
         <h3 className="font-semibold text-sm">Entity Inventory</h3>
 
+        {/* Slot filter indicator */}
+        {slotFilter && (
+          <div className="flex items-center gap-2 p-2 bg-green-500/20 border border-green-500/50 rounded text-sm">
+            <span className="text-lg">{slotFilter.slotDef?.icon}</span>
+            <div className="flex-1">
+              <span className="text-green-400">Showing: </span>
+              <span className="font-medium">{slotFilter.slotDef?.label}</span>
+            </div>
+            <button
+              onClick={onClearFilter}
+              className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 rounded"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         <input
           type="text"
           placeholder="Search entities..."
@@ -142,28 +176,30 @@ export default function EntityInventory({ entities, slots, assignedEntities = {}
           className="input w-full text-sm"
         />
 
-        <div className="flex gap-2">
-          <select
-            value={categoryFilter}
-            onChange={e => setCategoryFilter(e.target.value)}
-            className="input flex-1 text-sm"
-          >
-            <option value="all">All Types</option>
-            <option value="sensors">Sensors</option>
-            <option value="actuators">Actuators</option>
-          </select>
+        {!slotFilter && (
+          <div className="flex gap-2">
+            <select
+              value={categoryFilter}
+              onChange={e => setCategoryFilter(e.target.value)}
+              className="input flex-1 text-sm"
+            >
+              <option value="all">All Types</option>
+              <option value="sensors">Sensors</option>
+              <option value="actuators">Actuators</option>
+            </select>
 
-          <select
-            value={domainFilter}
-            onChange={e => setDomainFilter(e.target.value)}
-            className="input flex-1 text-sm"
-          >
-            <option value="">All Domains</option>
-            {domains.map(d => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-        </div>
+            <select
+              value={domainFilter}
+              onChange={e => setDomainFilter(e.target.value)}
+              className="input flex-1 text-sm"
+            >
+              <option value="">All Domains</option>
+              {domains.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
