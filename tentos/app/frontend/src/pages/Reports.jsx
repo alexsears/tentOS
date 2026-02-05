@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import ReactECharts from 'echarts-for-react'
+import { apiFetch } from '../utils/api'
 import { format, subHours, subDays } from 'date-fns'
 
 const TIME_RANGES = [
@@ -59,7 +60,7 @@ export default function Reports() {
 
   // Load tents
   useEffect(() => {
-    fetch('api/tents')
+    apiFetch('api/tents')
       .then(r => r.json())
       .then(data => {
         setTents(data.tents || [])

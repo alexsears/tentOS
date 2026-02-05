@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useWebSocket } from './useWebSocket'
+import { apiFetch } from '../utils/api'
 
 export function useTents() {
   const [tents, setTents] = useState([])
@@ -10,7 +11,7 @@ export function useTents() {
 
   const fetchTents = useCallback(async () => {
     try {
-      const response = await fetch('api/tents')
+      const response = await apiFetch('api/tents')
       if (!response.ok) throw new Error('Failed to fetch tents')
       const data = await response.json()
       setTents(data.tents || [])
@@ -52,7 +53,7 @@ export function useTents() {
 
   const performAction = useCallback(async (tentId, action, params = {}) => {
     try {
-      const response = await fetch(`api/tents/${tentId}/actions`, {
+      const response = await apiFetch(`api/tents/${tentId}/actions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, ...params })
@@ -72,7 +73,7 @@ export function useTents() {
     setPending(prev => ({ ...prev, [key]: true }))
 
     try {
-      const response = await fetch(`api/tents/${tentId}/actuators/${slot}/toggle`, {
+      const response = await apiFetch(`api/tents/${tentId}/actuators/${slot}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -112,7 +113,7 @@ export function useTent(tentId) {
   const fetchTent = useCallback(async () => {
     if (!tentId) return
     try {
-      const response = await fetch(`api/tents/${tentId}`)
+      const response = await apiFetch(`api/tents/${tentId}`)
       if (!response.ok) throw new Error('Failed to fetch tent')
       const data = await response.json()
       setTent(data)

@@ -8,6 +8,7 @@ import Automations from './pages/Automations'
 import Reports from './pages/Reports'
 import { useWebSocket } from './hooks/useWebSocket'
 import { AlertBanner } from './components/AlertBanner'
+import { apiFetch } from './utils/api'
 
 function App() {
   const location = useLocation()
@@ -17,13 +18,13 @@ function App() {
 
   useEffect(() => {
     // Fetch initial alerts
-    fetch('api/alerts/summary')
+    apiFetch('api/alerts/summary')
       .then(r => r.json())
       .then(data => setAlerts(data))
       .catch(console.error)
 
     // Fetch version
-    fetch('api/health')
+    apiFetch('api/health')
       .then(r => r.json())
       .then(data => setVersion(data.version || ''))
       .catch(console.error)

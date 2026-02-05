@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { DndContext, DragOverlay, useDraggable, useDroppable, pointerWithin } from '@dnd-kit/core'
+import { apiFetch } from '../utils/api'
 
 // Scenario templates
 const SCENARIOS = {
@@ -637,8 +638,8 @@ export default function Automations() {
   const loadData = async () => {
     try {
       const [rulesRes, tentsRes] = await Promise.all([
-        fetch('api/automations').then(r => r.json()),
-        fetch('api/tents').then(r => r.json())
+        apiFetch('api/automations').then(r => r.json()),
+        apiFetch('api/tents').then(r => r.json())
       ])
       setRules(rulesRes.rules || [])
       setTents(tentsRes.tents || [])

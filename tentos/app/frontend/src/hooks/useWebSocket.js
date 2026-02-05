@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { getWsUrl } from '../utils/api'
 
 export function useWebSocket(url) {
   const [lastMessage, setLastMessage] = useState(null)
@@ -8,11 +9,11 @@ export function useWebSocket(url) {
 
   const connect = useCallback(() => {
     try {
-      // Build WebSocket URL relative to current page (works with ingress)
-      const wsUrl = new URL(url.replace(/^\//, ''), window.location.href)
-      wsUrl.protocol = wsUrl.protocol.replace('http', 'ws')
+      // Build WebSocket URL with correct base path for ingress
+      const wsUrl = getWsUrl(url)
+      console.log('WebSocket connecting to:', wsUrl)
 
-      wsRef.current = new WebSocket(wsUrl.href)
+      wsRef.current = new WebSocket(wsUrl)
 
       wsRef.current.onopen = () => {
         setReadyState(WebSocket.OPEN)

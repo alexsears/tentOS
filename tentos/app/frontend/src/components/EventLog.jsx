@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/api'
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 
@@ -35,7 +36,7 @@ export function EventLog({ tentId, limit = 10 }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      await fetch('api/events', {
+      await apiFetch('api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
