@@ -225,6 +225,46 @@ export default function Settings() {
     }
   }
 
+  // Export config as JSON file
+  const handleExport = () => {
+    const dataStr = JSON.stringify(config, null, 2)
+    const blob = new Blob([dataStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `tentos-config-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    setSuccess('Config exported!')
+    setTimeout(() => setSuccess(null), 3000)
+  }
+
+  // Import config from JSON file
+  const handleImport = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const imported = JSON.parse(e.target.result)
+        if (!imported.tents) {
+          setError('Invalid config file: missing tents array')
+          return
+        }
+        setConfig(imported)
+        setSuccess('Config imported! Click "Save Configuration" to apply.')
+        setTimeout(() => setSuccess(null), 5000)
+      } catch (err) {
+        setError('Failed to parse config file: ' + err.message)
+      }
+    }
+    reader.readAsText(file)
+    event.target.value = '' // Reset input
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -500,6 +540,30 @@ export default function Settings() {
                 Click "Check for Updates" to see version information
               </div>
             )}
+          </div>
+
+          <div className="card">
+            <h3 className="font-semibold mb-4">Backup & Restore</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Export your tent configuration to a file for backup. Import to restore after reinstall.
+            </p>
+            <div className="flex gap-3 flex-wrap mb-4">
+              <button onClick={handleExport} className="btn">
+                📥 Export Config
+              </button>
+              <label className="btn cursor-pointer">
+                📤 Import Config
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImport}
+                  className="hidden"
+                />
+              </label>
+            </div>
+            <div className="text-xs text-gray-500">
+              {config.tents?.length || 0} tent(s) configured
+            </div>
           </div>
 
           <div className="card">
