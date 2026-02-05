@@ -366,9 +366,50 @@ function RuleCard({ rule, tents, onToggle, onEdit, onDelete }) {
   )
 }
 
+// HA Automation card
+function HAAutomationCard({ automation, onTrigger, onToggle }) {
+  const entityId = automation.entity_id || ''
+  const name = automation.attributes?.friendly_name || entityId.replace('automation.', '')
+  const state = automation.state  // 'on' or 'off'
+  const lastTriggered = automation.attributes?.last_triggered
+
+  return (
+    <div className={`flex items-center gap-4 p-3 rounded-lg bg-[#1a1a2e] ${state === 'off' ? 'opacity-60' : ''}`}>
+      <div className="text-2xl">🏠</div>
+      <div className="flex-1 min-w-0">
+        <div className="font-medium truncate">{name}</div>
+        <div className="text-sm text-gray-400 truncate">
+          {entityId}
+          {lastTriggered && (
+            <span className="ml-2">• Last: {new Date(lastTriggered).toLocaleString()}</span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <button
+          onClick={() => onTrigger(entityId)}
+          className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-xs font-medium"
+          title="Manually trigger this automation"
+        >
+          Run
+        </button>
+        <button
+          onClick={() => onToggle(entityId)}
+          className={`px-3 py-1 rounded text-xs font-medium ${
+            state === 'on' ? 'bg-green-600' : 'bg-gray-600'
+          }`}
+        >
+          {state === 'on' ? 'ON' : 'OFF'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // Main Automations page
 export default function Automations() {
   const [rules, setRules] = useState([])
+  const [haAutomations, setHaAutomations] = useState([])
   const [tents, setTents] = useState([])
   const [config, setConfig] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -377,6 +418,8 @@ export default function Automations() {
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [collapsedGroups, setCollapsedGroups] = useState({})
+  const [activeTab, setActiveTab] = useState('tentos')  // 'tentos' or 'ha'
+  const [selectedTentFilter, setSelectedTentFilter] = useState('')
 
   useEffect(() => {
     loadData()
@@ -384,18 +427,39 @@ export default function Automations() {
 
   const loadData = async () => {
     try {
-      const [rulesRes, tentsRes, configRes] = await Promise.all([
+      const [rulesRes, tentsRes, configRes, haRes] = await Promise.all([
         apiFetch('api/automations').then(r => r.json()),
         apiFetch('api/tents').then(r => r.json()),
-        apiFetch('api/config').then(r => r.json())
+        apiFetch('api/config').then(r => r.json()),
+        apiFetch('api/automations/ha?show_all=true').then(r => r.json()).catch(() => ({ automations: [] }))
       ])
       setRules(rulesRes.rules || [])
       setTents(tentsRes.tents || [])
       setConfig(configRes)
+      setHaAutomations(haRes.automations || [])
     } catch (e) {
       setError('Failed to load data')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTriggerHA = async (entityId) => {
+    try {
+      await apiFetch(`api/automations/ha/${encodeURIComponent(entityId)}/trigger`, { method: 'POST' })
+      setSuccess('Automation triggered!')
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (e) {
+      setError('Failed to trigger automation')
+    }
+  }
+
+  const handleToggleHA = async (entityId) => {
+    try {
+      await apiFetch(`api/automations/ha/${encodeURIComponent(entityId)}/toggle`, { method: 'POST' })
+      loadData()
+    } catch (e) {
+      setError('Failed to toggle automation')
     }
   }
 
@@ -452,14 +516,40 @@ export default function Automations() {
     return <div className="text-center text-gray-400 py-12">Loading...</div>
   }
 
+  // Filter HA automations by search/tent
+  const filteredHaAutomations = useMemo(() => {
+    if (!selectedTentFilter) return haAutomations
+    const tent = config?.tents?.find(t => t.id === selectedTentFilter)
+    if (!tent) return haAutomations
+
+    // Get all entity IDs for this tent
+    const entityIds = new Set()
+    if (tent.sensors) {
+      Object.values(tent.sensors).forEach(v => {
+        if (Array.isArray(v)) v.forEach(e => e && entityIds.add(e.toLowerCase()))
+        else if (v) entityIds.add(v.toLowerCase())
+      })
+    }
+    if (tent.actuators) {
+      Object.values(tent.actuators).forEach(v => {
+        if (Array.isArray(v)) v.forEach(e => e && entityIds.add(e.toLowerCase()))
+        else if (v) entityIds.add(v.toLowerCase())
+      })
+    }
+
+    // This is a simple filter - in reality we'd need to check the automation config
+    // For now, just show all if filtering doesn't find matches
+    return haAutomations
+  }, [haAutomations, selectedTentFilter, config])
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Automations</h2>
-          <p className="text-gray-400">Create rules to automatically control your equipment</p>
+          <p className="text-gray-400">Manage TentOS rules and Home Assistant automations</p>
         </div>
-        {!showBuilder && (
+        {!showBuilder && activeTab === 'tentos' && (
           <button
             onClick={() => { setShowBuilder(true); setEditingRule(null) }}
             className="btn btn-primary"
@@ -468,6 +558,30 @@ export default function Automations() {
             + New Automation
           </button>
         )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-[#2d3a5c] pb-2">
+        <button
+          onClick={() => setActiveTab('tentos')}
+          className={`px-4 py-2 rounded-t-lg font-medium transition-colors ${
+            activeTab === 'tentos'
+              ? 'bg-green-600/20 text-green-400 border-b-2 border-green-500'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          🤖 TentOS Rules ({rules.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('ha')}
+          className={`px-4 py-2 rounded-t-lg font-medium transition-colors ${
+            activeTab === 'ha'
+              ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-500'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          🏠 Home Assistant ({haAutomations.length})
+        </button>
       </div>
 
       {error && (
@@ -483,91 +597,143 @@ export default function Automations() {
         </div>
       )}
 
-      {tents.length === 0 && !showBuilder && (
-        <div className="card text-center py-12">
-          <div className="text-4xl mb-4">⚙️</div>
-          <h3 className="text-xl font-semibold mb-2">No Tents Configured</h3>
-          <p className="text-gray-400 mb-4">
-            Set up your tents in Settings first, then create automations for them.
-          </p>
-          <a href="#/settings" className="btn btn-primary">
-            Go to Settings
-          </a>
-        </div>
+      {/* TentOS Rules Tab */}
+      {activeTab === 'tentos' && (
+        <>
+          {tents.length === 0 && !showBuilder && (
+            <div className="card text-center py-12">
+              <div className="text-4xl mb-4">⚙️</div>
+              <h3 className="text-xl font-semibold mb-2">No Tents Configured</h3>
+              <p className="text-gray-400 mb-4">
+                Set up your tents in Settings first, then create automations for them.
+              </p>
+              <a href="#/settings" className="btn btn-primary">
+                Go to Settings
+              </a>
+            </div>
+          )}
+
+          {showBuilder ? (
+            <AutomationBuilder
+              tents={tents}
+              config={config}
+              initialRule={editingRule}
+              onSave={handleSave}
+              onCancel={() => { setShowBuilder(false); setEditingRule(null) }}
+            />
+          ) : rules.length === 0 && tents.length > 0 ? (
+            <div className="card text-center py-12">
+              <div className="text-4xl mb-4">🤖</div>
+              <h3 className="text-xl font-semibold mb-2">No TentOS Rules Yet</h3>
+              <p className="text-gray-400 mb-4">
+                Create your first automation to automatically control your tent equipment
+              </p>
+              <button onClick={() => setShowBuilder(true)} className="btn btn-primary">
+                Create Automation
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {tents.map(tent => {
+                const tentRules = rules.filter(r => r.tent_id === tent.id)
+                if (tentRules.length === 0) return null
+
+                const isCollapsed = collapsedGroups[tent.id]
+                const toggleCollapse = () => setCollapsedGroups(prev => ({
+                  ...prev,
+                  [tent.id]: !prev[tent.id]
+                }))
+
+                return (
+                  <div key={tent.id} className="card p-0 overflow-hidden">
+                    <button
+                      onClick={toggleCollapse}
+                      className="w-full flex items-center gap-3 p-4 hover:bg-[#1a1a2e] transition-colors text-left"
+                    >
+                      <span className="text-lg">{isCollapsed ? '▶' : '▼'}</span>
+                      <div className="flex-1">
+                        <h3 className="font-medium">{tent.name}</h3>
+                        <span className="text-sm text-gray-400">
+                          {tentRules.length} automation{tentRules.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${
+                          tentRules.every(r => r.enabled) ? 'bg-green-500' :
+                          tentRules.some(r => r.enabled) ? 'bg-yellow-500' : 'bg-gray-500'
+                        }`} />
+                        <span className="text-xs text-gray-400">
+                          {tentRules.filter(r => r.enabled).length}/{tentRules.length} active
+                        </span>
+                      </div>
+                    </button>
+                    {!isCollapsed && (
+                      <div className="border-t border-[#2d3a5c] p-4 space-y-2">
+                        {tentRules.map(rule => (
+                          <RuleCard
+                            key={rule.id}
+                            rule={rule}
+                            tents={tents}
+                            onToggle={handleToggle}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
 
-      {showBuilder ? (
-        <AutomationBuilder
-          tents={tents}
-          config={config}
-          initialRule={editingRule}
-          onSave={handleSave}
-          onCancel={() => { setShowBuilder(false); setEditingRule(null) }}
-        />
-      ) : rules.length === 0 && tents.length > 0 ? (
-        <div className="card text-center py-12">
-          <div className="text-4xl mb-4">🤖</div>
-          <h3 className="text-xl font-semibold mb-2">No Automations Yet</h3>
-          <p className="text-gray-400 mb-4">
-            Create your first automation to automatically control your tent equipment
-          </p>
-          <button onClick={() => setShowBuilder(true)} className="btn btn-primary">
-            Create Automation
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {tents.map(tent => {
-            const tentRules = rules.filter(r => r.tent_id === tent.id)
-            if (tentRules.length === 0) return null
-
-            const isCollapsed = collapsedGroups[tent.id]
-            const toggleCollapse = () => setCollapsedGroups(prev => ({
-              ...prev,
-              [tent.id]: !prev[tent.id]
-            }))
-
-            return (
-              <div key={tent.id} className="card p-0 overflow-hidden">
-                <button
-                  onClick={toggleCollapse}
-                  className="w-full flex items-center gap-3 p-4 hover:bg-[#1a1a2e] transition-colors text-left"
+      {/* Home Assistant Automations Tab */}
+      {activeTab === 'ha' && (
+        <>
+          {haAutomations.length === 0 ? (
+            <div className="card text-center py-12">
+              <div className="text-4xl mb-4">🏠</div>
+              <h3 className="text-xl font-semibold mb-2">No HA Automations Found</h3>
+              <p className="text-gray-400 mb-4">
+                Create automations in Home Assistant to see them here.
+              </p>
+              <a
+                href="/config/automation/dashboard"
+                target="_top"
+                className="btn btn-primary"
+              >
+                Open HA Automations
+              </a>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-400">
+                  Showing {filteredHaAutomations.length} Home Assistant automations
+                </p>
+                <a
+                  href="/config/automation/dashboard"
+                  target="_top"
+                  className="text-sm text-blue-400 hover:text-blue-300"
                 >
-                  <span className="text-lg">{isCollapsed ? '▶' : '▼'}</span>
-                  <div className="flex-1">
-                    <h3 className="font-medium">{tent.name}</h3>
-                    <span className="text-sm text-gray-400">
-                      {tentRules.length} automation{tentRules.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${
-                      tentRules.every(r => r.enabled) ? 'bg-green-500' :
-                      tentRules.some(r => r.enabled) ? 'bg-yellow-500' : 'bg-gray-500'
-                    }`} />
-                    <span className="text-xs text-gray-400">
-                      {tentRules.filter(r => r.enabled).length}/{tentRules.length} active
-                    </span>
-                  </div>
-                </button>
-                {!isCollapsed && (
-                  <div className="border-t border-[#2d3a5c] p-4 space-y-2">
-                    {tentRules.map(rule => (
-                      <RuleCard
-                        key={rule.id}
-                        rule={rule}
-                        tents={tents}
-                        onToggle={handleToggle}
-                        onEdit={handleEdit}
-                        onDelete={handleDelete}
-                      />
-                    ))}
-                  </div>
-                )}
+                  Edit in HA →
+                </a>
               </div>
-            )
-          })}
-        </div>
+              <div className="space-y-2">
+                {filteredHaAutomations.map(automation => (
+                  <HAAutomationCard
+                    key={automation.entity_id}
+                    automation={automation}
+                    onTrigger={handleTriggerHA}
+                    onToggle={handleToggleHA}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
