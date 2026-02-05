@@ -209,9 +209,16 @@ async def get_config():
 
 
 @router.put("")
-async def update_config(config: AppConfig):
+async def update_config(config: AppConfig, request: Request):
     """Update and save configuration."""
     if save_config(config):
+        # Reload state manager to pick up new config
+        state_manager = getattr(request.app.state, "state_manager", None)
+        if state_manager:
+            try:
+                await state_manager.reload_config()
+            except Exception as e:
+                logger.warning(f"Failed to reload state manager: {e}")
         return {"success": True, "message": "Configuration saved"}
     raise HTTPException(status_code=500, detail="Failed to save configuration")
 

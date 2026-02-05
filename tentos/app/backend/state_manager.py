@@ -198,6 +198,26 @@ class StateManager:
 
         logger.info(f"Loaded {len(self.tents)} tent configurations")
 
+    async def reload_config(self):
+        """Reload tent configurations (call after config changes)."""
+        logger.info("Reloading tent configurations...")
+
+        # Clear existing mappings
+        self.tents.clear()
+        self.entity_to_tent.clear()
+
+        # Reload from file
+        self._load_config()
+
+        # Reload states from HA
+        await self._load_initial_states()
+
+        # Broadcast full state to all clients
+        for tent_id in self.tents:
+            await self._broadcast_update(tent_id)
+
+        logger.info(f"Reloaded {len(self.tents)} tents")
+
     async def start(self):
         """Start the state manager."""
         self._running = True
