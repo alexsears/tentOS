@@ -22,11 +22,9 @@ map:
   - ssl:ro
 options:
   log_level: "info"
-  ha_url: ""
   tents: []
 schema:
   log_level: "list(debug|info|warning|error)"
-  ha_url: "url?"
   tents:
     - name: "str"
       description: "str?"
