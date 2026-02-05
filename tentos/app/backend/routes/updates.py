@@ -150,14 +150,6 @@ async def check_for_updates():
         "message": "Could not check for updates"
     }
 
-    except Exception as e:
-        logger.error(f"Update check failed: {e}")
-        return {
-            "current_version": get_current_version(),
-            "update_available": False,
-            "error": str(e)
-        }
-
 
 @router.post("/refresh")
 async def refresh_store():
