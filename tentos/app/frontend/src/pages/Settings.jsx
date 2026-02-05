@@ -92,28 +92,43 @@ export default function Settings() {
     }
   }
 
-  // Handle drag start
+  // Handle drag start - if dragging a selected entity, drag all selected
   const handleDragStart = (event) => {
     const { active } = event
     if (active.data.current?.entity) {
-      setActiveDragEntity(active.data.current.entity)
+      const draggedId = active.id
+      // If the dragged entity is selected, we'll drag all selected
+      if (selectedEntities.includes(draggedId)) {
+        setActiveDragEntity({
+          ...active.data.current.entity,
+          _multiDrag: true,
+          _selectedIds: selectedEntities
+        })
+      } else {
+        setActiveDragEntity(active.data.current.entity)
+      }
     }
   }
 
-  // Handle drag end - assign entity to slot
+  // Handle drag end - assign entity to slot (supports multi-drag)
   const handleDragEnd = (event) => {
     const { active, over } = event
+    const draggedEntity = activeDragEntity
     setActiveDragEntity(null)
 
     if (!over || !active.data.current?.entity) return
 
-    const entityId = active.id
     // Format: tentId.category.slotType
     const parts = over.id.split('.')
     if (parts.length !== 3) return
 
     const [tentId, category, slotType] = parts
     const isMultiple = over.data.current?.multiple
+
+    // Get entities to add - either all selected (multi-drag) or just the one
+    const entitiesToAdd = draggedEntity?._multiDrag
+      ? draggedEntity._selectedIds
+      : [active.id]
 
     // Find the target tent
     const tentIndex = config.tents?.findIndex(t => t.id === tentId)
@@ -126,20 +141,27 @@ export default function Settings() {
     targetTent[category] = { ...targetTent[category] }
 
     if (isMultiple) {
-      // Append to array for multi-entity slots
+      // Append all entities to array for multi-entity slots
       const current = targetTent[category][slotType]
       const arr = Array.isArray(current) ? [...current] : (current ? [current] : [])
-      if (!arr.includes(entityId)) {
-        arr.push(entityId)
+      for (const entityId of entitiesToAdd) {
+        if (!arr.includes(entityId)) {
+          arr.push(entityId)
+        }
       }
       targetTent[category][slotType] = arr
     } else {
-      // Single entity slot
-      targetTent[category][slotType] = entityId
+      // Single entity slot - just use the first
+      targetTent[category][slotType] = entitiesToAdd[0]
     }
 
     updatedTents[tentIndex] = targetTent
     setConfig({ ...config, tents: updatedTents })
+
+    // Clear selection after drag
+    if (draggedEntity?._multiDrag) {
+      setSelectedEntities([])
+    }
   }
 
   // Get all assigned entity IDs
@@ -499,8 +521,16 @@ export default function Settings() {
                 <div className="flex items-center gap-2">
                   <span className="text-lg">{activeDragEntity.icon || '📍'}</span>
                   <span className="font-medium text-sm">
-                    {activeDragEntity.friendly_name || activeDragEntity.entity_id}
+                    {activeDragEntity._multiDrag
+                      ? `${activeDragEntity._selectedIds.length} entities`
+                      : activeDragEntity.friendly_name || activeDragEntity.entity_id
+                    }
                   </span>
+                  {activeDragEntity._multiDrag && (
+                    <span className="px-2 py-0.5 bg-green-600 rounded-full text-xs">
+                      {activeDragEntity._selectedIds.length}
+                    </span>
+                  )}
                 </div>
               </div>
             ) : null}
