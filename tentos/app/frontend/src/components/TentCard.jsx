@@ -104,56 +104,79 @@ function CameraPreview({ tentId, entityId }) {
   const snapshotUrl = `${apiBase}/api/camera/${tentId}/${entityId}/snapshot?t=${refreshKey}`
   const streamUrl = `${apiBase}/api/camera/${tentId}/${entityId}/stream`
 
+  const handleClick = (e) => {
+    e.stopPropagation()
+    setExpanded(!expanded)
+  }
+
+  const handleClose = (e) => {
+    e.stopPropagation()
+    setExpanded(false)
+  }
+
   return (
-    <div className="relative">
-      <div
-        className={`relative rounded-lg overflow-hidden cursor-pointer bg-gray-900 ${
-          expanded ? 'fixed inset-4 z-50' : 'h-32'
-        }`}
-        onClick={() => setExpanded(!expanded)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && setExpanded(!expanded)}
-        aria-label={expanded ? 'Close camera view' : 'Expand camera view'}
-      >
-        {error ? (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <span>📷 Camera unavailable</span>
-          </div>
-        ) : expanded ? (
-          <img
-            ref={streamImgRef}
-            src={streamUrl}
-            alt={`Live stream from camera`}
-            className="w-full h-full object-contain bg-black"
-            onError={() => setError(true)}
-          />
-        ) : (
-          <img
-            key={refreshKey}
-            src={snapshotUrl}
-            alt={`Camera snapshot`}
-            className="w-full h-full object-cover"
-            onError={() => setError(true)}
-          />
-        )}
+    <>
+      {/* Normal preview */}
+      {!expanded && (
+        <div
+          className="relative rounded-lg overflow-hidden cursor-pointer bg-gray-900 h-32"
+          onClick={handleClick}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && handleClick(e)}
+          aria-label="Expand camera view"
+        >
+          {error ? (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              <span>📷 Camera unavailable</span>
+            </div>
+          ) : (
+            <img
+              key={refreshKey}
+              src={snapshotUrl}
+              alt={`Camera snapshot`}
+              className="w-full h-full object-cover"
+              onError={() => setError(true)}
+            />
+          )}
+          {!error && (
+            <div className="absolute bottom-1 right-1 text-xs bg-black/50 text-white px-2 py-0.5 rounded">
+              Click for live
+            </div>
+          )}
+        </div>
+      )}
 
-        {/* Expand/collapse hint */}
-        {!error && (
-          <div className="absolute bottom-1 right-1 text-xs bg-black/50 text-white px-2 py-0.5 rounded">
-            {expanded ? '● LIVE - Click to close' : 'Click for live'}
-          </div>
-        )}
-      </div>
-
-      {/* Backdrop when expanded */}
+      {/* Fullscreen expanded view */}
       {expanded && (
         <div
-          className="fixed inset-0 bg-black/80 z-40"
-          onClick={() => setExpanded(false)}
-        />
+          className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center"
+          onClick={handleClose}
+        >
+          <div
+            className="relative w-full h-full max-w-6xl max-h-[90vh] m-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              ref={streamImgRef}
+              src={streamUrl}
+              alt={`Live stream from camera`}
+              className="w-full h-full object-contain"
+              onError={() => setError(true)}
+            />
+            <button
+              onClick={handleClose}
+              className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white px-3 py-1 rounded text-sm"
+            >
+              ✕ Close
+            </button>
+            <div className="absolute bottom-2 left-2 text-xs bg-black/70 text-red-400 px-2 py-1 rounded">
+              ● LIVE
+            </div>
+          </div>
+        </div>
       )}
-    </div>
+    </>
   )
 }
 
