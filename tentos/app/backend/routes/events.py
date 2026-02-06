@@ -210,8 +210,13 @@ async def get_ha_entity_history(
                 domain = entity.split(".")[0] if "." in entity else ""
                 friendly_name = state_entry.get("attributes", {}).get("friendly_name", entity)
 
+                # Skip sensor readings - we only want device state changes
+                if domain == "sensor":
+                    prev_state = current_state
+                    continue
+
                 # Create descriptive event
-                if domain in ("switch", "light", "fan"):
+                if domain in ("switch", "light", "fan", "humidifier", "climate"):
                     if current_state == "on":
                         description = f"{friendly_name} turned on"
                         event_type = "device_on"
@@ -221,10 +226,6 @@ async def get_ha_entity_history(
                     else:
                         description = f"{friendly_name} → {current_state}"
                         event_type = "state_change"
-                elif domain == "sensor":
-                    unit = state_entry.get("attributes", {}).get("unit_of_measurement", "")
-                    description = f"{friendly_name}: {current_state}{unit}"
-                    event_type = "sensor_reading"
                 elif domain == "binary_sensor":
                     description = f"{friendly_name} → {current_state}"
                     event_type = "sensor_trigger"
@@ -248,31 +249,9 @@ async def get_ha_entity_history(
         # Sort by timestamp descending (most recent first)
         events.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
 
-        # Filter to significant events only (state changes, not continuous readings)
-        # For sensors, only keep changes above a threshold
-        filtered_events = []
-        sensor_last_values = {}
-
-        for event in events:
-            if event["domain"] == "sensor":
-                entity = event["entity_id"]
-                try:
-                    current_val = float(event["state"])
-                    if entity in sensor_last_values:
-                        # Only include if changed by more than threshold
-                        threshold = 0.5 if "temp" in entity.lower() else 2.0
-                        if abs(current_val - sensor_last_values[entity]) < threshold:
-                            continue
-                    sensor_last_values[entity] = current_val
-                except (ValueError, TypeError):
-                    pass  # Non-numeric sensor, include it
-
-            filtered_events.append(event)
-
         return {
-            "events": filtered_events[:200],  # Limit to 200 most recent
-            "count": len(filtered_events),
-            "total_raw": len(events),
+            "events": events[:200],  # Limit to 200 most recent
+            "count": len(events),
             "entity_ids": list(entity_ids),
             "hours": hours
         }

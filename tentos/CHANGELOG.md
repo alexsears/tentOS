@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.8
+- Events page now only shows device state changes (on/off), not sensor readings
+- Filter out sensor domain from entity history - only show actionable events
+
 ## 1.2.7
 - Preload automations and tents data on app startup for instant page loads
 - Automations page now displays immediately using preloaded data
