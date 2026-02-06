@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.9
+- Events show related automation that controls the device
+- Click automation name to edit it in Home Assistant
+
 ## 1.2.8
 - Events page now only shows device state changes (on/off), not sensor readings
 - Filter out sensor domain from entity history - only show actionable events

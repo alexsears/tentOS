@@ -33,13 +33,29 @@ const DOMAIN_ICONS = {
 function HAEventItem({ event }) {
   const icon = EVENT_ICONS[event.event_type] || DOMAIN_ICONS[event.domain] || '📌'
   const time = event.timestamp ? new Date(event.timestamp) : null
+  const automation = event.related_automations?.[0] // Show first related automation
 
   return (
     <div className="flex items-center gap-3 p-3 bg-[#1a1a2e] rounded-lg hover:bg-[#252545] transition-colors">
       <span className="text-xl flex-shrink-0">{icon}</span>
       <div className="flex-1 min-w-0">
         <div className="font-medium text-sm">{event.description}</div>
-        <div className="text-xs text-gray-500 truncate">{event.entity_id}</div>
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          <span className="truncate">{event.entity_id}</span>
+          {automation && (
+            <>
+              <span className="text-gray-600">•</span>
+              <a
+                href={`/config/automation/edit/${automation.id}`}
+                target="_top"
+                className="text-blue-400 hover:text-blue-300 hover:underline truncate"
+                title={`Edit automation: ${automation.name}`}
+              >
+                ⚙️ {automation.name}
+              </a>
+            </>
+          )}
+        </div>
       </div>
       <div className="text-right flex-shrink-0">
         <div className="text-sm text-gray-400">

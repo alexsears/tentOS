@@ -147,6 +147,30 @@ async def get_event_types():
 # ==================== Home Assistant Entity History ====================
 # NOTE: This route MUST be before /{event_id} to avoid route conflicts
 
+async def get_automations_for_entity(ha_client, entity_id: str) -> list[dict]:
+    """Find automations that target a specific entity."""
+    automations = []
+    try:
+        all_automations = await ha_client.get_automations()
+        for auto in all_automations:
+            auto_entity_id = auto.get("entity_id", "")
+            if auto_entity_id.startswith("automation."):
+                auto_id = auto_entity_id.replace("automation.", "")
+                config = await ha_client.get_automation_config(auto_id)
+                if config:
+                    # Check if this automation targets our entity
+                    config_str = str(config).lower()
+                    if entity_id.lower() in config_str:
+                        automations.append({
+                            "entity_id": auto_entity_id,
+                            "name": auto.get("attributes", {}).get("friendly_name", auto_id),
+                            "id": auto_id
+                        })
+    except Exception:
+        pass
+    return automations
+
+
 @router.get("/ha-history")
 async def get_ha_entity_history(
     request: Request,
@@ -174,6 +198,32 @@ async def get_ha_entity_history(
             # Get entities for all tents
             for tent in state_manager.tents.values():
                 entity_ids.extend(get_tent_entity_ids(tent))
+
+        # Build a map of entity -> automations that control it
+        entity_automations = {}
+        try:
+            all_automations = await ha_client.get_automations()
+            for auto in all_automations:
+                auto_entity_id = auto.get("entity_id", "")
+                if auto_entity_id.startswith("automation."):
+                    auto_id = auto_entity_id.replace("automation.", "")
+                    try:
+                        config = await ha_client.get_automation_config(auto_id)
+                        if config:
+                            config_str = str(config).lower()
+                            for eid in entity_ids:
+                                if eid.lower() in config_str:
+                                    if eid not in entity_automations:
+                                        entity_automations[eid] = []
+                                    entity_automations[eid].append({
+                                        "entity_id": auto_entity_id,
+                                        "name": auto.get("attributes", {}).get("friendly_name", auto_id),
+                                        "id": auto_id
+                                    })
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
         if not entity_ids:
             return {"events": [], "count": 0, "message": "No tent entities configured"}
@@ -233,6 +283,25 @@ async def get_ha_entity_history(
                     description = f"{friendly_name} → {current_state}"
                     event_type = "state_change"
 
+                # Extract context to find triggering automation
+                context = state_entry.get("context", {})
+                triggered_by = None
+                triggered_by_name = None
+
+                # Check if there's a parent_id in context (indicates triggered by automation/script)
+                if context.get("parent_id"):
+                    # The context often contains info about what triggered this
+                    # We'll need to look up the automation separately
+                    triggered_by = context.get("parent_id")
+
+                # Check attributes for last_triggered_by if available
+                attrs = state_entry.get("attributes", {})
+                if attrs.get("last_triggered_by"):
+                    triggered_by = attrs.get("last_triggered_by")
+
+                # Get automations that might have triggered this
+                related_automations = entity_automations.get(entity, [])
+
                 events.append({
                     "entity_id": entity,
                     "friendly_name": friendly_name,
@@ -241,7 +310,11 @@ async def get_ha_entity_history(
                     "timestamp": timestamp,
                     "event_type": event_type,
                     "description": description,
-                    "domain": domain
+                    "domain": domain,
+                    "context_id": context.get("id"),
+                    "context_parent_id": context.get("parent_id"),
+                    "context_user_id": context.get("user_id"),
+                    "related_automations": related_automations,
                 })
 
                 prev_state = current_state
