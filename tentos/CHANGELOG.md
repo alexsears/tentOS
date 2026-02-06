@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.10
+- Filter out unavailable/unknown entities from Settings entity list
+
 ## 1.2.9
 - Events show related automation that controls the device
 - Click automation name to edit it in Home Assistant

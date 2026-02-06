@@ -122,9 +122,13 @@ export default function EntityInventory({
     })
   }
 
-  // Filter to only allowed domains
+  // Filter to only allowed domains and exclude unavailable entities
   const relevantEntities = useMemo(() => {
-    return entities.filter(e => ALLOWED_DOMAINS.has(e.domain))
+    return entities.filter(e =>
+      ALLOWED_DOMAINS.has(e.domain) &&
+      e.state !== 'unavailable' &&
+      e.state !== 'unknown'
+    )
   }, [entities])
 
   // Get unique domains from relevant entities only
