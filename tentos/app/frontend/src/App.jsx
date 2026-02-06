@@ -1,5 +1,5 @@
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, createContext, useContext } from 'react'
 import Home from './pages/Home'
 import TentDetail from './pages/TentDetail'
 import Events from './pages/Events'
@@ -11,6 +11,10 @@ import { useWebSocket } from './hooks/useWebSocket'
 import { AlertBanner } from './components/AlertBanner'
 import { apiFetch } from './utils/api'
 import { TempUnitProvider, useTemperatureUnit } from './hooks/useTemperatureUnit'
+
+// Preloaded data context - fetches automations and events on app load
+const PreloadContext = createContext({ automations: null, events: null, tents: null })
+export const usePreloadedData = () => useContext(PreloadContext)
 
 // Temperature unit toggle component
 function TempToggle() {
@@ -32,6 +36,7 @@ function AppContent() {
   const [version, setVersion] = useState('')
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [latestVersion, setLatestVersion] = useState('')
+  const [preloadedData, setPreloadedData] = useState({ automations: null, events: null, tents: null })
   const { lastMessage } = useWebSocket('api/ws')
 
   useEffect(() => {
@@ -55,6 +60,18 @@ function AppContent() {
         setLatestVersion(data.latest_version || '')
       })
       .catch(console.error)
+
+    // Preload automations and tents data for instant page loads
+    Promise.all([
+      apiFetch('api/tents').then(r => r.json()).catch(() => ({ tents: [] })),
+      apiFetch('api/automations?show_all=false').then(r => r.json()).catch(() => ({ automations: [] })),
+    ]).then(([tentsData, autoData]) => {
+      setPreloadedData(prev => ({
+        ...prev,
+        tents: tentsData.tents || [],
+        automations: autoData
+      }))
+    })
   }, [])
 
   useEffect(() => {
@@ -73,6 +90,7 @@ function AppContent() {
   ]
 
   return (
+    <PreloadContext.Provider value={preloadedData}>
     <div className="min-h-screen">
       {/* Header */}
       <header className="bg-[#16213e] border-b border-[#2d3a5c] sticky top-0 z-50">
@@ -147,6 +165,7 @@ function AppContent() {
         </Routes>
       </main>
     </div>
+    </PreloadContext.Provider>
   )
 }
 

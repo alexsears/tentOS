@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { apiFetch } from '../utils/api'
+import { usePreloadedData } from '../App'
 
 // Tag colors
 const TAG_COLORS = {
@@ -484,6 +485,9 @@ function BulkActionsBar({ selectedCount, onEnable, onDisable, onTrigger, onClear
 
 // Main Automations page
 export default function Automations() {
+  // Use preloaded data from App for instant display
+  const preloaded = usePreloadedData()
+
   const [automations, setAutomations] = useState([])
   const [byCategory, setByCategory] = useState({})
   const [categories, setCategories] = useState({})
@@ -504,6 +508,20 @@ export default function Automations() {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [showAllAutomations, setShowAllAutomations] = useState(false) // Default to tent-only
+
+  // Use preloaded data immediately if available
+  useEffect(() => {
+    if (preloaded.automations && !showAllAutomations) {
+      setAutomations(preloaded.automations.automations || [])
+      setByCategory(preloaded.automations.by_category || {})
+      setCategories(preloaded.automations.categories || {})
+      setTagsInfo(preloaded.automations.tags || {})
+      setLoading(false)
+    }
+    if (preloaded.tents) {
+      setTents(preloaded.tents)
+    }
+  }, [preloaded])
 
   // Filter automations by search (must be before early returns)
   const filteredByCategory = useMemo(() => {
@@ -541,23 +559,32 @@ export default function Automations() {
     loadData()
   }, [showAllAutomations])
 
-  const loadData = async () => {
+  const loadData = async (forceRefresh = false) => {
     try {
-      // Fetch tents first to know if we have any configured
-      const tentsRes = await apiFetch('api/tents').then(r => r.json()).catch(() => ({ tents: [] }))
-      setTents(tentsRes.tents || [])
+      // Use preloaded tents if available, otherwise fetch
+      let tentsList = preloaded.tents
+      if (!tentsList || forceRefresh) {
+        const tentsRes = await apiFetch('api/tents').then(r => r.json()).catch(() => ({ tents: [] }))
+        tentsList = tentsRes.tents || []
+      }
+      setTents(tentsList)
 
       // Build automations URL with filter params
       const autoParams = new URLSearchParams()
       autoParams.set('show_all', showAllAutomations.toString())
       // If we have tents and not showing all, the backend will filter to tent entities
-      if (tentsRes.tents?.length > 0 && !showAllAutomations) {
+      if (tentsList.length > 0 && !showAllAutomations) {
         // Use first tent's ID for filtering (could extend to multi-tent later)
-        autoParams.set('tent_id', tentsRes.tents[0].id)
+        autoParams.set('tent_id', tentsList[0].id)
       }
 
+      // Use preloaded automations if available and not forcing refresh
+      const usePreloadedAuto = preloaded.automations && !showAllAutomations && !forceRefresh
+
       const [autoRes, templatesRes, bundlesRes, suggestionsRes, conflictsRes] = await Promise.all([
-        apiFetch(`api/automations?${autoParams}`).then(r => r.json()).catch(() => ({ automations: [], by_category: {}, categories: {}, tags: {} })),
+        usePreloadedAuto
+          ? Promise.resolve(preloaded.automations)
+          : apiFetch(`api/automations?${autoParams}`).then(r => r.json()).catch(() => ({ automations: [], by_category: {}, categories: {}, tags: {} })),
         apiFetch('api/automations/templates').then(r => r.json()).catch(() => ({ templates: [] })),
         apiFetch('api/automations/bundles').then(r => r.json()).catch(() => ({ bundles: [] })),
         apiFetch('api/automations/suggestions').then(r => r.json()).catch(() => ({ suggestions: [] })),

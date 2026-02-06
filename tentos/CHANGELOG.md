@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.7
+- Preload automations and tents data on app startup for instant page loads
+- Automations page now displays immediately using preloaded data
+
 ## 1.2.6
 - Fix route ordering: /ha-history now before /{event_id} to prevent 422 errors
 
