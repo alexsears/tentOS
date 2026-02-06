@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.3
+- Events page now shows Home Assistant entity history for tent entities
+- Entity History tab shows state changes (lights on/off, sensor readings)
+- Filter events by tent and time period (1 hour to 1 week)
+- Manual Log tab for user-logged events (watering, maintenance, etc.)
+
 ## 1.2.2
 - Filter automations to only show tent-related by default
 - Add "My Tent" / "All HA" toggle to switch between filtered and full view

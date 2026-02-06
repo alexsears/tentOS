@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,22 @@ from database import get_db, Event
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def get_tent_entity_ids(tent) -> list[str]:
+    """Get all entity IDs configured for a tent."""
+    entity_ids = []
+    for sensor_type, val in (tent.config.sensors or {}).items():
+        if isinstance(val, list):
+            entity_ids.extend(e for e in val if e)
+        elif val:
+            entity_ids.append(val)
+    for actuator_type, val in (tent.config.actuators or {}).items():
+        if isinstance(val, list):
+            entity_ids.extend(e for e in val if e)
+        elif val:
+            entity_ids.append(val)
+    return entity_ids
 
 
 class EventCreate(BaseModel):
@@ -152,3 +168,141 @@ async def delete_event(event_id: int):
         await session.commit()
 
         return {"success": True, "message": "Event deleted"}
+
+
+# ==================== Home Assistant Entity History ====================
+
+@router.get("/ha-history")
+async def get_ha_entity_history(
+    request: Request,
+    tent_id: Optional[str] = None,
+    hours: int = 24,
+    entity_id: Optional[str] = None
+):
+    """Get Home Assistant entity state change history for tent entities."""
+    ha_client = request.app.state.ha_client
+    state_manager = request.app.state.state_manager
+
+    try:
+        # Determine which entities to fetch history for
+        entity_ids = []
+
+        if entity_id:
+            # Specific entity requested
+            entity_ids = [entity_id]
+        elif tent_id:
+            # Get entities for specific tent
+            tent = state_manager.get_tent(tent_id)
+            if tent:
+                entity_ids = get_tent_entity_ids(tent)
+        else:
+            # Get entities for all tents
+            tents = state_manager.get_all_tents()
+            for tent in tents:
+                entity_ids.extend(get_tent_entity_ids(tent))
+
+        if not entity_ids:
+            return {"events": [], "count": 0, "message": "No tent entities configured"}
+
+        # Calculate time range
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(hours=hours)
+
+        # Fetch history from HA
+        history_data = await ha_client.get_history(
+            entity_ids=entity_ids,
+            start_time=start_time.isoformat(),
+            end_time=end_time.isoformat()
+        )
+
+        # Flatten and format the history into events
+        events = []
+        for entity_history in history_data:
+            if not entity_history:
+                continue
+
+            prev_state = None
+            for state_entry in entity_history:
+                current_state = state_entry.get("state")
+                entity = state_entry.get("entity_id", "")
+                timestamp = state_entry.get("last_changed")
+
+                # Skip unchanged states or unavailable
+                if current_state == prev_state or current_state in ("unavailable", "unknown"):
+                    prev_state = current_state
+                    continue
+
+                # Determine event type based on entity domain
+                domain = entity.split(".")[0] if "." in entity else ""
+                friendly_name = state_entry.get("attributes", {}).get("friendly_name", entity)
+
+                # Create descriptive event
+                if domain in ("switch", "light", "fan"):
+                    if current_state == "on":
+                        description = f"{friendly_name} turned on"
+                        event_type = "device_on"
+                    elif current_state == "off":
+                        description = f"{friendly_name} turned off"
+                        event_type = "device_off"
+                    else:
+                        description = f"{friendly_name} → {current_state}"
+                        event_type = "state_change"
+                elif domain == "sensor":
+                    unit = state_entry.get("attributes", {}).get("unit_of_measurement", "")
+                    description = f"{friendly_name}: {current_state}{unit}"
+                    event_type = "sensor_reading"
+                elif domain == "binary_sensor":
+                    description = f"{friendly_name} → {current_state}"
+                    event_type = "sensor_trigger"
+                else:
+                    description = f"{friendly_name} → {current_state}"
+                    event_type = "state_change"
+
+                events.append({
+                    "entity_id": entity,
+                    "friendly_name": friendly_name,
+                    "state": current_state,
+                    "prev_state": prev_state,
+                    "timestamp": timestamp,
+                    "event_type": event_type,
+                    "description": description,
+                    "domain": domain
+                })
+
+                prev_state = current_state
+
+        # Sort by timestamp descending (most recent first)
+        events.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+
+        # Filter to significant events only (state changes, not continuous readings)
+        # For sensors, only keep changes above a threshold
+        filtered_events = []
+        sensor_last_values = {}
+
+        for event in events:
+            if event["domain"] == "sensor":
+                entity = event["entity_id"]
+                try:
+                    current_val = float(event["state"])
+                    if entity in sensor_last_values:
+                        # Only include if changed by more than threshold
+                        threshold = 0.5 if "temp" in entity.lower() else 2.0
+                        if abs(current_val - sensor_last_values[entity]) < threshold:
+                            continue
+                    sensor_last_values[entity] = current_val
+                except (ValueError, TypeError):
+                    pass  # Non-numeric sensor, include it
+
+            filtered_events.append(event)
+
+        return {
+            "events": filtered_events[:200],  # Limit to 200 most recent
+            "count": len(filtered_events),
+            "total_raw": len(events),
+            "entity_ids": entity_ids,
+            "hours": hours
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to fetch HA history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
