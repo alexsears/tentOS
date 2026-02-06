@@ -527,11 +527,8 @@ export default function Automations() {
     setShowBuilder(true)
   }
 
-  if (loading) {
-    return <div className="text-center text-gray-400 py-12">Loading...</div>
-  }
-
   // Filter HA automations by search/tent
+  // NOTE: Must be before any early returns to comply with Rules of Hooks
   const filteredHaAutomations = useMemo(() => {
     // Ensure haAutomations is always an array
     const automations = Array.isArray(haAutomations) ? haAutomations : []
@@ -540,6 +537,10 @@ export default function Automations() {
     if (!tent) return automations
     return automations
   }, [haAutomations, selectedTentFilter, config])
+
+  if (loading) {
+    return <div className="text-center text-gray-400 py-12">Loading...</div>
+  }
 
   return (
     <div className="space-y-6">

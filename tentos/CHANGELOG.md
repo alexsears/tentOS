@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.63
+- Fix React hooks order violation causing blank screen crash on Automations page
+
 ## 1.1.62
 - Add CHANGELOG.md for HA add-on page
 - Remove 32-bit ARM architectures (armhf, armv7) - only amd64 and aarch64 now
