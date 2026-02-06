@@ -14,19 +14,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def get_tent_entity_ids(tent) -> list[str]:
-    """Get all entity IDs configured for a tent."""
-    entity_ids = []
-    for sensor_type, val in (tent.config.sensors or {}).items():
+def get_tent_entity_ids(tent) -> set[str]:
+    """Get all entity IDs configured for a tent.
+
+    Works with TentState objects (tent.config.sensors) and TentConfig objects (tent.sensors).
+    """
+    entity_ids = set()
+
+    # Handle TentState object (has .config attribute)
+    if hasattr(tent, 'config'):
+        sensors = tent.config.sensors or {}
+        actuators = tent.config.actuators or {}
+    # Handle TentConfig object (direct .sensors attribute)
+    elif hasattr(tent, 'sensors'):
+        sensors = tent.sensors or {}
+        actuators = getattr(tent, 'actuators', {}) or {}
+    else:
+        return entity_ids
+
+    for sensor_type, val in sensors.items():
         if isinstance(val, list):
-            entity_ids.extend(e for e in val if e)
+            entity_ids.update(e for e in val if e)
         elif val:
-            entity_ids.append(val)
-    for actuator_type, val in (tent.config.actuators or {}).items():
+            entity_ids.add(val)
+    for actuator_type, val in actuators.items():
         if isinstance(val, list):
-            entity_ids.extend(e for e in val if e)
+            entity_ids.update(e for e in val if e)
         elif val:
-            entity_ids.append(val)
+            entity_ids.add(val)
     return entity_ids
 
 
@@ -194,11 +209,10 @@ async def get_ha_entity_history(
             # Get entities for specific tent
             tent = state_manager.get_tent(tent_id)
             if tent:
-                entity_ids = get_tent_entity_ids(tent)
+                entity_ids = list(get_tent_entity_ids(tent))
         else:
             # Get entities for all tents
-            tents = state_manager.get_all_tents()
-            for tent in tents:
+            for tent in state_manager.tents.values():
                 entity_ids.extend(get_tent_entity_ids(tent))
 
         if not entity_ids:

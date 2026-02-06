@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.4
+- Fix 500 errors on templates, bundles, and suggestions endpoints
+- Fix tent entity lookup for TentState vs TentConfig objects
+
 ## 1.2.3
 - Events page now shows Home Assistant entity history for tent entities
 - Entity History tab shows state changes (lights on/off, sensor readings)

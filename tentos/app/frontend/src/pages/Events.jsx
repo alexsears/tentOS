@@ -95,7 +95,8 @@ export default function Events() {
       const data = await res.json()
 
       if (!res.ok) {
-        throw new Error(data.detail || 'Failed to load history')
+        const errorMsg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail) || 'Failed to load history'
+        throw new Error(errorMsg)
       }
 
       setHaEvents(data.events || [])

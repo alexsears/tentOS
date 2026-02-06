@@ -309,14 +309,29 @@ PRESET_BUNDLES = {
 
 
 def get_tent_entity_ids(tent) -> set[str]:
-    """Get all entity IDs configured for a tent."""
+    """Get all entity IDs configured for a tent.
+
+    Works with both TentState objects (tent.config.sensors) and TentConfig objects (tent.sensors).
+    """
     entity_ids = set()
-    for sensor_type, val in (tent.config.sensors or {}).items():
+
+    # Handle TentState object (has .config attribute)
+    if hasattr(tent, 'config'):
+        sensors = tent.config.sensors or {}
+        actuators = tent.config.actuators or {}
+    # Handle TentConfig object (direct .sensors attribute)
+    elif hasattr(tent, 'sensors'):
+        sensors = tent.sensors or {}
+        actuators = getattr(tent, 'actuators', {}) or {}
+    else:
+        return entity_ids
+
+    for sensor_type, val in sensors.items():
         if isinstance(val, list):
             entity_ids.update(e for e in val if e)
         elif val:
             entity_ids.add(val)
-    for actuator_type, val in (tent.config.actuators or {}).items():
+    for actuator_type, val in actuators.items():
         if isinstance(val, list):
             entity_ids.update(e for e in val if e)
         elif val:
@@ -369,7 +384,7 @@ async def get_automation_configs(ha_client, automations: list) -> dict:
 async def list_templates(request: Request):
     """List available automation templates."""
     state_manager = request.app.state.state_manager
-    tents = state_manager.get_all_tents()
+    tents = list(state_manager.tents.values())  # Get TentState objects directly
 
     # For each template, check which tents have the required entities
     templates_with_availability = []
@@ -395,7 +410,7 @@ async def list_templates(request: Request):
                 has_sensor = bool(light_val if not isinstance(light_val, list) else any(light_val))
 
             if has_sensor and has_actuator:
-                available_tents.append({"id": tent.id, "name": tent.name})
+                available_tents.append({"id": tent.config.id, "name": tent.config.name})
 
         templates_with_availability.append({
             "id": template_id,
@@ -581,7 +596,7 @@ async def apply_template(template_id: str, data: TemplateApply, request: Request
 async def list_bundles(request: Request):
     """List available automation bundles."""
     state_manager = request.app.state.state_manager
-    tents = state_manager.get_all_tents()
+    tents = list(state_manager.tents.values())  # Get TentState objects directly
 
     bundles_with_availability = []
     for bundle_id, bundle in PRESET_BUNDLES.items():
@@ -619,7 +634,7 @@ async def list_bundles(request: Request):
                     break
 
             if can_apply:
-                available_tents.append({"id": tent.id, "name": tent.name})
+                available_tents.append({"id": tent.config.id, "name": tent.config.name})
 
         bundles_with_availability.append({
             "id": bundle_id,
@@ -680,7 +695,7 @@ async def get_suggestions(request: Request):
     ha_client = request.app.state.ha_client
     state_manager = request.app.state.state_manager
 
-    tents = state_manager.get_all_tents()
+    tents = list(state_manager.tents.values())  # Get TentState objects directly
     all_automations = await ha_client.get_automations()
     configs = await get_automation_configs(ha_client, all_automations)
 
@@ -720,7 +735,7 @@ async def get_suggestions(request: Request):
             for auto in tent_automations:
                 auto_name = (auto.get("entity_id", "") + auto.get("attributes", {}).get("friendly_name", "")).lower()
                 # Check for TentOS-created automation
-                if f"tentos_{tent.id}_{template_id}" in auto_name:
+                if f"tentos_{tent.config.id}_{template_id}" in auto_name:
                     already_exists = True
                     break
                 # Check for keywords that suggest this automation exists
@@ -733,8 +748,8 @@ async def get_suggestions(request: Request):
 
             if not already_exists:
                 suggestions.append({
-                    "tent_id": tent.id,
-                    "tent_name": tent.name,
+                    "tent_id": tent.config.id,
+                    "tent_name": tent.config.name,
                     "template_id": template_id,
                     "template": template,
                     "reason": f"You have {template.get('sensor_type') or 'the trigger'} and {template['actuator_type'].replace('_', ' ')} but no automation connecting them"
