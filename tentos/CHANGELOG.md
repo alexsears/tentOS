@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.6
+- Fix route ordering: /ha-history now before /{event_id} to prevent 422 errors
+
 ## 1.2.5
 - Filter Settings entity list to only relevant domains (sensor, switch, light, binary_sensor, climate, humidifier, camera, counter, etc.)
 - Remove irrelevant entity types (automation, input_*, media_player, person, scene, tts, etc.)

@@ -144,48 +144,8 @@ async def get_event_types():
     }
 
 
-@router.get("/{event_id}")
-async def get_event(event_id: int):
-    """Get a specific event."""
-    async for session in get_db():
-        result = await session.execute(
-            select(Event).where(Event.id == event_id)
-        )
-        event = result.scalar_one_or_none()
-
-        if not event:
-            raise HTTPException(status_code=404, detail="Event not found")
-
-        return {
-            "id": event.id,
-            "tent_id": event.tent_id,
-            "event_type": event.event_type,
-            "timestamp": event.timestamp.isoformat(),
-            "notes": event.notes,
-            "user": event.user,
-            "data": event.data
-        }
-
-
-@router.delete("/{event_id}")
-async def delete_event(event_id: int):
-    """Delete an event."""
-    async for session in get_db():
-        result = await session.execute(
-            select(Event).where(Event.id == event_id)
-        )
-        event = result.scalar_one_or_none()
-
-        if not event:
-            raise HTTPException(status_code=404, detail="Event not found")
-
-        await session.delete(event)
-        await session.commit()
-
-        return {"success": True, "message": "Event deleted"}
-
-
 # ==================== Home Assistant Entity History ====================
+# NOTE: This route MUST be before /{event_id} to avoid route conflicts
 
 @router.get("/ha-history")
 async def get_ha_entity_history(
@@ -313,10 +273,54 @@ async def get_ha_entity_history(
             "events": filtered_events[:200],  # Limit to 200 most recent
             "count": len(filtered_events),
             "total_raw": len(events),
-            "entity_ids": entity_ids,
+            "entity_ids": list(entity_ids),
             "hours": hours
         }
 
     except Exception as e:
         logger.error(f"Failed to fetch HA history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Individual Event Routes ====================
+# NOTE: These MUST be after /ha-history and /types to avoid route conflicts
+
+@router.get("/{event_id}")
+async def get_event(event_id: int):
+    """Get a specific event."""
+    async for session in get_db():
+        result = await session.execute(
+            select(Event).where(Event.id == event_id)
+        )
+        event = result.scalar_one_or_none()
+
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
+
+        return {
+            "id": event.id,
+            "tent_id": event.tent_id,
+            "event_type": event.event_type,
+            "timestamp": event.timestamp.isoformat(),
+            "notes": event.notes,
+            "user": event.user,
+            "data": event.data
+        }
+
+
+@router.delete("/{event_id}")
+async def delete_event(event_id: int):
+    """Delete an event."""
+    async for session in get_db():
+        result = await session.execute(
+            select(Event).where(Event.id == event_id)
+        )
+        event = result.scalar_one_or_none()
+
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
+
+        await session.delete(event)
+        await session.commit()
+
+        return {"success": True, "message": "Event deleted"}
