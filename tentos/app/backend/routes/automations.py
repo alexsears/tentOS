@@ -234,6 +234,77 @@ AUTOMATION_TEMPLATES = {
         "trigger_type": "state",
         "trigger_entity_type": "light",
     },
+    "high_vpd_humidifier": {
+        "name": "High VPD → Humidifier",
+        "icon": "🎯",
+        "description": "Turn on humidifier when VPD exceeds threshold (plants stressed)",
+        "sensor_type": "vpd",
+        "actuator_type": "humidifier",
+        "trigger_type": "numeric_state",
+        "above": 1.4,
+        "below": None,
+        "requires": ["temperature", "humidity"],  # VPD needs both
+    },
+    "low_vpd_dehumidifier": {
+        "name": "Low VPD → Dehumidifier",
+        "icon": "🎯",
+        "description": "Turn on dehumidifier when VPD drops too low (mold risk)",
+        "sensor_type": "vpd",
+        "actuator_type": "dehumidifier",
+        "trigger_type": "numeric_state",
+        "above": None,
+        "below": 0.8,
+        "requires": ["temperature", "humidity"],
+    },
+    "watering_schedule": {
+        "name": "Watering Schedule",
+        "icon": "🚿",
+        "description": "Run water pump on a schedule",
+        "sensor_type": None,
+        "actuator_type": "water_pump",
+        "trigger_type": "time",
+        "time_on": "08:00:00",
+        "time_off": "08:05:00",  # 5 min watering
+    },
+}
+
+
+# Preset bundles - collections of templates for quick setup
+PRESET_BUNDLES = {
+    "veg_basic": {
+        "name": "Veg Tent Basic",
+        "icon": "🌱",
+        "description": "Light schedule (18/6) + temp control + humidity control",
+        "templates": ["light_schedule", "high_temp_exhaust", "low_humidity_humidifier"],
+        "config_overrides": {
+            "light_schedule": {"time_on": "06:00:00", "time_off": "00:00:00"},  # 18/6
+        }
+    },
+    "flower_basic": {
+        "name": "Flower Tent Basic",
+        "icon": "🌸",
+        "description": "Light schedule (12/12) + temp control + humidity control",
+        "templates": ["light_schedule", "high_temp_exhaust", "high_humidity_dehumidifier"],
+        "config_overrides": {
+            "light_schedule": {"time_on": "06:00:00", "time_off": "18:00:00"},  # 12/12
+            "high_humidity_dehumidifier": {"above": 55},  # Lower for flower
+        }
+    },
+    "vpd_control": {
+        "name": "VPD Control",
+        "icon": "🎯",
+        "description": "Maintain optimal VPD range with humidifier/dehumidifier",
+        "templates": ["high_vpd_humidifier", "low_vpd_dehumidifier"],
+        "config_overrides": {}
+    },
+    "full_climate": {
+        "name": "Full Climate Control",
+        "icon": "🌡️",
+        "description": "Complete temp + humidity + circulation management",
+        "templates": ["high_temp_exhaust", "low_temp_heater", "high_humidity_dehumidifier",
+                     "low_humidity_humidifier", "circulation_fan_with_lights"],
+        "config_overrides": {}
+    },
 }
 
 
@@ -501,6 +572,386 @@ async def apply_template(template_id: str, data: TemplateApply, request: Request
         }
     except Exception as e:
         logger.error(f"Failed to create automation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Bundles ====================
+
+@router.get("/bundles")
+async def list_bundles(request: Request):
+    """List available automation bundles."""
+    state_manager = request.app.state.state_manager
+    tents = state_manager.get_all_tents()
+
+    bundles_with_availability = []
+    for bundle_id, bundle in PRESET_BUNDLES.items():
+        available_tents = []
+        for tent in tents:
+            # Check if tent has all required entities for all templates in bundle
+            can_apply = True
+            for template_id in bundle["templates"]:
+                template = AUTOMATION_TEMPLATES.get(template_id)
+                if not template:
+                    continue
+
+                sensors = tent.config.sensors or {}
+                actuators = tent.config.actuators or {}
+
+                # Check sensor
+                if template.get("sensor_type"):
+                    if template["sensor_type"] == "vpd":
+                        # VPD needs both temp and humidity
+                        has_temp = bool(sensors.get("temperature"))
+                        has_humid = bool(sensors.get("humidity"))
+                        if not (has_temp and has_humid):
+                            can_apply = False
+                            break
+                    else:
+                        sensor_val = sensors.get(template["sensor_type"])
+                        if not bool(sensor_val if not isinstance(sensor_val, list) else any(sensor_val)):
+                            can_apply = False
+                            break
+
+                # Check actuator
+                actuator_val = actuators.get(template["actuator_type"])
+                if not bool(actuator_val if not isinstance(actuator_val, list) else any(actuator_val)):
+                    can_apply = False
+                    break
+
+            if can_apply:
+                available_tents.append({"id": tent.id, "name": tent.name})
+
+        bundles_with_availability.append({
+            "id": bundle_id,
+            **bundle,
+            "available_tents": available_tents
+        })
+
+    return {"bundles": bundles_with_availability}
+
+
+class BundleApply(BaseModel):
+    """Request to apply a bundle."""
+    tent_id: str
+
+
+@router.post("/bundles/{bundle_id}/apply")
+async def apply_bundle(bundle_id: str, data: BundleApply, request: Request):
+    """Apply a bundle of automations to a tent."""
+    if bundle_id not in PRESET_BUNDLES:
+        raise HTTPException(status_code=404, detail="Bundle not found")
+
+    bundle = PRESET_BUNDLES[bundle_id]
+    results = []
+    errors = []
+
+    for template_id in bundle["templates"]:
+        try:
+            # Get any config overrides
+            overrides = bundle.get("config_overrides", {}).get(template_id, {})
+
+            # Build apply data
+            apply_data = TemplateApply(tent_id=data.tent_id)
+            if "above" in overrides or "below" in overrides:
+                apply_data.threshold = overrides.get("above") or overrides.get("below")
+            if "time_on" in overrides:
+                apply_data.time_on = overrides["time_on"]
+            if "time_off" in overrides:
+                apply_data.time_off = overrides["time_off"]
+
+            result = await apply_template(template_id, apply_data, request)
+            results.append(result)
+        except Exception as e:
+            errors.append({"template": template_id, "error": str(e)})
+
+    return {
+        "success": len(errors) == 0,
+        "created": results,
+        "errors": errors,
+        "bundle": bundle["name"]
+    }
+
+
+# ==================== Suggestions & Conflicts ====================
+
+@router.get("/suggestions")
+async def get_suggestions(request: Request):
+    """Get automation suggestions based on tent configs vs existing automations."""
+    ha_client = request.app.state.ha_client
+    state_manager = request.app.state.state_manager
+
+    tents = state_manager.get_all_tents()
+    all_automations = await ha_client.get_automations()
+    configs = await get_automation_configs(ha_client, all_automations)
+
+    suggestions = []
+
+    for tent in tents:
+        tent_entities = get_tent_entity_ids(tent)
+        sensors = tent.config.sensors or {}
+        actuators = tent.config.actuators or {}
+
+        # Find automations that reference this tent's entities
+        tent_automations = []
+        for auto in all_automations:
+            config = configs.get(auto.get("entity_id"))
+            if automation_references_entities(auto, tent_entities, config):
+                tent_automations.append(auto)
+
+        # Check each template to see if it's missing
+        for template_id, template in AUTOMATION_TEMPLATES.items():
+            # Check if tent has required entities
+            has_sensor = True
+            if template.get("sensor_type"):
+                if template["sensor_type"] == "vpd":
+                    has_sensor = bool(sensors.get("temperature")) and bool(sensors.get("humidity"))
+                else:
+                    sensor_val = sensors.get(template["sensor_type"])
+                    has_sensor = bool(sensor_val if not isinstance(sensor_val, list) else any(sensor_val))
+
+            actuator_val = actuators.get(template["actuator_type"])
+            has_actuator = bool(actuator_val if not isinstance(actuator_val, list) else any(actuator_val))
+
+            if not has_sensor or not has_actuator:
+                continue  # Tent can't use this template
+
+            # Check if an automation already exists for this scenario
+            already_exists = False
+            for auto in tent_automations:
+                auto_name = (auto.get("entity_id", "") + auto.get("attributes", {}).get("friendly_name", "")).lower()
+                # Check for TentOS-created automation
+                if f"tentos_{tent.id}_{template_id}" in auto_name:
+                    already_exists = True
+                    break
+                # Check for keywords that suggest this automation exists
+                template_keywords = [template["actuator_type"].replace("_", "")]
+                if template.get("sensor_type"):
+                    template_keywords.append(template["sensor_type"])
+                if all(kw in auto_name for kw in template_keywords):
+                    already_exists = True
+                    break
+
+            if not already_exists:
+                suggestions.append({
+                    "tent_id": tent.id,
+                    "tent_name": tent.name,
+                    "template_id": template_id,
+                    "template": template,
+                    "reason": f"You have {template.get('sensor_type') or 'the trigger'} and {template['actuator_type'].replace('_', ' ')} but no automation connecting them"
+                })
+
+    return {"suggestions": suggestions, "count": len(suggestions)}
+
+
+@router.get("/conflicts")
+async def detect_conflicts(request: Request):
+    """Detect potentially conflicting automations."""
+    ha_client = request.app.state.ha_client
+    state_manager = request.app.state.state_manager
+
+    all_automations = await ha_client.get_automations()
+    configs = await get_automation_configs(ha_client, all_automations)
+
+    conflicts = []
+
+    # Build a list of automations with their triggers and actions
+    parsed_automations = []
+    for auto in all_automations:
+        config = configs.get(auto.get("entity_id"))
+        if not config:
+            continue
+
+        triggers = config.get("trigger", [])
+        if not isinstance(triggers, list):
+            triggers = [triggers]
+
+        actions = config.get("action", [])
+
+        # Extract target entities from actions
+        target_entities = set()
+        for action in actions:
+            if isinstance(action, dict):
+                target = action.get("target", {})
+                if isinstance(target, dict):
+                    entity = target.get("entity_id")
+                    if entity:
+                        if isinstance(entity, list):
+                            target_entities.update(entity)
+                        else:
+                            target_entities.add(entity)
+                # Check in choose blocks
+                for choice in action.get("choose", []):
+                    for seq in choice.get("sequence", []):
+                        if isinstance(seq, dict):
+                            target = seq.get("target", {})
+                            if isinstance(target, dict):
+                                entity = target.get("entity_id")
+                                if entity:
+                                    target_entities.add(entity)
+
+        # Extract trigger thresholds
+        trigger_thresholds = []
+        for trigger in triggers:
+            platform = trigger.get("platform")
+            entity = trigger.get("entity_id")
+            above = trigger.get("above")
+            below = trigger.get("below")
+            if platform == "numeric_state" and entity:
+                trigger_thresholds.append({
+                    "entity": entity,
+                    "above": above,
+                    "below": below
+                })
+
+        parsed_automations.append({
+            "automation": auto,
+            "targets": target_entities,
+            "triggers": trigger_thresholds
+        })
+
+    # Check for conflicts
+    for i, auto1 in enumerate(parsed_automations):
+        for auto2 in parsed_automations[i+1:]:
+            # Check if they control the same entity
+            shared_targets = auto1["targets"] & auto2["targets"]
+            if not shared_targets:
+                continue
+
+            # Check for threshold conflicts
+            for t1 in auto1["triggers"]:
+                for t2 in auto2["triggers"]:
+                    if t1["entity"] == t2["entity"]:
+                        # Check for overlapping ranges
+                        # e.g., one triggers above 60, another triggers below 65
+                        if t1.get("above") and t2.get("below"):
+                            if t1["above"] < t2["below"]:
+                                conflicts.append({
+                                    "type": "threshold_overlap",
+                                    "automation1": auto1["automation"]["entity_id"],
+                                    "automation2": auto2["automation"]["entity_id"],
+                                    "shared_targets": list(shared_targets),
+                                    "detail": f"Both trigger on {t1['entity']}: one above {t1['above']}, one below {t2['below']} - may oscillate",
+                                    "severity": "warning"
+                                })
+                        if t2.get("above") and t1.get("below"):
+                            if t2["above"] < t1["below"]:
+                                conflicts.append({
+                                    "type": "threshold_overlap",
+                                    "automation1": auto1["automation"]["entity_id"],
+                                    "automation2": auto2["automation"]["entity_id"],
+                                    "shared_targets": list(shared_targets),
+                                    "detail": f"Both trigger on {t1['entity']}: one above {t2['above']}, one below {t1['below']} - may oscillate",
+                                    "severity": "warning"
+                                })
+
+    return {"conflicts": conflicts, "count": len(conflicts)}
+
+
+# ==================== Bulk Operations ====================
+
+class BulkOperation(BaseModel):
+    """Request for bulk automation operations."""
+    entity_ids: list[str]
+
+
+@router.post("/bulk/enable")
+async def bulk_enable(data: BulkOperation, request: Request):
+    """Enable multiple automations at once."""
+    ha_client = request.app.state.ha_client
+    results = []
+    errors = []
+
+    for entity_id in data.entity_ids:
+        try:
+            if not entity_id.startswith("automation."):
+                entity_id = f"automation.{entity_id}"
+            await ha_client.call_service(
+                "automation", "turn_on",
+                target={"entity_id": entity_id}
+            )
+            results.append(entity_id)
+        except Exception as e:
+            errors.append({"entity_id": entity_id, "error": str(e)})
+
+    return {"success": len(errors) == 0, "enabled": results, "errors": errors}
+
+
+@router.post("/bulk/disable")
+async def bulk_disable(data: BulkOperation, request: Request):
+    """Disable multiple automations at once."""
+    ha_client = request.app.state.ha_client
+    results = []
+    errors = []
+
+    for entity_id in data.entity_ids:
+        try:
+            if not entity_id.startswith("automation."):
+                entity_id = f"automation.{entity_id}"
+            await ha_client.call_service(
+                "automation", "turn_off",
+                target={"entity_id": entity_id}
+            )
+            results.append(entity_id)
+        except Exception as e:
+            errors.append({"entity_id": entity_id, "error": str(e)})
+
+    return {"success": len(errors) == 0, "disabled": results, "errors": errors}
+
+
+@router.post("/bulk/trigger")
+async def bulk_trigger(data: BulkOperation, request: Request):
+    """Trigger multiple automations at once."""
+    ha_client = request.app.state.ha_client
+    results = []
+    errors = []
+
+    for entity_id in data.entity_ids:
+        try:
+            if not entity_id.startswith("automation."):
+                entity_id = f"automation.{entity_id}"
+            await ha_client.call_service(
+                "automation", "trigger",
+                target={"entity_id": entity_id}
+            )
+            results.append(entity_id)
+        except Exception as e:
+            errors.append({"entity_id": entity_id, "error": str(e)})
+
+    return {"success": len(errors) == 0, "triggered": results, "errors": errors}
+
+
+# ==================== History ====================
+
+@router.get("/history")
+async def get_history(request: Request, hours: int = 24, entity_id: Optional[str] = None):
+    """Get automation trigger history from Home Assistant."""
+    ha_client = request.app.state.ha_client
+
+    try:
+        # Get automation states which include last_triggered
+        automations = await ha_client.get_automations()
+
+        history = []
+        for auto in automations:
+            if entity_id and auto.get("entity_id") != entity_id:
+                continue
+
+            last_triggered = auto.get("attributes", {}).get("last_triggered")
+            if last_triggered:
+                history.append({
+                    "entity_id": auto.get("entity_id"),
+                    "friendly_name": auto.get("attributes", {}).get("friendly_name"),
+                    "last_triggered": last_triggered,
+                    "state": auto.get("state")
+                })
+
+        # Sort by last_triggered, most recent first
+        history.sort(key=lambda x: x["last_triggered"] or "", reverse=True)
+
+        return {"history": history, "count": len(history)}
+
+    except Exception as e:
+        logger.error(f"Failed to get automation history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

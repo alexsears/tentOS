@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.2
+- Filter automations to only show tent-related by default
+- Add "My Tent" / "All HA" toggle to switch between filtered and full view
+- Automations page now only shows automations that reference your tent's configured sensors/actuators
+
 ## 1.2.1
 - Group automations by type (Lighting, Climate, Ventilation, Humidity, etc.)
 - Add trigger tags: Schedule, Threshold, Sensor, State, Sun, Motion
