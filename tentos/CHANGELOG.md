@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.5
+- Filter Settings entity list to only relevant domains (sensor, switch, light, binary_sensor, climate, humidifier, camera, counter, etc.)
+- Remove irrelevant entity types (automation, input_*, media_player, person, scene, tts, etc.)
+- Make entity domain sections collapsible with click-to-expand
+- Add icons and labels for each entity domain
+
 ## 1.2.4
 - Fix 500 errors on templates, bundles, and suggestions endpoints
 - Fix tent entity lookup for TentState vs TentConfig objects

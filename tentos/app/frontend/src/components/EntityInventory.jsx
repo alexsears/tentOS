@@ -2,6 +2,36 @@ import { useState, useMemo } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 
+// Domains relevant for grow tent management
+const ALLOWED_DOMAINS = new Set([
+  'sensor',        // Temperature, humidity, CO2, water level, VPD, etc.
+  'binary_sensor', // Leak sensors, motion, door/window
+  'switch',        // Smart plugs for lights, fans, pumps
+  'light',         // Grow lights with dimming
+  'climate',       // HVAC units
+  'humidifier',    // Humidifiers/dehumidifiers
+  'water_heater',  // Reservoir heaters
+  'counter',       // Event counters
+  'camera',        // Tent cameras
+  'cover',         // Motorized vents/covers
+  'button',        // Trigger buttons
+])
+
+// Domain display info
+const DOMAIN_INFO = {
+  sensor: { icon: '📡', label: 'Sensors', order: 1 },
+  binary_sensor: { icon: '🚨', label: 'Binary Sensors', order: 2 },
+  switch: { icon: '🔌', label: 'Switches', order: 3 },
+  light: { icon: '💡', label: 'Lights', order: 4 },
+  climate: { icon: '🌡️', label: 'Climate', order: 5 },
+  humidifier: { icon: '💨', label: 'Humidifiers', order: 6 },
+  water_heater: { icon: '🔥', label: 'Water Heaters', order: 7 },
+  counter: { icon: '🔢', label: 'Counters', order: 8 },
+  camera: { icon: '📷', label: 'Cameras', order: 9 },
+  cover: { icon: '🚪', label: 'Covers', order: 10 },
+  button: { icon: '🔘', label: 'Buttons', order: 11 },
+}
+
 function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: entity.entity_id,
@@ -77,12 +107,35 @@ export default function EntityInventory({
   const [search, setSearch] = useState('')
   const [domainFilter, setDomainFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [collapsedDomains, setCollapsedDomains] = useState(new Set())
 
-  // Get unique domains
-  const domains = useMemo(() => {
-    const domainSet = new Set(entities.map(e => e.domain))
-    return Array.from(domainSet).sort()
+  // Toggle domain collapse
+  const toggleDomain = (domain) => {
+    setCollapsedDomains(prev => {
+      const next = new Set(prev)
+      if (next.has(domain)) {
+        next.delete(domain)
+      } else {
+        next.add(domain)
+      }
+      return next
+    })
+  }
+
+  // Filter to only allowed domains
+  const relevantEntities = useMemo(() => {
+    return entities.filter(e => ALLOWED_DOMAINS.has(e.domain))
   }, [entities])
+
+  // Get unique domains from relevant entities only
+  const domains = useMemo(() => {
+    const domainSet = new Set(relevantEntities.map(e => e.domain))
+    return Array.from(domainSet).sort((a, b) => {
+      const orderA = DOMAIN_INFO[a]?.order || 99
+      const orderB = DOMAIN_INFO[b]?.order || 99
+      return orderA - orderB
+    })
+  }, [relevantEntities])
 
   // Build slot compatibility map
   const slotCompatibility = useMemo(() => {
@@ -109,9 +162,9 @@ export default function EntityInventory({
     return ids
   }, [assignedEntities])
 
-  // Filter entities
+  // Filter entities (using relevantEntities which is already filtered to allowed domains)
   const filteredEntities = useMemo(() => {
-    return entities.filter(entity => {
+    return relevantEntities.filter(entity => {
       // Exclude already assigned
       if (assignedIds.has(entity.entity_id)) return false
 
@@ -152,7 +205,7 @@ export default function EntityInventory({
 
       return true
     })
-  }, [entities, search, domainFilter, categoryFilter, assignedIds, slotCompatibility, slotFilter])
+  }, [relevantEntities, search, domainFilter, categoryFilter, assignedIds, slotCompatibility, slotFilter])
 
   // Group by domain
   const groupedEntities = useMemo(() => {
@@ -279,34 +332,58 @@ export default function EntityInventory({
             {entities.length === 0 ? 'Loading entities...' : 'No matching entities'}
           </div>
         ) : (
-          Object.entries(groupedEntities).map(([domain, domainEntities]) => (
-            <div key={domain}>
-              <div className="text-xs font-medium text-gray-400 uppercase mb-2">
-                {domain} ({domainEntities.length})
-              </div>
-              <div className="space-y-1">
-                {domainEntities.slice(0, 50).map(entity => (
-                  <DraggableEntity
-                    key={entity.entity_id}
-                    entity={entity}
-                    slotType={getSlotType(entity)}
-                    isSelected={selectedEntities.includes(entity.entity_id)}
-                    onToggleSelect={onToggleSelect}
-                  />
-                ))}
-                {domainEntities.length > 50 && (
-                  <div className="text-xs text-gray-500 text-center py-1">
-                    +{domainEntities.length - 50} more
-                  </div>
-                )}
-              </div>
-            </div>
-          ))
+          Object.entries(groupedEntities)
+            .sort(([a], [b]) => {
+              const orderA = DOMAIN_INFO[a]?.order || 99
+              const orderB = DOMAIN_INFO[b]?.order || 99
+              return orderA - orderB
+            })
+            .map(([domain, domainEntities]) => {
+              const info = DOMAIN_INFO[domain] || { icon: '📦', label: domain }
+              const isCollapsed = collapsedDomains.has(domain)
+
+              return (
+                <div key={domain} className="border border-[#2d3a5c] rounded overflow-hidden">
+                  {/* Collapsible header */}
+                  <button
+                    onClick={() => toggleDomain(domain)}
+                    className="w-full flex items-center gap-2 px-3 py-2 bg-[#1a1a2e] hover:bg-[#252545] transition-colors text-left"
+                  >
+                    <span className="text-sm">{isCollapsed ? '▶' : '▼'}</span>
+                    <span className="text-lg">{info.icon}</span>
+                    <span className="flex-1 text-sm font-medium">{info.label}</span>
+                    <span className="text-xs text-gray-400 bg-[#2d3a5c] px-2 py-0.5 rounded-full">
+                      {domainEntities.length}
+                    </span>
+                  </button>
+
+                  {/* Collapsible content */}
+                  {!isCollapsed && (
+                    <div className="p-2 space-y-1 bg-[#0d0d1a]">
+                      {domainEntities.slice(0, 50).map(entity => (
+                        <DraggableEntity
+                          key={entity.entity_id}
+                          entity={entity}
+                          slotType={getSlotType(entity)}
+                          isSelected={selectedEntities.includes(entity.entity_id)}
+                          onToggleSelect={onToggleSelect}
+                        />
+                      ))}
+                      {domainEntities.length > 50 && (
+                        <div className="text-xs text-gray-500 text-center py-1">
+                          +{domainEntities.length - 50} more (use search to filter)
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })
         )}
       </div>
 
       <div className="p-2 border-t border-[#2d3a5c] text-xs text-gray-500 text-center">
-        {filteredEntities.length} entities available
+        {filteredEntities.length} of {relevantEntities.length} entities
         {selectedEntities.length > 0 && ` • ${selectedEntities.length} selected`}
       </div>
     </div>
