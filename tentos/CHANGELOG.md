@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1
+- Group automations by type (Lighting, Climate, Ventilation, Humidity, etc.)
+- Add trigger tags: Schedule, Threshold, Sensor, State, Sun, Motion
+- Toggle between "By Type" and "List" views
+- Collapsible category groups with active count
+
 ## 1.2.0
 - **BREAKING**: Remove TentOS rules system - now uses Home Assistant automations only
 - Add quick-create templates that generate real HA automations

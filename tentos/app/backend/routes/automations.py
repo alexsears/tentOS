@@ -9,6 +9,170 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# Category definitions for grouping automations
+CATEGORIES = {
+    "light": {
+        "name": "Lighting",
+        "icon": "💡",
+        "keywords": ["light", "lamp", "led", "hps", "grow_light"],
+        "order": 1
+    },
+    "climate": {
+        "name": "Climate Control",
+        "icon": "🌡️",
+        "keywords": ["temp", "heat", "cool", "ac", "hvac", "climate"],
+        "order": 2
+    },
+    "exhaust": {
+        "name": "Ventilation",
+        "icon": "🌀",
+        "keywords": ["exhaust", "intake", "vent", "airflow"],
+        "order": 3
+    },
+    "humidity": {
+        "name": "Humidity",
+        "icon": "💧",
+        "keywords": ["humid", "dehumid", "mist", "fog"],
+        "order": 4
+    },
+    "circulation": {
+        "name": "Air Circulation",
+        "icon": "🔄",
+        "keywords": ["circulation", "oscillat", "clip_fan", "tower_fan"],
+        "order": 5
+    },
+    "water": {
+        "name": "Irrigation",
+        "icon": "🚿",
+        "keywords": ["water", "pump", "irrigation", "drip", "reservoir", "drain"],
+        "order": 6
+    },
+    "co2": {
+        "name": "CO2",
+        "icon": "🫧",
+        "keywords": ["co2", "carbon"],
+        "order": 7
+    },
+    "other": {
+        "name": "Other",
+        "icon": "⚙️",
+        "keywords": [],
+        "order": 99
+    }
+}
+
+
+# Tags for automation characteristics
+TAGS = {
+    "schedule": {"name": "Schedule", "icon": "🕐", "color": "blue"},
+    "threshold": {"name": "Threshold", "icon": "📊", "color": "purple"},
+    "sensor": {"name": "Sensor", "icon": "📡", "color": "cyan"},
+    "state": {"name": "State", "icon": "🔄", "color": "orange"},
+    "sun": {"name": "Sun", "icon": "🌅", "color": "yellow"},
+    "motion": {"name": "Motion", "icon": "🚶", "color": "green"},
+    "multi": {"name": "Multi-trigger", "icon": "⚡", "color": "red"},
+}
+
+
+def get_automation_tags(automation: dict, config: dict = None) -> list[str]:
+    """Determine tags for an automation based on its triggers."""
+    tags = []
+
+    if not config:
+        # Try to infer from name/id
+        entity_id = automation.get("entity_id", "").lower()
+        name = automation.get("attributes", {}).get("friendly_name", "").lower()
+        text = f"{entity_id} {name}"
+
+        if any(w in text for w in ["schedule", "time", "daily", "morning", "night"]):
+            tags.append("schedule")
+        if any(w in text for w in ["temp", "humid", "above", "below", "threshold"]):
+            tags.append("threshold")
+        return tags
+
+    # Parse triggers from config
+    triggers = config.get("trigger", [])
+    if not isinstance(triggers, list):
+        triggers = [triggers]
+
+    if len(triggers) > 2:
+        tags.append("multi")
+
+    trigger_types = set()
+    for trigger in triggers:
+        platform = trigger.get("platform", "")
+        trigger_types.add(platform)
+
+        if platform == "time":
+            tags.append("schedule")
+        elif platform == "numeric_state":
+            tags.append("threshold")
+        elif platform == "state":
+            # Check if it's a sensor
+            entity = trigger.get("entity_id", "")
+            if "sensor." in str(entity) or "binary_sensor." in str(entity):
+                tags.append("sensor")
+            else:
+                tags.append("state")
+        elif platform == "sun":
+            tags.append("sun")
+        elif platform in ("motion", "occupancy"):
+            tags.append("motion")
+
+    # Deduplicate while preserving order
+    seen = set()
+    unique_tags = []
+    for tag in tags:
+        if tag not in seen:
+            seen.add(tag)
+            unique_tags.append(tag)
+
+    return unique_tags
+
+
+def categorize_automation(automation: dict, config: dict = None) -> str:
+    """Determine the category of an automation based on its config and name."""
+    entity_id = automation.get("entity_id", "")
+    friendly_name = automation.get("attributes", {}).get("friendly_name", "")
+    search_text = f"{entity_id} {friendly_name}".lower()
+
+    # For TentOS automations, parse the template type from entity_id
+    if "tentos_" in entity_id:
+        if "light" in entity_id or "light_schedule" in entity_id:
+            return "light"
+        if "exhaust" in entity_id or "high_temp" in entity_id:
+            return "exhaust"
+        if "humid" in entity_id:
+            return "humidity"
+        if "heater" in entity_id or "low_temp" in entity_id:
+            return "climate"
+        if "circulation" in entity_id:
+            return "circulation"
+        if "water" in entity_id or "pump" in entity_id:
+            return "water"
+
+    # Check config for target entities
+    if config:
+        config_str = str(config).lower()
+        # Check each category's keywords
+        for cat_id, cat_info in CATEGORIES.items():
+            if cat_id == "other":
+                continue
+            for keyword in cat_info["keywords"]:
+                if keyword in config_str:
+                    return cat_id
+
+    # Fallback: check automation name/id for keywords
+    for cat_id, cat_info in CATEGORIES.items():
+        if cat_id == "other":
+            continue
+        for keyword in cat_info["keywords"]:
+            if keyword in search_text:
+                return cat_id
+
+    return "other"
+
+
 # Templates for common grow tent automations
 AUTOMATION_TEMPLATES = {
     "high_temp_exhaust": {
@@ -342,13 +506,25 @@ async def apply_template(template_id: str, data: TemplateApply, request: Request
 
 # ==================== HA Automations ====================
 
+@router.get("/categories")
+async def list_categories():
+    """List available automation categories."""
+    return {
+        "categories": [
+            {"id": k, **{key: v[key] for key in ["name", "icon", "order"]}}
+            for k, v in sorted(CATEGORIES.items(), key=lambda x: x[1]["order"])
+        ]
+    }
+
+
 @router.get("")
 async def list_ha_automations(
     request: Request,
     tent_id: Optional[str] = None,
-    show_all: bool = True
+    show_all: bool = True,
+    categorize: bool = True
 ):
-    """List Home Assistant automations."""
+    """List Home Assistant automations with optional categorization."""
     ha_client = request.app.state.ha_client
     state_manager = request.app.state.state_manager
 
@@ -358,44 +534,56 @@ async def list_ha_automations(
         logger.error(f"Failed to fetch HA automations: {e}")
         raise HTTPException(status_code=503, detail=f"Failed to fetch automations: {str(e)}")
 
-    if not tent_id or show_all:
-        return {
-            "automations": all_automations,
-            "count": len(all_automations),
-            "filtered": False
-        }
+    # Fetch configs for categorization
+    configs = {}
+    if categorize:
+        try:
+            configs = await get_automation_configs(ha_client, all_automations)
+        except Exception as e:
+            logger.warning(f"Could not fetch automation configs for categorization: {e}")
 
-    tent = state_manager.get_tent(tent_id)
-    if not tent:
-        raise HTTPException(status_code=404, detail="Tent not found")
+    # Add category and tags to each automation
+    for auto in all_automations:
+        config = configs.get(auto.get("entity_id"))
+        auto["category"] = categorize_automation(auto, config)
+        auto["tags"] = get_automation_tags(auto, config)
 
-    entity_ids = get_tent_entity_ids(tent)
+    # Filter by tent if requested
+    if tent_id and not show_all:
+        tent = state_manager.get_tent(tent_id)
+        if not tent:
+            raise HTTPException(status_code=404, detail="Tent not found")
 
-    try:
-        configs = await get_automation_configs(ha_client, all_automations)
-    except Exception as e:
-        logger.warning(f"Could not fetch automation configs: {e}")
-        configs = {}
+        entity_ids = get_tent_entity_ids(tent)
+        filtered = []
+        for a in all_automations:
+            config = configs.get(a.get("entity_id"))
+            if automation_references_entities(a, entity_ids, config):
+                filtered.append(a)
 
-    related = []
-    for a in all_automations:
-        config = configs.get(a.get("entity_id"))
-        if automation_references_entities(a, entity_ids, config):
-            related.append(a)
+        if filtered:
+            all_automations = filtered
 
-    if not related:
-        return {
-            "automations": all_automations,
-            "count": len(all_automations),
-            "filtered": False,
-            "no_matches": True
-        }
+    # Group by category
+    by_category = {}
+    for auto in all_automations:
+        cat = auto.get("category", "other")
+        if cat not in by_category:
+            by_category[cat] = []
+        by_category[cat].append(auto)
+
+    # Sort categories by order
+    sorted_categories = sorted(
+        by_category.items(),
+        key=lambda x: CATEGORIES.get(x[0], {}).get("order", 99)
+    )
 
     return {
-        "automations": related,
-        "count": len(related),
-        "filtered": True,
-        "tent_id": tent_id
+        "automations": all_automations,
+        "by_category": dict(sorted_categories),
+        "categories": {k: {"name": v["name"], "icon": v["icon"]} for k, v in CATEGORIES.items()},
+        "tags": {k: {"name": v["name"], "icon": v["icon"], "color": v["color"]} for k, v in TAGS.items()},
+        "count": len(all_automations)
     }
 
 
