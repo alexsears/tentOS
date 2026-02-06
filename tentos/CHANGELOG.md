@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+- **BREAKING**: Remove TentOS rules system - now uses Home Assistant automations only
+- Add quick-create templates that generate real HA automations
+- Templates include: High/Low Temp, High/Low Humidity, Light Schedule, Circulation Fan
+- Automations created by TentOS are prefixed with [TentOS] and can be edited in HA
+- Simplified Automations page with search and better organization
+
 ## 1.1.63
 - Fix React hooks order violation causing blank screen crash on Automations page
 
