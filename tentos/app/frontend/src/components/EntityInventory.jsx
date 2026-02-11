@@ -48,18 +48,48 @@ function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
     onToggleSelect(entity.entity_id)
   }
 
+  // State-aware styling (matches dashboard tile patterns)
+  const st = (entity.state || '').toLowerCase()
+  const isOn = st === 'on' || st === 'playing' || st === 'open'
+  const isNumeric = entity.state != null && !isNaN(parseFloat(entity.state))
+  const isSensor = entity.domain === 'sensor' || entity.domain === 'binary_sensor'
+
+  // Compute classes as simple strings (no nested template literals)
+  let cardClass = 'bg-[#1a1a2e] border-[#2d3a5c] hover:border-green-500/50'
+  if (isSelected) {
+    cardClass = 'border-green-500 bg-green-500/10'
+  } else if (isOn) {
+    cardClass = 'bg-green-900/20 border-green-600/40 hover:border-green-500/50'
+  }
+
+  let dotColor = 'bg-gray-600'
+  if (isOn) dotColor = 'bg-green-400'
+  else if (isNumeric) dotColor = 'bg-cyan-400'
+
+  let stateColor = 'text-gray-400'
+  if (isOn) stateColor = 'text-green-400'
+  else if (st === 'off' || st === 'closed') stateColor = 'text-gray-500'
+  else if (isNumeric) stateColor = 'text-cyan-300'
+
+  const iconBg = isSelected ? 'bg-green-500/20' : 'bg-[#0d0d1a]'
+  const dragRing = isDragging ? 'ring-2 ring-green-500' : ''
+
+  // Format display value
+  let displayValue = entity.state || '--'
+  if (isSensor && isNumeric) {
+    displayValue = parseFloat(entity.state).toFixed(1)
+  }
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`p-2 bg-[#1a1a2e] rounded border transition-colors
-        ${isSelected
-          ? 'border-green-500 bg-green-500/10'
-          : 'border-[#2d3a5c] hover:border-green-500/50 hover:bg-[#1a1a2e]/80'
-        }
-        ${isDragging ? 'ring-2 ring-green-500' : ''}`}
+      className={'relative p-2.5 rounded-lg border transition-all duration-200 ' + cardClass + ' ' + dragRing}
     >
-      <div className="flex items-center gap-2">
+      {/* Status indicator dot */}
+      <span className={'absolute top-1.5 right-1.5 w-2 h-2 rounded-full ' + dotColor} />
+
+      <div className="flex items-center gap-2.5">
         {/* Checkbox */}
         <input
           type="checkbox"
@@ -72,19 +102,31 @@ function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
         <div
           {...listeners}
           {...attributes}
-          className="flex-1 min-w-0 flex items-center gap-2 cursor-grab"
+          className="flex-1 min-w-0 flex items-center gap-2.5 cursor-grab"
         >
-          <span className="text-lg">{entity.icon || '📍'}</span>
+          {/* Large icon in container */}
+          <div className={'flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 ' + iconBg}>
+            <span className="text-2xl">{entity.icon || '📍'}</span>
+          </div>
+
+          {/* Name and entity ID */}
           <div className="flex-1 min-w-0">
-            <div className="font-medium truncate text-sm">
+            <div className="font-medium truncate text-sm leading-tight">
               {entity.friendly_name || entity.entity_id}
             </div>
-            <div className="text-xs text-gray-500 font-mono truncate">
+            <div className="text-xs text-gray-600 font-mono truncate mt-0.5" style={{ fontSize: '10px' }}>
               {entity.entity_id}
             </div>
           </div>
-          <div className="text-xs text-gray-400">
-            {entity.state}{entity.unit ? ` ${entity.unit}` : ''}
+
+          {/* State value */}
+          <div className="flex flex-col items-end flex-shrink-0">
+            <span className={'text-sm font-semibold ' + stateColor}>
+              {displayValue}
+            </span>
+            {entity.unit && (
+              <span className="text-xs text-gray-500" style={{ fontSize: '10px' }}>{entity.unit}</span>
+            )}
           </div>
         </div>
       </div>
