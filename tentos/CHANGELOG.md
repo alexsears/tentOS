@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.22
+- Entity list "N more" message replaced with clickable expand button
+
 ## 1.2.21
 - Used slots shown at top with full tile display, unused slots grouped below as compact pills
 - Available Slots section with small icon+label chips for easy scanning

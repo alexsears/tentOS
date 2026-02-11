@@ -108,6 +108,7 @@ export default function EntityInventory({
   const [domainFilter, setDomainFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [collapsedDomains, setCollapsedDomains] = useState(new Set())
+  const [expandedDomains, setExpandedDomains] = useState(new Set())
 
   // Toggle domain collapse
   const toggleDomain = (domain) => {
@@ -364,7 +365,7 @@ export default function EntityInventory({
                   {/* Collapsible content */}
                   {!isCollapsed && (
                     <div className="p-2 space-y-1 bg-[#0d0d1a]">
-                      {domainEntities.slice(0, 50).map(entity => (
+                      {(expandedDomains.has(domain) ? domainEntities : domainEntities.slice(0, 50)).map(entity => (
                         <DraggableEntity
                           key={entity.entity_id}
                           entity={entity}
@@ -373,10 +374,13 @@ export default function EntityInventory({
                           onToggleSelect={onToggleSelect}
                         />
                       ))}
-                      {domainEntities.length > 50 && (
-                        <div className="text-xs text-gray-500 text-center py-1">
-                          +{domainEntities.length - 50} more (use search to filter)
-                        </div>
+                      {domainEntities.length > 50 && !expandedDomains.has(domain) && (
+                        <button
+                          onClick={() => setExpandedDomains(prev => { const next = new Set(prev); next.add(domain); return next })}
+                          className="w-full text-xs text-gray-400 hover:text-white text-center py-1.5 hover:bg-[#1a1a2e] rounded transition-colors"
+                        >
+                          + {domainEntities.length - 50} more
+                        </button>
                       )}
                     </div>
                   )}
