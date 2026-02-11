@@ -1,9 +1,13 @@
 # Changelog
 
+## 1.2.19
+- Settings entities now display as dashboard-style tiles in a 3-column grid
+- Centered icons, large sensor values, ON/OFF badges, status dots - matches dashboard look
+- Click to select, drag to assign (replaces old checkbox list layout)
+
 ## 1.2.18
 - Fix .toFixed() crash when HA returns sensor values as strings instead of numbers
 - Wrap all .toFixed() calls with Number() in TentCard, TentDetail, and useTemperatureUnit
-- Settings entity tiles: status dots, larger icons, color-coded states, active glow
 
 ## 1.2.17
 - Revert entity tile changes again - investigating build issue
