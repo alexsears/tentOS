@@ -32,33 +32,6 @@ const DOMAIN_INFO = {
   button: { icon: '🔘', label: 'Buttons', order: 11 },
 }
 
-// Determine entity state color based on domain and state
-function getStateColor(entity) {
-  const s = entity.state?.toLowerCase()
-  if (s === 'on' || s === 'playing' || s === 'open' || s === 'true') return 'text-green-400'
-  if (s === 'off' || s === 'closed' || s === 'false') return 'text-gray-500'
-  if (s === 'unavailable' || s === 'unknown') return 'text-gray-600'
-  // Numeric sensor values
-  if (!isNaN(parseFloat(entity.state))) return 'text-cyan-300'
-  return 'text-gray-400'
-}
-
-function getStateDotColor(entity) {
-  const s = entity.state?.toLowerCase()
-  if (s === 'on' || s === 'playing' || s === 'open' || s === 'true') return 'bg-green-400'
-  if (s === 'off' || s === 'closed' || s === 'false') return 'bg-gray-600'
-  if (s === 'unavailable' || s === 'unknown') return 'bg-gray-700'
-  if (!isNaN(parseFloat(entity.state))) return 'bg-cyan-400'
-  return 'bg-gray-500'
-}
-
-function getActiveBg(entity) {
-  const s = entity.state?.toLowerCase()
-  if (s === 'on' || s === 'playing' || s === 'open' || s === 'true')
-    return 'bg-green-900/20 border-green-600/40'
-  return 'bg-[#1a1a2e] border-[#2d3a5c]'
-}
-
 function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: entity.entity_id,
@@ -75,24 +48,18 @@ function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
     onToggleSelect(entity.entity_id)
   }
 
-  const isSensor = entity.domain === 'sensor' || entity.domain === 'binary_sensor'
-  const isNumeric = !isNaN(parseFloat(entity.state))
-
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative p-2.5 rounded-lg border transition-all duration-200
+      className={`p-2 bg-[#1a1a2e] rounded border transition-colors
         ${isSelected
-          ? 'border-green-500 bg-green-500/15 shadow-sm shadow-green-500/10'
-          : `${getActiveBg(entity)} hover:border-green-500/50`
+          ? 'border-green-500 bg-green-500/10'
+          : 'border-[#2d3a5c] hover:border-green-500/50 hover:bg-[#1a1a2e]/80'
         }
-        ${isDragging ? 'ring-2 ring-green-500 shadow-lg shadow-green-500/20' : ''}`}
+        ${isDragging ? 'ring-2 ring-green-500' : ''}`}
     >
-      {/* Status indicator dot */}
-      <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${getStateDotColor(entity)}`} />
-
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
         {/* Checkbox */}
         <input
           type="checkbox"
@@ -105,35 +72,19 @@ function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
         <div
           {...listeners}
           {...attributes}
-          className="flex-1 min-w-0 flex items-center gap-2.5 cursor-grab"
+          className="flex-1 min-w-0 flex items-center gap-2 cursor-grab"
         >
-          {/* Large icon */}
-          <div className={`flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0
-            ${isSelected ? 'bg-green-500/20' : 'bg-[#0d0d1a]'}`}
-          >
-            <span className="text-2xl">{entity.icon || '📍'}</span>
-          </div>
-
-          {/* Name and entity ID */}
+          <span className="text-lg">{entity.icon || '📍'}</span>
           <div className="flex-1 min-w-0">
-            <div className="font-medium truncate text-sm leading-tight">
+            <div className="font-medium truncate text-sm">
               {entity.friendly_name || entity.entity_id}
             </div>
-            <div className="text-[10px] text-gray-600 font-mono truncate mt-0.5">
+            <div className="text-xs text-gray-500 font-mono truncate">
               {entity.entity_id}
             </div>
           </div>
-
-          {/* State value - tile style */}
-          <div className="flex flex-col items-end flex-shrink-0">
-            <span className={`text-sm font-semibold ${getStateColor(entity)}`}>
-              {isSensor && isNumeric
-                ? parseFloat(entity.state).toFixed(1)
-                : entity.state || '--'}
-            </span>
-            {entity.unit && (
-              <span className="text-[10px] text-gray-500">{entity.unit}</span>
-            )}
+          <div className="text-xs text-gray-400">
+            {entity.state}{entity.unit ? ` ${entity.unit}` : ''}
           </div>
         </div>
       </div>
@@ -396,23 +347,23 @@ export default function EntityInventory({
               const isCollapsed = collapsedDomains.has(domain)
 
               return (
-                <div key={domain} className="rounded-lg overflow-hidden border border-[#2d3a5c]/50">
+                <div key={domain} className="border border-[#2d3a5c] rounded overflow-hidden">
                   {/* Collapsible header */}
                   <button
                     onClick={() => toggleDomain(domain)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-[#16213e] hover:bg-[#1a2744] transition-colors text-left"
+                    className="w-full flex items-center gap-2 px-3 py-2 bg-[#1a1a2e] hover:bg-[#252545] transition-colors text-left"
                   >
-                    <span className="text-xs text-gray-500">{isCollapsed ? '▶' : '▼'}</span>
-                    <span className="text-xl">{info.icon}</span>
-                    <span className="flex-1 text-sm font-semibold">{info.label}</span>
-                    <span className="text-xs text-gray-300 bg-[#2d3a5c] px-2.5 py-1 rounded-full font-medium">
+                    <span className="text-sm">{isCollapsed ? '▶' : '▼'}</span>
+                    <span className="text-lg">{info.icon}</span>
+                    <span className="flex-1 text-sm font-medium">{info.label}</span>
+                    <span className="text-xs text-gray-400 bg-[#2d3a5c] px-2 py-0.5 rounded-full">
                       {domainEntities.length}
                     </span>
                   </button>
 
                   {/* Collapsible content */}
                   {!isCollapsed && (
-                    <div className="p-2 space-y-1.5 bg-[#0d0d1a]/80">
+                    <div className="p-2 space-y-1 bg-[#0d0d1a]">
                       {domainEntities.slice(0, 50).map(entity => (
                         <DraggableEntity
                           key={entity.entity_id}
@@ -423,7 +374,7 @@ export default function EntityInventory({
                         />
                       ))}
                       {domainEntities.length > 50 && (
-                        <div className="text-xs text-gray-500 text-center py-2">
+                        <div className="text-xs text-gray-500 text-center py-1">
                           +{domainEntities.length - 50} more (use search to filter)
                         </div>
                       )}

@@ -1,9 +1,10 @@
 # Changelog
 
+## 1.2.15
+- Revert entity inventory styling changes (caused blank screen)
+
 ## 1.2.14
-- Restyle Settings entity inventory to match dashboard tile aesthetic
-- Entity tiles now have status indicator dots, larger icons, color-coded state values
-- Active entities (on/open) get green-tinted backgrounds like dashboard controls
+- Restyle Settings entity inventory to match dashboard tile aesthetic (reverted in 1.2.15)
 
 ## 1.2.13
 - Fix multi-entity actuators (e.g. 2 exhaust fans) only showing one control
