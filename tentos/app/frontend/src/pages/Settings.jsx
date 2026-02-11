@@ -594,25 +594,42 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Drag Overlay */}
+          {/* Drag Overlay - tile style like dashboard */}
           <DragOverlay>
             {activeDragEntity ? (
-              <div className="p-2 bg-[#1a1a2e] rounded border-2 border-green-500 shadow-lg">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{activeDragEntity.icon || '📍'}</span>
-                  <span className="font-medium text-sm">
-                    {activeDragEntity._multiDrag
-                      ? `${activeDragEntity._selectedIds.length} entities`
-                      : activeDragEntity.friendly_name || activeDragEntity.entity_id
-                    }
-                  </span>
-                  {activeDragEntity._multiDrag && (
-                    <span className="px-2 py-0.5 bg-green-600 rounded-full text-xs">
-                      {activeDragEntity._selectedIds.length}
-                    </span>
-                  )}
+              activeDragEntity._multiDrag ? (
+                <div className="relative flex flex-col items-center justify-center p-3 rounded-lg bg-green-900/30 border-2 border-green-500 shadow-lg shadow-green-500/20 min-w-[80px]">
+                  <span className="text-2xl">📦</span>
+                  <span className="text-sm font-bold text-green-400 mt-1">{activeDragEntity._selectedIds.length}</span>
+                  <span className="text-xs text-white">entities</span>
                 </div>
-              </div>
+              ) : (() => {
+                const e = activeDragEntity
+                const st = (e.state || '').toLowerCase()
+                const isOn = st === 'on' || st === 'playing' || st === 'open'
+                const isNumeric = e.state != null && !isNaN(parseFloat(e.state))
+                const isSensor = e.domain === 'sensor' || e.domain === 'binary_sensor'
+                const tileBg = isOn ? 'bg-green-900/30 border-green-500' : 'bg-[#1a1a2e] border-green-500'
+                const iconColor = isOn ? 'text-green-400' : isNumeric ? 'text-cyan-300' : 'text-gray-400'
+                const name = e.friendly_name || e.entity_id.split('.').pop().replace(/_/g, ' ')
+                return (
+                  <div className={'relative flex flex-col items-center justify-center p-3 rounded-lg border-2 shadow-lg shadow-green-500/20 min-w-[80px] ' + tileBg}>
+                    <span className={'absolute top-1 right-1 w-2 h-2 rounded-full ' + (isOn ? 'bg-green-400' : isNumeric ? 'bg-cyan-400' : 'bg-gray-600')} />
+                    <span className={'text-2xl ' + iconColor}>{e.icon || '📍'}</span>
+                    {isSensor && isNumeric ? (
+                      <span className="text-lg font-bold text-cyan-300 mt-1">
+                        {Number(e.state).toFixed(1)}
+                        {e.unit && <span className="text-xs text-gray-500 ml-0.5">{e.unit}</span>}
+                      </span>
+                    ) : (
+                      <span className={'text-xs mt-1 font-medium ' + (isOn ? 'text-green-400' : 'text-gray-500')}>
+                        {isOn ? 'ON' : st === 'off' ? 'OFF' : st || '--'}
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-400 truncate max-w-[100px] text-center mt-0.5">{name}</span>
+                  </div>
+                )
+              })()
             ) : null}
           </DragOverlay>
         </DndContext>

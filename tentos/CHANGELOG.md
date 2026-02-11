@@ -1,9 +1,9 @@
 # Changelog
 
-## 1.2.19
-- Settings entities now display as dashboard-style tiles in a 3-column grid
-- Centered icons, large sensor values, ON/OFF badges, status dots - matches dashboard look
-- Click to select, drag to assign (replaces old checkbox list layout)
+## 1.2.20
+- Assigned entities in tent slots now show as dashboard-style tiles with icons, state, status dots
+- Drag overlay shows tile preview (centered icon, value, name) instead of plain text
+- Available entity list kept as original list style for easy scanning
 
 ## 1.2.18
 - Fix .toFixed() crash when HA returns sensor values as strings instead of numbers

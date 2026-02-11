@@ -50,27 +50,71 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
           Click or drop to add
         </div>
       ) : (
-        <div className="space-y-1 mt-2">
-          {ids.map((entityId, idx) => {
-            const entity = getEntity(entityId)
-            return (
-              <div key={entityId} className="flex items-center gap-2 bg-[#0d1117] rounded px-2 py-1">
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs truncate">
-                    {entity?.friendly_name || entityId}
-                  </div>
+        <div className="mt-2">
+          <div className="flex flex-wrap gap-1.5">
+            {ids.map((entityId, idx) => {
+              const entity = getEntity(entityId)
+              const st = (entity?.state || '').toLowerCase()
+              const isOn = st === 'on' || st === 'playing' || st === 'open'
+              const isNumeric = entity?.state != null && !isNaN(parseFloat(entity?.state))
+              const isSensor = entity?.domain === 'sensor' || entity?.domain === 'binary_sensor'
+
+              let tileBg = 'bg-[#0d1117]'
+              if (isOn) tileBg = 'bg-green-900/30 border border-green-600/50'
+
+              let iconColor = 'text-gray-500'
+              if (isOn) iconColor = 'text-green-400'
+              else if (isNumeric) iconColor = 'text-cyan-300'
+
+              let dotColor = 'bg-gray-600'
+              if (isOn) dotColor = 'bg-green-400'
+              else if (isNumeric) dotColor = 'bg-cyan-400'
+
+              const name = entity?.friendly_name || entityId.split('.').pop().replace(/_/g, ' ')
+
+              return (
+                <div key={entityId} className={'relative flex flex-col items-center justify-center p-2 rounded-lg transition-all min-w-[60px] ' + tileBg} title={entityId}>
+                  {/* Status dot */}
+                  <span className={'absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full ' + dotColor} />
+
+                  {/* Remove button */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onRemove(category, slotType, idx) }}
+                    className="absolute top-0.5 left-0.5 w-4 h-4 flex items-center justify-center rounded-full hover:bg-red-500/30 text-red-400 hover:text-red-300 opacity-0 hover:opacity-100 transition-opacity"
+                    style={{ fontSize: 10 }}
+                    title="Remove"
+                  >
+                    ✕
+                  </button>
+
+                  {/* Icon */}
+                  <span className={'text-lg ' + iconColor}>
+                    {entity?.icon || slotDef.icon || '📍'}
+                  </span>
+
+                  {/* Value or state */}
+                  {isSensor && isNumeric ? (
+                    <span className="text-xs font-bold text-cyan-300">
+                      {Number(entity.state).toFixed(1)}
+                      {entity.unit && <span className="text-gray-500 ml-0.5" style={{ fontSize: 9 }}>{entity.unit}</span>}
+                    </span>
+                  ) : (
+                    <span className={'text-xs ' + (isOn ? 'text-green-400 font-medium' : 'text-gray-500')}>
+                      {isOn ? 'ON' : st === 'off' ? 'OFF' : st || '--'}
+                    </span>
+                  )}
+
+                  {/* Name */}
+                  <span className="text-xs text-gray-500 truncate w-full text-center mt-0.5" style={{ fontSize: 9 }}>
+                    {name}
+                  </span>
                 </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onRemove(category, slotType, idx) }}
-                  className="p-0.5 hover:bg-red-500/20 rounded text-red-400 hover:text-red-300 text-xs"
-                  title="Remove"
-                >
-                  ✕
-                </button>
-              </div>
-            )
-          })}
-          <div className="text-xs text-gray-500 italic pt-1">+ Drop more</div>
+              )
+            })}
+          </div>
+          {slotDef.multiple && (
+            <div className="text-xs text-gray-500 italic pt-1">+ Drop more</div>
+          )}
         </div>
       )}
     </div>

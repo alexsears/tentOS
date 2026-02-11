@@ -43,90 +43,51 @@ function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
     opacity: isDragging ? 0.5 : 1,
   }
 
-  const handleClick = () => {
+  const handleCheckboxClick = (e) => {
+    e.stopPropagation()
     onToggleSelect(entity.entity_id)
   }
-
-  const st = (entity.state || '').toLowerCase()
-  const isOn = st === 'on' || st === 'playing' || st === 'open'
-  const isOff = st === 'off' || st === 'closed' || st === 'false'
-  const isNumeric = entity.state != null && !isNaN(parseFloat(entity.state))
-  const isSensor = entity.domain === 'sensor' || entity.domain === 'binary_sensor'
-
-  // Card background - matches ActuatorButton style
-  let cardClass = 'bg-[#1a1a2e] hover:bg-[#2d3a5c] border border-transparent'
-  if (isSelected) {
-    cardClass = 'bg-green-900/30 hover:bg-green-900/50 border border-green-500'
-  } else if (isOn) {
-    cardClass = 'bg-green-900/30 hover:bg-green-900/50 border border-green-600/50'
-  }
-
-  // Status dot color
-  let dotColor = 'bg-gray-600'
-  if (isOn) dotColor = 'bg-green-400'
-  else if (isNumeric) dotColor = 'bg-cyan-400'
-
-  // Icon color
-  let iconColor = 'text-gray-500'
-  if (isOn) iconColor = 'text-green-400'
-  else if (isNumeric) iconColor = 'text-cyan-300'
-
-  // State value display
-  let stateColor = 'text-gray-500'
-  let displayValue = st || '--'
-  if (isSensor && isNumeric) {
-    displayValue = Number(entity.state).toFixed(1)
-    stateColor = 'text-cyan-300'
-  } else if (isOn) {
-    stateColor = 'text-green-400'
-  }
-
-  // Friendly name shortened for tile
-  const name = entity.friendly_name || entity.entity_id.split('.').pop().replace(/_/g, ' ')
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
-      onClick={handleClick}
-      className={'relative flex flex-col items-center justify-center p-3 rounded-lg transition-all duration-200 cursor-grab ' + cardClass + (isDragging ? ' ring-2 ring-green-500' : '')}
-      title={entity.entity_id}
+      className={`p-2 bg-[#1a1a2e] rounded border transition-colors
+        ${isSelected
+          ? 'border-green-500 bg-green-500/10'
+          : 'border-[#2d3a5c] hover:border-green-500/50 hover:bg-[#1a1a2e]/80'
+        }
+        ${isDragging ? 'ring-2 ring-green-500' : ''}`}
     >
-      {/* Status dot */}
-      <span className={'absolute top-1 right-1 w-2 h-2 rounded-full ' + dotColor} />
+      <div className="flex items-center gap-2">
+        {/* Checkbox */}
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={handleCheckboxClick}
+          className="w-4 h-4 accent-green-500 cursor-pointer flex-shrink-0"
+        />
 
-      {/* Selection check */}
-      {isSelected && (
-        <span className="absolute top-1 left-1 text-green-400 text-xs">✓</span>
-      )}
-
-      {/* Icon - large and centered like dashboard */}
-      <span className={'text-2xl ' + iconColor}>
-        {entity.icon || DOMAIN_INFO[entity.domain]?.icon || '📍'}
-      </span>
-
-      {/* Value for sensors, state for actuators */}
-      {isSensor && isNumeric ? (
-        <div className="text-center mt-1">
-          <span className={'text-lg font-bold ' + stateColor}>
-            {displayValue}
-          </span>
-          {entity.unit && (
-            <span className="text-xs text-gray-500 ml-0.5">{entity.unit}</span>
-          )}
+        {/* Draggable area */}
+        <div
+          {...listeners}
+          {...attributes}
+          className="flex-1 min-w-0 flex items-center gap-2 cursor-grab"
+        >
+          <span className="text-lg">{entity.icon || '📍'}</span>
+          <div className="flex-1 min-w-0">
+            <div className="font-medium truncate text-sm">
+              {entity.friendly_name || entity.entity_id}
+            </div>
+            <div className="text-xs text-gray-500 font-mono truncate">
+              {entity.entity_id}
+            </div>
+          </div>
+          <div className="text-xs text-gray-400">
+            {entity.state}{entity.unit ? ` ${entity.unit}` : ''}
+          </div>
         </div>
-      ) : (
-        <span className={'text-xs mt-1 font-medium ' + stateColor}>
-          {isOn ? 'ON' : isOff ? 'OFF' : displayValue}
-        </span>
-      )}
-
-      {/* Label */}
-      <span className={'text-xs mt-0.5 text-center truncate w-full ' + (isOn ? 'text-white' : 'text-gray-500')}>
-        {name}
-      </span>
+      </div>
     </div>
   )
 }
@@ -400,22 +361,20 @@ export default function EntityInventory({
                     </span>
                   </button>
 
-                  {/* Collapsible content - grid layout like dashboard */}
+                  {/* Collapsible content */}
                   {!isCollapsed && (
-                    <div className="p-2 bg-[#0d0d1a]">
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {domainEntities.slice(0, 50).map(entity => (
-                          <DraggableEntity
-                            key={entity.entity_id}
-                            entity={entity}
-                            slotType={getSlotType(entity)}
-                            isSelected={selectedEntities.includes(entity.entity_id)}
-                            onToggleSelect={onToggleSelect}
-                          />
-                        ))}
-                      </div>
+                    <div className="p-2 space-y-1 bg-[#0d0d1a]">
+                      {domainEntities.slice(0, 50).map(entity => (
+                        <DraggableEntity
+                          key={entity.entity_id}
+                          entity={entity}
+                          slotType={getSlotType(entity)}
+                          isSelected={selectedEntities.includes(entity.entity_id)}
+                          onToggleSelect={onToggleSelect}
+                        />
+                      ))}
                       {domainEntities.length > 50 && (
-                        <div className="text-xs text-gray-500 text-center py-2">
+                        <div className="text-xs text-gray-500 text-center py-1">
                           +{domainEntities.length - 50} more (use search to filter)
                         </div>
                       )}
