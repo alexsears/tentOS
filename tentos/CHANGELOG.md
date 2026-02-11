@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.21
+- Used slots shown at top with full tile display, unused slots grouped below as compact pills
+- Available Slots section with small icon+label chips for easy scanning
+
 ## 1.2.20
 - Assigned entities in tent slots now show as dashboard-style tiles with icons, state, status dots
 - Drag overlay shows tile preview (centered icon, value, name) instead of plain text

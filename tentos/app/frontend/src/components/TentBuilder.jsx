@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 
-function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, tentId, onSelect, isSelected }) {
+function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, tentId, onSelect, isSelected, compact }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `${tentId}.${category}.${slotType}`,
     data: { slotType, slotDef, category, tentId, multiple: slotDef.multiple }
@@ -16,6 +16,28 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
       e.stopPropagation()
       onSelect({ category, slotType, slotDef, tentId })
     }
+  }
+
+  // Compact mode for empty/unused slots
+  if (compact && isEmpty) {
+    return (
+      <div
+        ref={setNodeRef}
+        onClick={handleClick}
+        className={`px-2.5 py-1.5 rounded border border-dashed transition-all cursor-pointer flex items-center gap-1.5
+          ${isOver
+            ? 'border-green-500 bg-green-500/10'
+            : isSelected
+              ? 'border-green-500 bg-green-500/20'
+              : 'border-[#2d3a5c] hover:border-[#3d4a6c]'
+          }
+          ${slotDef.required ? 'border-yellow-500/50' : ''}
+        `}
+      >
+        <span className="text-sm">{slotDef.icon}</span>
+        <span className="text-xs text-gray-500">{slotDef.label}</span>
+      </div>
+    )
   }
 
   return (
@@ -382,54 +404,110 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
       </div>
 
       {/* Slots */}
-      {expanded && (
-        <div className="space-y-4">
-          {/* Sensors */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-400 mb-2">Sensors</h4>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-              {Object.entries(slots?.sensors || {}).map(([slotType, slotDef]) => (
-                <Slot
-                  key={slotType}
-                  slotType={slotType}
-                  slotDef={slotDef}
-                  entityIds={tent.sensors?.[slotType]}
-                  getEntity={getEntity}
-                  onRemove={removeFromSlot}
-                  category="sensors"
-                  tentId={tent.id}
-                  onSelect={onSlotSelect}
-                  isSelected={selectedSlot?.tentId === tent.id && selectedSlot?.category === 'sensors' && selectedSlot?.slotType === slotType}
-                />
-              ))}
-            </div>
-          </div>
+      {expanded && (() => {
+        // Split slots into used (have entities) and unused (empty)
+        const sensorEntries = Object.entries(slots?.sensors || {})
+        const actuatorEntries = Object.entries(slots?.actuators || {})
 
-          {/* Actuators */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-400 mb-2">Actuators</h4>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-              {Object.entries(slots?.actuators || {}).map(([slotType, slotDef]) => (
-                <Slot
-                  key={slotType}
-                  slotType={slotType}
-                  slotDef={slotDef}
-                  entityIds={tent.actuators?.[slotType]}
-                  getEntity={getEntity}
-                  onRemove={removeFromSlot}
-                  category="actuators"
-                  tentId={tent.id}
-                  onSelect={onSlotSelect}
-                  isSelected={selectedSlot?.tentId === tent.id && selectedSlot?.category === 'actuators' && selectedSlot?.slotType === slotType}
-                />
-              ))}
-            </div>
-          </div>
+        const usedSensors = sensorEntries.filter(([st]) => tent.sensors?.[st])
+        const unusedSensors = sensorEntries.filter(([st]) => !tent.sensors?.[st])
+        const usedActuators = actuatorEntries.filter(([st]) => tent.actuators?.[st])
+        const unusedActuators = actuatorEntries.filter(([st]) => !tent.actuators?.[st])
 
-          {/* Control Customization */}
-          <ControlCustomizer tent={tent} onUpdate={onUpdate} />
-        </div>
-      )}
+        const hasUsed = usedSensors.length > 0 || usedActuators.length > 0
+        const hasUnused = unusedSensors.length > 0 || unusedActuators.length > 0
+
+        return (
+          <div className="space-y-4">
+            {/* Used/configured slots */}
+            {usedSensors.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-400 mb-2">Sensors</h4>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                  {usedSensors.map(([slotType, slotDef]) => (
+                    <Slot
+                      key={slotType}
+                      slotType={slotType}
+                      slotDef={slotDef}
+                      entityIds={tent.sensors?.[slotType]}
+                      getEntity={getEntity}
+                      onRemove={removeFromSlot}
+                      category="sensors"
+                      tentId={tent.id}
+                      onSelect={onSlotSelect}
+                      isSelected={selectedSlot?.tentId === tent.id && selectedSlot?.category === 'sensors' && selectedSlot?.slotType === slotType}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {usedActuators.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-400 mb-2">Actuators</h4>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                  {usedActuators.map(([slotType, slotDef]) => (
+                    <Slot
+                      key={slotType}
+                      slotType={slotType}
+                      slotDef={slotDef}
+                      entityIds={tent.actuators?.[slotType]}
+                      getEntity={getEntity}
+                      onRemove={removeFromSlot}
+                      category="actuators"
+                      tentId={tent.id}
+                      onSelect={onSlotSelect}
+                      isSelected={selectedSlot?.tentId === tent.id && selectedSlot?.category === 'actuators' && selectedSlot?.slotType === slotType}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Unused/available slots - compact */}
+            {hasUnused && (
+              <div className="pt-2 border-t border-[#2d3a5c]">
+                <h4 className="text-xs font-medium text-gray-500 mb-2">Available Slots</h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {unusedSensors.map(([slotType, slotDef]) => (
+                    <Slot
+                      key={slotType}
+                      slotType={slotType}
+                      slotDef={slotDef}
+                      entityIds={tent.sensors?.[slotType]}
+                      getEntity={getEntity}
+                      onRemove={removeFromSlot}
+                      category="sensors"
+                      tentId={tent.id}
+                      onSelect={onSlotSelect}
+                      isSelected={selectedSlot?.tentId === tent.id && selectedSlot?.category === 'sensors' && selectedSlot?.slotType === slotType}
+                      compact
+                    />
+                  ))}
+                  {unusedActuators.map(([slotType, slotDef]) => (
+                    <Slot
+                      key={slotType}
+                      slotType={slotType}
+                      slotDef={slotDef}
+                      entityIds={tent.actuators?.[slotType]}
+                      getEntity={getEntity}
+                      onRemove={removeFromSlot}
+                      category="actuators"
+                      tentId={tent.id}
+                      onSelect={onSlotSelect}
+                      isSelected={selectedSlot?.tentId === tent.id && selectedSlot?.category === 'actuators' && selectedSlot?.slotType === slotType}
+                      compact
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Control Customization */}
+            <ControlCustomizer tent={tent} onUpdate={onUpdate} />
+          </div>
+        )
+      })()}
     </div>
   )
 }
