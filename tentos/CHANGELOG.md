@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.14
+- Restyle Settings entity inventory to match dashboard tile aesthetic
+- Entity tiles now have status indicator dots, larger icons, color-coded state values
+- Active entities (on/open) get green-tinted backgrounds like dashboard controls
+
 ## 1.2.13
 - Fix multi-entity actuators (e.g. 2 exhaust fans) only showing one control
 - Expand array actuators into numbered slots (exhaust_fan, exhaust_fan_2, etc.)
