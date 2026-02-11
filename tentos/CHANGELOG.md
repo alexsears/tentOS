@@ -1,7 +1,7 @@
 # Changelog
 
-## 1.2.16
-- Settings entity tiles: status dots, larger icons, color-coded states, active glow
+## 1.2.17
+- Revert entity tile changes again - investigating build issue
 
 ## 1.2.15
 - Revert entity inventory styling changes (caused blank screen)
