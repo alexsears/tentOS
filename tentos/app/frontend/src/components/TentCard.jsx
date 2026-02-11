@@ -647,14 +647,14 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           color={getTempColor()}
         />
         <SensorDisplay
-          value={humidity != null ? humidity.toFixed(1) : null}
+          value={humidity != null ? Number(humidity).toFixed(1) : null}
           unit="%"
           label="Humidity"
           icon="💧"
           color={getHumidityColor()}
         />
         <SensorDisplay
-          value={tent.vpd != null ? tent.vpd.toFixed(1) : null}
+          value={tent.vpd != null ? Number(tent.vpd).toFixed(1) : null}
           unit=""
           label="VPD"
           icon="🫧"
@@ -662,7 +662,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
         />
         {co2 != null ? (
           <SensorDisplay
-            value={co2.toFixed(1)}
+            value={Number(co2).toFixed(1)}
             unit="ppm"
             label="CO2"
             icon="💨"

@@ -72,7 +72,7 @@ export default function TentDetail() {
   const getSensorDisplay = (type, label, unit = '', isTemp = false) => {
     const sensor = tent.sensors?.[type]
     const value = sensor?.value
-    const displayValue = isTemp && value != null ? formatTemp(value, 1) : (value != null ? value.toFixed(1) : null)
+    const displayValue = isTemp && value != null ? formatTemp(value, 1) : (value != null ? Number(value).toFixed(1) : null)
     const displayUnit = isTemp ? getTempUnit() : unit
     return (
       <div className="card text-center">
@@ -223,7 +223,7 @@ export default function TentDetail() {
               {getSensorDisplay('humidity', 'Humidity', '%')}
               <div className="card text-center">
                 <div className="text-3xl font-bold mb-1">
-                  {tent.vpd != null ? tent.vpd.toFixed(1) : '--'}
+                  {tent.vpd != null ? Number(tent.vpd).toFixed(1) : '--'}
                 </div>
                 <div className="text-sm text-gray-400">VPD (kPa)</div>
               </div>

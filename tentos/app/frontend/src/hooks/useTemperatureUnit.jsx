@@ -18,7 +18,7 @@ export function fahrenheitToCelsius(fahrenheit) {
 // Format temperature with unit
 export function formatTemp(celsius, unit = 'C', decimals = 1) {
   if (celsius == null) return '--'
-  const value = unit === 'F' ? celsiusToFahrenheit(celsius) : celsius
+  const value = unit === 'F' ? celsiusToFahrenheit(Number(celsius)) : Number(celsius)
   return value.toFixed(decimals)
 }
 

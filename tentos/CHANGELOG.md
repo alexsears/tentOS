@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.18
+- Fix .toFixed() crash when HA returns sensor values as strings instead of numbers
+- Wrap all .toFixed() calls with Number() in TentCard, TentDetail, and useTemperatureUnit
+- Settings entity tiles: status dots, larger icons, color-coded states, active glow
+
 ## 1.2.17
 - Revert entity tile changes again - investigating build issue
 
