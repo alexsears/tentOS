@@ -83,10 +83,11 @@ function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
               {entity.entity_id}
             </div>
           </div>
-          <div className="text-xs text-gray-400">
+          <div className="text-xs text-gray-400 flex-shrink-0">
             {entity.state}{entity.unit ? ` ${entity.unit}` : ''}
           </div>
         </div>
+
       </div>
     </div>
   )
@@ -102,7 +103,8 @@ export default function EntityInventory({
   onToggleSelect,
   onSelectAll,
   onDeselectAll,
-  onAddSelected
+  onAddSelected,
+  onQuickAdd
 }) {
   const [search, setSearch] = useState('')
   const [domainFilter, setDomainFilter] = useState('')
@@ -317,6 +319,16 @@ export default function EntityInventory({
             <span className="text-xs text-green-400">
               {visibleSelectedCount} selected
             </span>
+          )}
+
+          {/* Quick-add button - visible when entities are selected */}
+          {visibleSelectedCount > 0 && onQuickAdd && (
+            <button
+              onClick={() => onQuickAdd(filteredEntities.filter(e => selectedEntities.includes(e.entity_id)))}
+              className="ml-auto px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-colors"
+            >
+              + Add to Tent
+            </button>
           )}
         </div>
 

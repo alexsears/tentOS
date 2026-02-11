@@ -294,14 +294,15 @@ export default function Settings() {
     setSelectedEntities([]) // Clear selection after adding
   }
 
-  // Quick-add: guess tent by name, find compatible slots, show modal
-  const handleQuickAdd = (entity) => {
+  // Quick-add: guess tent by name, find compatible slots per entity, show modal
+  const handleQuickAdd = (entitiesToAdd) => {
     const tents = config.tents || []
-    if (tents.length === 0) return
+    if (tents.length === 0 || entitiesToAdd.length === 0) return
 
-    // Guess tent by matching entity name/id to tent names
-    const entityName = (entity.friendly_name || entity.entity_id).toLowerCase()
-    const entityIdName = entity.entity_id.split('.').pop().toLowerCase()
+    // Guess tent using the first entity's name
+    const first = entitiesToAdd[0]
+    const entityName = (first.friendly_name || first.entity_id).toLowerCase()
+    const entityIdName = first.entity_id.split('.').pop().toLowerCase()
 
     let guessedTentId = tents[0].id
     let bestScore = 0
@@ -319,44 +320,45 @@ export default function Settings() {
       }
     }
 
-    // Find compatible slots based on entity domain and device_class
-    const compatibleSlots = []
-    if (slots) {
-      for (const [category, categorySlots] of Object.entries(slots)) {
-        for (const [slotType, slotDef] of Object.entries(categorySlots)) {
-          if (!slotDef.domains || !slotDef.domains.includes(entity.domain)) continue
-          // Check device_class if specified (null in device_classes means "any")
-          if (slotDef.device_classes && slotDef.device_classes.length > 0) {
-            const hasNull = slotDef.device_classes.includes(null)
-            const matchesClass = slotDef.device_classes.includes(entity.device_class)
-            if (!hasNull && !matchesClass) continue
+    // For each entity, find compatible slots
+    const entitySlotMap = entitiesToAdd.map(entity => {
+      const compatible = []
+      if (slots) {
+        for (const [category, categorySlots] of Object.entries(slots)) {
+          for (const [slotType, slotDef] of Object.entries(categorySlots)) {
+            if (!slotDef.domains || !slotDef.domains.includes(entity.domain)) continue
+            if (slotDef.device_classes && slotDef.device_classes.length > 0) {
+              const hasNull = slotDef.device_classes.includes(null)
+              const matchesClass = slotDef.device_classes.includes(entity.device_class)
+              if (!hasNull && !matchesClass) continue
+            }
+            compatible.push({ category, slotType, slotDef })
           }
-          compatibleSlots.push({ category, slotType, slotDef })
         }
       }
-    }
+      return { entity, compatibleSlots: compatible, selectedSlot: compatible[0] || null }
+    })
 
-    if (compatibleSlots.length === 0) {
-      setError('No compatible slot found for this entity')
+    // Filter out entities with no compatible slots
+    const valid = entitySlotMap.filter(e => e.selectedSlot)
+    if (valid.length === 0) {
+      setError('No compatible slots found for selected entities')
       setTimeout(() => setError(null), 3000)
       return
     }
 
     setQuickAddModal({
-      entity,
+      entities: valid,
       guessedTentId,
-      compatibleSlots,
-      selectedTentId: guessedTentId,
-      selectedSlot: compatibleSlots[0]
+      selectedTentId: guessedTentId
     })
   }
 
-  // Confirm quick-add: assign entity to the selected tent + slot
+  // Confirm quick-add: assign all entities to the selected tent
   const confirmQuickAdd = () => {
     if (!quickAddModal) return
 
-    const { entity, selectedTentId, selectedSlot } = quickAddModal
-    const { category, slotType, slotDef } = selectedSlot
+    const { entities: entityEntries, selectedTentId } = quickAddModal
 
     const tentIndex = config.tents?.findIndex(t => t.id === selectedTentId)
     if (tentIndex === -1) return
@@ -364,23 +366,28 @@ export default function Settings() {
     const updatedTents = [...config.tents]
     const targetTent = { ...updatedTents[tentIndex] }
 
-    if (!targetTent[category]) targetTent[category] = {}
-    targetTent[category] = { ...targetTent[category] }
+    for (const { entity, selectedSlot } of entityEntries) {
+      const { category, slotType, slotDef } = selectedSlot
 
-    if (slotDef.multiple) {
-      const current = targetTent[category][slotType]
-      const arr = Array.isArray(current) ? [...current] : (current ? [current] : [])
-      if (!arr.includes(entity.entity_id)) {
-        arr.push(entity.entity_id)
+      if (!targetTent[category]) targetTent[category] = {}
+      targetTent[category] = { ...targetTent[category] }
+
+      if (slotDef.multiple) {
+        const current = targetTent[category][slotType]
+        const arr = Array.isArray(current) ? [...current] : (current ? [current] : [])
+        if (!arr.includes(entity.entity_id)) {
+          arr.push(entity.entity_id)
+        }
+        targetTent[category][slotType] = arr
+      } else {
+        targetTent[category][slotType] = entity.entity_id
       }
-      targetTent[category][slotType] = arr
-    } else {
-      targetTent[category][slotType] = entity.entity_id
     }
 
     updatedTents[tentIndex] = targetTent
     setConfig({ ...config, tents: updatedTents })
     setQuickAddModal(null)
+    setSelectedEntities([])
   }
 
   // Handle slot selection (pass tentId along)
@@ -726,24 +733,10 @@ export default function Settings() {
           {/* Quick Add Modal */}
           {quickAddModal && (
             <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setQuickAddModal(null)}>
-              <div className="bg-[#16213e] rounded-lg p-5 w-96 max-w-[90vw]" onClick={e => e.stopPropagation()}>
-                <h3 className="font-semibold text-lg mb-4">Add Entity to Tent</h3>
-
-                {/* Entity info */}
-                <div className="flex items-center gap-3 p-3 bg-[#1a1a2e] rounded mb-4">
-                  <span className="text-2xl">{quickAddModal.entity.icon || '📍'}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">
-                      {quickAddModal.entity.friendly_name || quickAddModal.entity.entity_id}
-                    </div>
-                    <div className="text-xs text-gray-500 font-mono truncate">
-                      {quickAddModal.entity.entity_id}
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    {quickAddModal.entity.state}{quickAddModal.entity.unit ? ' ' + quickAddModal.entity.unit : ''}
-                  </div>
-                </div>
+              <div className="bg-[#16213e] rounded-lg p-5 w-96 max-w-[90vw] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <h3 className="font-semibold text-lg mb-4">
+                  Add {quickAddModal.entities.length} {quickAddModal.entities.length === 1 ? 'Entity' : 'Entities'} to Tent
+                </h3>
 
                 {/* Tent selector */}
                 <div className="mb-3">
@@ -761,49 +754,41 @@ export default function Settings() {
                   </select>
                 </div>
 
-                {/* Slot selector */}
-                <div className="mb-4">
-                  <label className="text-xs text-gray-400 block mb-1">Slot</label>
-                  {quickAddModal.compatibleSlots.length === 1 ? (
-                    <div className="flex items-center gap-2 p-2 bg-[#1a1a2e] rounded">
-                      <span className="text-lg">{quickAddModal.compatibleSlots[0].slotDef.icon}</span>
-                      <span className="text-sm">{quickAddModal.compatibleSlots[0].slotDef.label}</span>
-                      <span className="text-xs text-gray-500">({quickAddModal.compatibleSlots[0].category})</span>
+                {/* Entity list with slot assignments */}
+                <div className="mb-4 overflow-y-auto flex-1 space-y-2">
+                  <label className="text-xs text-gray-400 block mb-1">Entities & Slots</label>
+                  {quickAddModal.entities.map(({ entity, compatibleSlots, selectedSlot }, idx) => (
+                    <div key={entity.entity_id} className="flex items-center gap-2 p-2 bg-[#1a1a2e] rounded">
+                      <span className="text-lg flex-shrink-0">{entity.icon || '📍'}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">
+                          {entity.friendly_name || entity.entity_id}
+                        </div>
+                        {compatibleSlots.length === 1 ? (
+                          <div className="text-xs text-gray-500">
+                            {selectedSlot.slotDef.icon} {selectedSlot.slotDef.label}
+                          </div>
+                        ) : (
+                          <select
+                            value={compatibleSlots.indexOf(selectedSlot)}
+                            onChange={e => setQuickAddModal(prev => {
+                              const updated = [...prev.entities]
+                              updated[idx] = { ...updated[idx], selectedSlot: compatibleSlots[parseInt(e.target.value)] }
+                              return { ...prev, entities: updated }
+                            })}
+                            className="input text-xs mt-0.5 w-full py-0.5"
+                          >
+                            {compatibleSlots.map((s, i) => (
+                              <option key={i} value={i}>
+                                {s.slotDef.icon} {s.slotDef.label} ({s.category})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                     </div>
-                  ) : (
-                    <select
-                      value={quickAddModal.compatibleSlots.indexOf(quickAddModal.selectedSlot)}
-                      onChange={e => setQuickAddModal(prev => ({
-                        ...prev,
-                        selectedSlot: prev.compatibleSlots[parseInt(e.target.value)]
-                      }))}
-                      className="input w-full"
-                    >
-                      {quickAddModal.compatibleSlots.map((s, i) => (
-                        <option key={i} value={i}>
-                          {s.slotDef.icon} {s.slotDef.label} ({s.category})
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                  ))}
                 </div>
-
-                {/* Already assigned warning */}
-                {(() => {
-                  const tent = config.tents?.find(t => t.id === quickAddModal.selectedTentId)
-                  const slot = quickAddModal.selectedSlot
-                  if (!tent || !slot) return null
-                  const current = tent[slot.category]?.[slot.slotType]
-                  const hasExisting = Array.isArray(current) ? current.length > 0 : !!current
-                  if (!hasExisting) return null
-                  return (
-                    <div className="mb-4 p-2 bg-yellow-500/20 border border-yellow-500/50 rounded text-yellow-300 text-sm">
-                      {slot.slotDef.multiple
-                        ? 'This slot already has entities. The new entity will be added alongside them.'
-                        : 'This slot already has an entity. It will be replaced.'}
-                    </div>
-                  )
-                })()}
 
                 {/* Actions */}
                 <div className="flex gap-2 justify-end">

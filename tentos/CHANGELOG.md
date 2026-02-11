@@ -1,10 +1,13 @@
 # Changelog
 
+## 1.2.24
+- Quick-add: single "+ Add to Tent" button appears at top after selecting entities
+- Auto-detects which tent by matching entity name to tent names
+- Auto-deduces slot per entity based on domain and device class, with dropdown override
+- Supports bulk add of multiple selected entities at once
+
 ## 1.2.23
 - Quick-add "+" button on each entity to add to a tent without drag-and-drop
-- Auto-detects which tent by matching entity name to tent names
-- Auto-deduces which slot category (sensor/actuator) based on entity domain and device class
-- Shows confirmation modal with tent and slot selectors for overrides
 
 ## 1.2.22
 - Entity list "N more" message replaced with clickable expand button
