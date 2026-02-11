@@ -21,6 +21,7 @@ export default function Settings() {
   const [rebuilding, setRebuilding] = useState(false)
   const [selectedEntities, setSelectedEntities] = useState([]) // Multi-select for bulk add
   const [autoSaveStatus, setAutoSaveStatus] = useState(null) // 'saving' | 'saved' | 'error'
+  const [quickAddModal, setQuickAddModal] = useState(null) // { entity, guessedTentId, compatibleSlots, selectedTentId, selectedSlot }
   const isInitialLoad = useRef(true)
   const autoSaveTimer = useRef(null)
 
@@ -291,6 +292,95 @@ export default function Settings() {
     updatedTents[tentIndex] = targetTent
     setConfig({ ...config, tents: updatedTents })
     setSelectedEntities([]) // Clear selection after adding
+  }
+
+  // Quick-add: guess tent by name, find compatible slots, show modal
+  const handleQuickAdd = (entity) => {
+    const tents = config.tents || []
+    if (tents.length === 0) return
+
+    // Guess tent by matching entity name/id to tent names
+    const entityName = (entity.friendly_name || entity.entity_id).toLowerCase()
+    const entityIdName = entity.entity_id.split('.').pop().toLowerCase()
+
+    let guessedTentId = tents[0].id
+    let bestScore = 0
+
+    for (const tent of tents) {
+      const tentWords = tent.name.toLowerCase().split(/[\s_-]+/).filter(w => w.length > 2)
+      let score = 0
+      for (const word of tentWords) {
+        if (entityName.includes(word)) score += 2
+        if (entityIdName.includes(word)) score += 1
+      }
+      if (score > bestScore) {
+        bestScore = score
+        guessedTentId = tent.id
+      }
+    }
+
+    // Find compatible slots based on entity domain and device_class
+    const compatibleSlots = []
+    if (slots) {
+      for (const [category, categorySlots] of Object.entries(slots)) {
+        for (const [slotType, slotDef] of Object.entries(categorySlots)) {
+          if (!slotDef.domains || !slotDef.domains.includes(entity.domain)) continue
+          // Check device_class if specified (null in device_classes means "any")
+          if (slotDef.device_classes && slotDef.device_classes.length > 0) {
+            const hasNull = slotDef.device_classes.includes(null)
+            const matchesClass = slotDef.device_classes.includes(entity.device_class)
+            if (!hasNull && !matchesClass) continue
+          }
+          compatibleSlots.push({ category, slotType, slotDef })
+        }
+      }
+    }
+
+    if (compatibleSlots.length === 0) {
+      setError('No compatible slot found for this entity')
+      setTimeout(() => setError(null), 3000)
+      return
+    }
+
+    setQuickAddModal({
+      entity,
+      guessedTentId,
+      compatibleSlots,
+      selectedTentId: guessedTentId,
+      selectedSlot: compatibleSlots[0]
+    })
+  }
+
+  // Confirm quick-add: assign entity to the selected tent + slot
+  const confirmQuickAdd = () => {
+    if (!quickAddModal) return
+
+    const { entity, selectedTentId, selectedSlot } = quickAddModal
+    const { category, slotType, slotDef } = selectedSlot
+
+    const tentIndex = config.tents?.findIndex(t => t.id === selectedTentId)
+    if (tentIndex === -1) return
+
+    const updatedTents = [...config.tents]
+    const targetTent = { ...updatedTents[tentIndex] }
+
+    if (!targetTent[category]) targetTent[category] = {}
+    targetTent[category] = { ...targetTent[category] }
+
+    if (slotDef.multiple) {
+      const current = targetTent[category][slotType]
+      const arr = Array.isArray(current) ? [...current] : (current ? [current] : [])
+      if (!arr.includes(entity.entity_id)) {
+        arr.push(entity.entity_id)
+      }
+      targetTent[category][slotType] = arr
+    } else {
+      targetTent[category][slotType] = entity.entity_id
+    }
+
+    updatedTents[tentIndex] = targetTent
+    setConfig({ ...config, tents: updatedTents })
+    setQuickAddModal(null)
   }
 
   // Handle slot selection (pass tentId along)
@@ -578,6 +668,7 @@ export default function Settings() {
                 onSelectAll={handleSelectAll}
                 onDeselectAll={handleDeselectAll}
                 onAddSelected={handleAddSelected}
+                onQuickAdd={handleQuickAdd}
               />
             </div>
 
@@ -632,6 +723,100 @@ export default function Settings() {
               })()
             ) : null}
           </DragOverlay>
+          {/* Quick Add Modal */}
+          {quickAddModal && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setQuickAddModal(null)}>
+              <div className="bg-[#16213e] rounded-lg p-5 w-96 max-w-[90vw]" onClick={e => e.stopPropagation()}>
+                <h3 className="font-semibold text-lg mb-4">Add Entity to Tent</h3>
+
+                {/* Entity info */}
+                <div className="flex items-center gap-3 p-3 bg-[#1a1a2e] rounded mb-4">
+                  <span className="text-2xl">{quickAddModal.entity.icon || '📍'}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">
+                      {quickAddModal.entity.friendly_name || quickAddModal.entity.entity_id}
+                    </div>
+                    <div className="text-xs text-gray-500 font-mono truncate">
+                      {quickAddModal.entity.entity_id}
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    {quickAddModal.entity.state}{quickAddModal.entity.unit ? ' ' + quickAddModal.entity.unit : ''}
+                  </div>
+                </div>
+
+                {/* Tent selector */}
+                <div className="mb-3">
+                  <label className="text-xs text-gray-400 block mb-1">Tent</label>
+                  <select
+                    value={quickAddModal.selectedTentId}
+                    onChange={e => setQuickAddModal(prev => ({ ...prev, selectedTentId: e.target.value }))}
+                    className="input w-full"
+                  >
+                    {(config.tents || []).map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}{t.id === quickAddModal.guessedTentId ? ' (suggested)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Slot selector */}
+                <div className="mb-4">
+                  <label className="text-xs text-gray-400 block mb-1">Slot</label>
+                  {quickAddModal.compatibleSlots.length === 1 ? (
+                    <div className="flex items-center gap-2 p-2 bg-[#1a1a2e] rounded">
+                      <span className="text-lg">{quickAddModal.compatibleSlots[0].slotDef.icon}</span>
+                      <span className="text-sm">{quickAddModal.compatibleSlots[0].slotDef.label}</span>
+                      <span className="text-xs text-gray-500">({quickAddModal.compatibleSlots[0].category})</span>
+                    </div>
+                  ) : (
+                    <select
+                      value={quickAddModal.compatibleSlots.indexOf(quickAddModal.selectedSlot)}
+                      onChange={e => setQuickAddModal(prev => ({
+                        ...prev,
+                        selectedSlot: prev.compatibleSlots[parseInt(e.target.value)]
+                      }))}
+                      className="input w-full"
+                    >
+                      {quickAddModal.compatibleSlots.map((s, i) => (
+                        <option key={i} value={i}>
+                          {s.slotDef.icon} {s.slotDef.label} ({s.category})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* Already assigned warning */}
+                {(() => {
+                  const tent = config.tents?.find(t => t.id === quickAddModal.selectedTentId)
+                  const slot = quickAddModal.selectedSlot
+                  if (!tent || !slot) return null
+                  const current = tent[slot.category]?.[slot.slotType]
+                  const hasExisting = Array.isArray(current) ? current.length > 0 : !!current
+                  if (!hasExisting) return null
+                  return (
+                    <div className="mb-4 p-2 bg-yellow-500/20 border border-yellow-500/50 rounded text-yellow-300 text-sm">
+                      {slot.slotDef.multiple
+                        ? 'This slot already has entities. The new entity will be added alongside them.'
+                        : 'This slot already has an entity. It will be replaced.'}
+                    </div>
+                  )
+                })()}
+
+                {/* Actions */}
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setQuickAddModal(null)} className="btn">
+                    Cancel
+                  </button>
+                  <button onClick={confirmQuickAdd} className="btn btn-primary">
+                    Add to Tent
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </DndContext>
       )}
 
