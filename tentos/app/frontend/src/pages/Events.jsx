@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { apiFetch } from '../utils/api'
+import { usePreloadedData } from '../App'
 import { format, formatDistanceToNow } from 'date-fns'
 import { EventLog } from '../components/EventLog'
 
@@ -70,6 +71,8 @@ function HAEventItem({ event }) {
 }
 
 export default function Events() {
+  const preloaded = usePreloadedData()
+
   const [activeTab, setActiveTab] = useState('ha-history')
   const [haEvents, setHaEvents] = useState([])
   const [tents, setTents] = useState([])
@@ -78,17 +81,29 @@ export default function Events() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Use preloaded data immediately if available
   useEffect(() => {
-    // Fetch tents first
-    apiFetch('api/tents')
-      .then(r => r.json())
-      .then(data => {
-        setTents(data.tents || [])
-        if (data.tents?.length > 0) {
-          setSelectedTent(data.tents[0].id)
-        }
-      })
-      .catch(console.error)
+    if (preloaded.events?.events && hours === 24 && !selectedTent) {
+      setHaEvents(preloaded.events.events || [])
+      setLoading(false)
+    }
+    if (preloaded.tents) {
+      setTents(preloaded.tents)
+      // Keep selectedTent as '' to default to "All Tents"
+    }
+  }, [preloaded])
+
+  useEffect(() => {
+    // Fetch tents if not preloaded
+    if (!preloaded.tents) {
+      apiFetch('api/tents')
+        .then(r => r.json())
+        .then(data => {
+          setTents(data.tents || [])
+          // Keep selectedTent as '' to default to "All Tents"
+        })
+        .catch(console.error)
+    }
   }, [])
 
   useEffect(() => {

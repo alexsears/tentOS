@@ -259,7 +259,11 @@ export default function TentDetail() {
               {tent.actuators?.light_2 && getActuatorControl('light_2', 'Light 2', '💡')}
               {tent.actuators?.light_3 && getActuatorControl('light_3', 'Light 3', '💡')}
               {tent.actuators?.exhaust_fan && getActuatorControl('exhaust_fan', 'Exhaust Fan', '🌀')}
+              {tent.actuators?.exhaust_fan_2 && getActuatorControl('exhaust_fan_2', 'Exhaust Fan 2', '🌀')}
+              {tent.actuators?.exhaust_fan_3 && getActuatorControl('exhaust_fan_3', 'Exhaust Fan 3', '🌀')}
               {tent.actuators?.circulation_fan && getActuatorControl('circulation_fan', 'Circulation Fan', '🔄')}
+              {tent.actuators?.circulation_fan_2 && getActuatorControl('circulation_fan_2', 'Circulation Fan 2', '🔄')}
+              {tent.actuators?.circulation_fan_3 && getActuatorControl('circulation_fan_3', 'Circulation Fan 3', '🔄')}
               {tent.actuators?.humidifier && getActuatorControl('humidifier', 'Humidifier', '💨')}
               {tent.actuators?.dehumidifier && getActuatorControl('dehumidifier', 'Dehumidifier', '🏜️')}
               {tent.actuators?.heater && getActuatorControl('heater', 'Heater', '🔥')}

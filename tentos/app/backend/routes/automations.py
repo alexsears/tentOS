@@ -862,6 +862,179 @@ async def detect_conflicts(request: Request):
     return {"conflicts": conflicts, "count": len(conflicts)}
 
 
+# ==================== Missing Entity Suggestions ====================
+
+# Define what entities enable which templates
+ENTITY_AUTOMATION_MAP = {
+    "sensors": {
+        "temperature": {
+            "label": "Temperature Sensor",
+            "icon": "🌡️",
+            "enables": ["high_temp_exhaust", "low_temp_heater", "high_vpd_humidifier", "low_vpd_dehumidifier"],
+            "description": "Enable temperature-based automations"
+        },
+        "humidity": {
+            "label": "Humidity Sensor",
+            "icon": "💧",
+            "enables": ["high_humidity_dehumidifier", "low_humidity_humidifier", "high_vpd_humidifier", "low_vpd_dehumidifier"],
+            "description": "Enable humidity-based automations"
+        },
+        "co2": {
+            "label": "CO2 Sensor",
+            "icon": "🫧",
+            "enables": [],
+            "description": "Monitor CO2 levels (coming soon: CO2 automations)"
+        },
+    },
+    "actuators": {
+        "light": {
+            "label": "Grow Light",
+            "icon": "💡",
+            "enables": ["light_schedule", "circulation_fan_with_lights"],
+            "description": "Enable light scheduling and light-triggered automations"
+        },
+        "exhaust_fan": {
+            "label": "Exhaust Fan",
+            "icon": "🌀",
+            "enables": ["high_temp_exhaust"],
+            "description": "Cool your tent when temperature rises"
+        },
+        "circulation_fan": {
+            "label": "Circulation Fan",
+            "icon": "🔄",
+            "enables": ["circulation_fan_with_lights"],
+            "description": "Run with lights for air movement"
+        },
+        "humidifier": {
+            "label": "Humidifier",
+            "icon": "💨",
+            "enables": ["low_humidity_humidifier", "high_vpd_humidifier"],
+            "description": "Increase humidity when too low"
+        },
+        "dehumidifier": {
+            "label": "Dehumidifier",
+            "icon": "🏜️",
+            "enables": ["high_humidity_dehumidifier", "low_vpd_dehumidifier"],
+            "description": "Reduce humidity when too high"
+        },
+        "heater": {
+            "label": "Heater",
+            "icon": "🔥",
+            "enables": ["low_temp_heater"],
+            "description": "Heat your tent when temperature drops"
+        },
+        "water_pump": {
+            "label": "Water Pump",
+            "icon": "🚿",
+            "enables": ["watering_schedule"],
+            "description": "Automate watering on a schedule"
+        },
+    }
+}
+
+
+@router.get("/entity-suggestions")
+async def get_entity_suggestions(request: Request):
+    """Get suggestions for entities that could be added to enable more automations."""
+    state_manager = request.app.state.state_manager
+    tents = list(state_manager.tents.values())
+
+    all_suggestions = []
+
+    for tent in tents:
+        sensors = tent.config.sensors or {}
+        actuators = tent.config.actuators or {}
+        tent_suggestions = []
+
+        # Check sensors
+        for sensor_type, info in ENTITY_AUTOMATION_MAP["sensors"].items():
+            sensor_val = sensors.get(sensor_type)
+            has_sensor = bool(sensor_val if not isinstance(sensor_val, list) else any(sensor_val))
+
+            if not has_sensor and info["enables"]:
+                # Find which templates would be enabled
+                enabled_templates = []
+                for template_id in info["enables"]:
+                    template = AUTOMATION_TEMPLATES.get(template_id)
+                    if template:
+                        # Check if tent has the OTHER required entities for this template
+                        would_work = True
+                        if template.get("actuator_type"):
+                            actuator_val = actuators.get(template["actuator_type"])
+                            if not bool(actuator_val if not isinstance(actuator_val, list) else any(actuator_val)):
+                                would_work = False
+                        if would_work:
+                            enabled_templates.append({
+                                "id": template_id,
+                                "name": template["name"],
+                                "icon": template["icon"]
+                            })
+
+                if enabled_templates:
+                    tent_suggestions.append({
+                        "type": "sensor",
+                        "slot": sensor_type,
+                        "label": info["label"],
+                        "icon": info["icon"],
+                        "description": info["description"],
+                        "enables_count": len(enabled_templates),
+                        "enables": enabled_templates
+                    })
+
+        # Check actuators
+        for actuator_type, info in ENTITY_AUTOMATION_MAP["actuators"].items():
+            actuator_val = actuators.get(actuator_type)
+            has_actuator = bool(actuator_val if not isinstance(actuator_val, list) else any(actuator_val))
+
+            if not has_actuator and info["enables"]:
+                # Find which templates would be enabled
+                enabled_templates = []
+                for template_id in info["enables"]:
+                    template = AUTOMATION_TEMPLATES.get(template_id)
+                    if template:
+                        # Check if tent has the required sensor for this template
+                        would_work = True
+                        if template.get("sensor_type"):
+                            if template["sensor_type"] == "vpd":
+                                would_work = bool(sensors.get("temperature")) and bool(sensors.get("humidity"))
+                            else:
+                                sensor_val = sensors.get(template["sensor_type"])
+                                would_work = bool(sensor_val if not isinstance(sensor_val, list) else any(sensor_val))
+                        # For "with lights" type, check if tent has lights
+                        if template.get("trigger_entity_type") == "light":
+                            light_val = actuators.get("light")
+                            would_work = bool(light_val if not isinstance(light_val, list) else any(light_val))
+
+                        if would_work:
+                            enabled_templates.append({
+                                "id": template_id,
+                                "name": template["name"],
+                                "icon": template["icon"]
+                            })
+
+                if enabled_templates:
+                    tent_suggestions.append({
+                        "type": "actuator",
+                        "slot": actuator_type,
+                        "label": info["label"],
+                        "icon": info["icon"],
+                        "description": info["description"],
+                        "enables_count": len(enabled_templates),
+                        "enables": enabled_templates
+                    })
+
+        if tent_suggestions:
+            # Sort by number of automations enabled (most valuable first)
+            tent_suggestions.sort(key=lambda x: -x["enables_count"])
+            all_suggestions.append({
+                "tent_id": tent.config.id,
+                "tent_name": tent.config.name,
+                "suggestions": tent_suggestions
+            })
+
+    return {"suggestions": all_suggestions}
+
+
 # ==================== Bulk Operations ====================
 
 class BulkOperation(BaseModel):

@@ -16,8 +16,19 @@ const ACTUATOR_ICONS = {
   drain_pump: { icon: '🔽', activeColor: 'text-gray-400', label: 'Drain' }
 }
 
+function getActuatorDef(slot) {
+  if (ACTUATOR_ICONS[slot]) return ACTUATOR_ICONS[slot]
+  // Handle numbered variants (e.g. exhaust_fan_2 -> exhaust_fan)
+  const match = slot.match(/^(.+)_(\d+)$/)
+  if (match && ACTUATOR_ICONS[match[1]]) {
+    const base = ACTUATOR_ICONS[match[1]]
+    return { ...base, label: `${base.label} ${match[2]}` }
+  }
+  return { icon: '⚡', activeColor: 'text-green-400', label: slot }
+}
+
 function ActuatorButton({ slot, state, pending, onToggle, customLabel, customIcon }) {
-  const def = ACTUATOR_ICONS[slot] || { icon: '⚡', activeColor: 'text-green-400', label: slot }
+  const def = getActuatorDef(slot)
   const isOn = state === 'on' || state === 'playing' || state === 'open'
   const isUnavailable = state === 'unavailable' || state === 'unknown'
 
@@ -518,7 +529,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
 
   const startEditSlot = (slot) => {
     setEditingSlot(slot)
-    const def = ACTUATOR_ICONS[slot] || { label: slot, icon: '⚡' }
+    const def = getActuatorDef(slot)
     setTempLabel(localLabels[slot] || tent.control_settings?.labels?.[slot] || '')
     setTempIcon(localIcons[slot] || tent.control_settings?.icons?.[slot] || '')
   }
@@ -721,7 +732,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
             // Edit mode: show reorder controls
             <div className="space-y-1">
               {getDisplayOrder().map((slot, idx) => {
-                const def = ACTUATOR_ICONS[slot] || { icon: '⚡', label: slot }
+                const def = getActuatorDef(slot)
                 const state = getActuatorState(slot)
                 const isOn = state === 'on' || state === 'playing' || state === 'open'
                 const displayIcon = getCustomIcon(slot) || def.icon

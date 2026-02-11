@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.13
+- Fix multi-entity actuators (e.g. 2 exhaust fans) only showing one control
+- Expand array actuators into numbered slots (exhaust_fan, exhaust_fan_2, etc.)
+- Each fan now gets its own toggle button and state tracking
+
+## 1.2.12
+- Automations Create tab shows entity suggestions: what entities to add to unlock more automations
+- Shows which templates each entity would enable (e.g., "Add a humidifier to enable Low Humidity → Humidifier")
+
+## 1.2.11
+- Events page defaults to "All Tents" instead of auto-selecting first tent
+
 ## 1.2.10
 - Filter out unavailable/unknown entities from Settings entity list
 

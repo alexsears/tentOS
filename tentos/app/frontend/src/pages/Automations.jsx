@@ -317,6 +317,78 @@ function TemplateCard({ template, onApply }) {
   )
 }
 
+// Entity suggestions card
+function EntitySuggestionsCard({ suggestions }) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (!suggestions || suggestions.length === 0) return null
+
+  // Flatten all suggestions across tents
+  const allSuggestions = suggestions.flatMap(t =>
+    t.suggestions.map(s => ({ ...s, tentName: t.tent_name, tentId: t.tent_id }))
+  )
+
+  if (allSuggestions.length === 0) return null
+
+  return (
+    <div className="card bg-purple-500/10 border-purple-500/30">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between"
+      >
+        <h3 className="font-semibold flex items-center gap-2">
+          <span>🔮</span> Unlock More Automations
+        </h3>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-purple-300">{allSuggestions.length} suggestions</span>
+          <span className="text-gray-400">{expanded ? '▼' : '▶'}</span>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-4 space-y-3">
+          <p className="text-sm text-gray-400">
+            Add these entities to your tent configuration to enable more automations:
+          </p>
+          {allSuggestions.slice(0, 6).map((s, i) => (
+            <div key={`${s.tentId}-${s.slot}-${i}`} className="p-3 rounded-lg bg-[#1a1a2e]">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-2xl">{s.icon}</span>
+                <div className="flex-1">
+                  <div className="font-medium">{s.label}</div>
+                  <div className="text-xs text-gray-400">{s.description}</div>
+                </div>
+                <a
+                  href="/settings"
+                  className="px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 text-xs"
+                >
+                  Add in Settings
+                </a>
+              </div>
+              <div className="flex flex-wrap gap-1 mt-2">
+                <span className="text-xs text-gray-500">Enables:</span>
+                {s.enables.map(t => (
+                  <span
+                    key={t.id}
+                    className="px-2 py-0.5 rounded bg-[#2d3a5c] text-xs flex items-center gap-1"
+                  >
+                    {t.icon} {t.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+          {allSuggestions.length > 6 && (
+            <div className="text-sm text-center text-gray-400">
+              +{allSuggestions.length - 6} more suggestions
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Bundle card
 function BundleCard({ bundle, onApply }) {
   const hasAvailableTents = bundle.available_tents?.length > 0
@@ -496,6 +568,7 @@ export default function Automations() {
   const [bundles, setBundles] = useState([])
   const [suggestions, setSuggestions] = useState([])
   const [conflicts, setConflicts] = useState([])
+  const [entitySuggestions, setEntitySuggestions] = useState([])
   const [tents, setTents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -581,14 +654,15 @@ export default function Automations() {
       // Use preloaded automations if available and not forcing refresh
       const usePreloadedAuto = preloaded.automations && !showAllAutomations && !forceRefresh
 
-      const [autoRes, templatesRes, bundlesRes, suggestionsRes, conflictsRes] = await Promise.all([
+      const [autoRes, templatesRes, bundlesRes, suggestionsRes, conflictsRes, entitySuggestionsRes] = await Promise.all([
         usePreloadedAuto
           ? Promise.resolve(preloaded.automations)
           : apiFetch(`api/automations?${autoParams}`).then(r => r.json()).catch(() => ({ automations: [], by_category: {}, categories: {}, tags: {} })),
         apiFetch('api/automations/templates').then(r => r.json()).catch(() => ({ templates: [] })),
         apiFetch('api/automations/bundles').then(r => r.json()).catch(() => ({ bundles: [] })),
         apiFetch('api/automations/suggestions').then(r => r.json()).catch(() => ({ suggestions: [] })),
-        apiFetch('api/automations/conflicts').then(r => r.json()).catch(() => ({ conflicts: [] }))
+        apiFetch('api/automations/conflicts').then(r => r.json()).catch(() => ({ conflicts: [] })),
+        apiFetch('api/automations/entity-suggestions').then(r => r.json()).catch(() => ({ suggestions: [] }))
       ])
       setAutomations(autoRes.automations || [])
       setByCategory(autoRes.by_category || {})
@@ -598,6 +672,7 @@ export default function Automations() {
       setBundles(bundlesRes.bundles || [])
       setSuggestions(suggestionsRes.suggestions || [])
       setConflicts(conflictsRes.conflicts || [])
+      setEntitySuggestions(entitySuggestionsRes.suggestions || [])
     } catch (e) {
       console.error('Failed to load automations:', e)
       setError('Failed to load data')
@@ -925,6 +1000,9 @@ export default function Automations() {
       {/* Create Tab */}
       {activeTab === 'create' && (
         <div className="space-y-6">
+          {/* Entity Suggestions */}
+          <EntitySuggestionsCard suggestions={entitySuggestions} />
+
           {/* Bundles */}
           <div>
             <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">

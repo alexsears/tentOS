@@ -7,16 +7,18 @@ A Home Assistant add-on for monitoring and automating indoor grow tents and grow
 ## Features
 
 - **Real-time Monitoring** - Temperature, humidity, VPD, CO2, light levels, and more
-- **Automated Controls** - Light schedules, fan curves, sensor-triggered automations
-- **Smart Alerts** - Get notified when conditions go out of range
-- **Event Logging** - Track waterings, feedings, refills, maintenance activities
-- **Growth Stage Tracking** - Monitor seedling, veg, flower stages with day counters
+- **Automated Controls** - Create HA automations from quick-start templates (light schedules, fan curves, sensor triggers)
+- **Smart Alerts** - Notifications when temperature, humidity, or other conditions go out of range
+- **VPD Calculation** - Automatic vapor pressure deficit calculation with growth-stage-aware targets
+- **Growth Stage Tracking** - Monitor seedling, veg, flower stages with day counters and auto-detection from light schedule
+- **Event Logging** - Track waterings, feedings, refills, maintenance activities, plus HA entity state history
 - **Historical Reports** - Charts and CSV export for any date range
-- **Developer Chat** - Request features and get support in-app
+- **Environment Scoring** - At-a-glance health score (0-100) per tent based on targets
+- **Developer Chat** - Real-time in-app chat for feature requests and support
 - **One-Click Updates** - Update TentOS directly from the Settings page
-- **Beautiful Dashboard** - Dark theme UI with charts and quick actions
-- **VPD Calculation** - Automatic vapor pressure deficit calculation
-- **Environment Scoring** - At-a-glance health indicator per tent
+- **Entity Browser** - Browse and assign HA entities to tents from the UI
+- **Drag-and-Drop Tent Builder** - Configure tents visually in Settings
+- **Temperature Unit Toggle** - Switch between Fahrenheit and Celsius
 
 ## Installation
 
@@ -31,13 +33,13 @@ A Home Assistant add-on for monitoring and automating indoor grow tents and grow
 
 1. Find "TentOS" in the add-on store
 2. Click **Install**
-3. Configure your tents in the **Configuration** tab
+3. Configure your tents in the **Configuration** tab (or use the Tent Builder in Settings after starting)
 4. Start the add-on
 5. Click **Open Web UI** or access via the sidebar
 
 ## Configuration
 
-Configure tents in the add-on options:
+Configure tents in the add-on options or via the Tent Builder UI:
 
 ```yaml
 log_level: info
@@ -87,12 +89,39 @@ tents:
       auto_flip_enabled: false
 ```
 
+### Sensor Types
+
+| Type | Description |
+|------|-------------|
+| `temperature` | Temperature sensor(s) - supports multiple |
+| `humidity` | Humidity sensor(s) - supports multiple |
+| `co2` | CO2 sensor |
+| `light_level` | Light intensity sensor |
+| `reservoir_level` | Water level sensor |
+| `leak_sensor` | Leak/water detection |
+| `power_usage` | Power monitoring |
+| `camera` | Camera entity(s) |
+
+### Actuator Types
+
+| Type | Description |
+|------|-------------|
+| `light` | Grow light(s) |
+| `exhaust_fan` | Exhaust/ventilation fan(s) |
+| `circulation_fan` | Circulation fan(s) |
+| `humidifier` | Humidifier switch |
+| `dehumidifier` | Dehumidifier switch |
+| `heater` | Heater switch |
+| `ac` | Air conditioner |
+| `water_pump` | Irrigation pump(s) |
+| `drain_pump` | Drain pump |
+
 ### Finding Entity IDs
 
 1. Go to **Developer Tools > States** in Home Assistant
 2. Search for your sensors/switches
 3. Copy the entity_id (e.g., `sensor.tent_temperature`)
-4. Or use the Entity Browser in TentOS Settings page
+4. Or use the **Entity Browser** in TentOS Settings
 
 ## VPD Reference
 
@@ -106,36 +135,39 @@ tents:
 
 Formula: `VPD = SVP * (1 - RH/100)` where `SVP = 0.6108 * exp(17.27 * T / (T + 237.3))`
 
-## API Endpoints
+TentOS automatically adjusts VPD targets based on growth stage and flower week.
+
+## API
 
 ### Tents
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/tents` | GET | List all tents |
+| `/api/tents` | GET | List all tents with current state |
 | `/api/tents/{id}` | GET | Get tent details |
-| `/api/tents/{id}/actions` | POST | Perform action |
-| `/api/tents/{id}/history` | GET | Get sensor history |
+| `/api/tents/{id}/actions` | POST | Perform action (toggle_light, set_fan, turn_on, turn_off, set_override) |
+| `/api/tents/{id}/history` | GET | Get sensor history (24h, 7d, 30d) |
 | `/api/tents/{id}/growth-stage` | GET/PUT | Get/set growth stage |
 
 ### Events
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/events` | GET | List events |
+| `/api/events` | GET | List events (filterable by tent, type, time) |
 | `/api/events` | POST | Create event |
 | `/api/events/{id}` | DELETE | Delete event |
+| `/api/events/ha-history` | GET | Get HA entity state history |
 
 ### Automations
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/automations` | GET | List TentOS rules |
-| `/api/automations` | POST | Create rule |
-| `/api/automations/ha` | GET | List HA automations |
-| `/api/automations/templates/list` | GET | List rule templates |
+| `/api/automations` | GET | List automations (filtered to tent-related by default) |
+| `/api/automations` | POST | Create automation from template |
+| `/api/automations/ha` | GET | List all HA automations |
+| `/api/automations/templates/list` | GET | List available templates |
 
 ### Reports
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/reports/{tent_id}` | GET | Get report data |
+| `/api/reports/{tent_id}` | GET | Get report data for date range |
 | `/api/reports/{tent_id}/export` | GET | Export CSV |
 
 ### Chat
@@ -146,46 +178,18 @@ Formula: `VPD = SVP * (1 - RH/100)` where `SVP = 0.6108 * exp(17.27 * T / (T + 2
 | `/api/chat/user` | GET | Get user profile |
 | `/api/chat/user/nickname` | PUT | Set nickname |
 
-### Updates
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/updates/check` | GET | Check for updates |
-| `/api/updates/changelog` | GET | Get recent changes |
-| `/api/updates/trigger-update` | POST | Trigger update via HA |
-
 ### System
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/health` | GET | Health check |
-| `/api/alerts/summary` | GET | Get active alerts |
+| `/api/health` | GET | Health check (version, HA connection status) |
+| `/api/alerts/summary` | GET | Get active alerts summary |
 | `/api/system/entities` | GET | Browse HA entities |
-
-## Security
-
-- Uses Home Assistant Supervisor authentication
-- All data stored locally in `/data`
-- No cloud connectivity required
-- Tokens are never logged
-
-## Troubleshooting
-
-### Add-on won't start
-
-1. Check logs: **Settings > Add-ons > TentOS > Logs**
-2. Verify entity IDs exist in Home Assistant
-3. Ensure sensors are reporting values
-
-### Entities show "unavailable"
-
-- Check the entity exists in HA Developer Tools
-- Verify the integration providing the entity is working
-- Some entities may take time to report after HA restart
-
-### WebSocket disconnects
-
-- Normal during HA restarts
-- Auto-reconnects within 5 seconds
-- Check HA logs for supervisor issues
+| `/api/config` | GET/POST | Read/write tent configuration |
+| `/api/updates/check` | GET | Check for updates |
+| `/api/updates/changelog` | GET | Get recent changes |
+| `/api/updates/trigger-update` | POST | Trigger update via HA |
+| `/api/camera/{entity_id}/stream` | GET | Camera stream proxy |
+| `/api/ws` | WS | WebSocket for real-time tent updates + chat |
 
 ## Development
 
@@ -194,21 +198,67 @@ Formula: `VPD = SVP * (1 - RH/100)` where `SVP = 0.6108 * exp(17.27 * T / (T + 2
 git clone https://github.com/alexsears/tentOS
 cd tentOS/tentos/app
 
-# Backend
+# Backend (auto-enters dev mode with mock data)
 cd backend
 pip install -r requirements.txt
 python -m uvicorn main:app --reload --port 8100
 
-# Frontend
-cd frontend
+# Frontend (proxies /api to backend)
+cd ../frontend
 npm install
 npm run dev
 ```
 
+Dev mode activates automatically when `/data` doesn't exist, providing mock sensor data for two tents with simulated temperature and humidity fluctuations.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | Python 3 / FastAPI / Uvicorn |
+| Frontend | React 18 / Vite 5 / Tailwind CSS 3 |
+| Charts | ECharts + Recharts |
+| Database | SQLite (aiosqlite + SQLAlchemy async) |
+| Drag & Drop | @dnd-kit |
+| Reverse Proxy | Nginx |
+| Container | Alpine Linux 3.18 (HA base images) |
+| Real-time | WebSocket (state changes + chat) |
+| HA Communication | WebSocket API + REST API |
+
+## Security
+
+- Uses Home Assistant Supervisor authentication tokens
+- All data stored locally in `/data`
+- No cloud connectivity required (telemetry is opt-in)
+- Tokens are never logged
+- Chat messages are rate-limited and sanitized
+
+## Troubleshooting
+
+### Add-on won't start
+1. Check logs: **Settings > Add-ons > TentOS > Logs**
+2. Verify entity IDs exist in Home Assistant
+3. Ensure sensors are reporting values
+
+### Entities show "unavailable"
+- Check the entity exists in HA Developer Tools
+- Verify the integration providing the entity is working
+- Some entities may take time to report after HA restart
+
+### WebSocket disconnects
+- Normal during HA restarts
+- Auto-reconnects within 5 seconds
+- Check HA logs for supervisor issues
+
+### Automations not showing
+- Ensure your HA automations reference tent entity IDs
+- Toggle between "My Tent" and "All HA" views
+- HA automations need `automation.` entity prefix
+
 ## Support
 
 - **GitHub Issues**: [github.com/alexsears/tentOS/issues](https://github.com/alexsears/tentOS/issues)
-- **Developer Chat**: Use the Chat tab in the app to request features
+- **Developer Chat**: Use the Chat tab in the app
 
 ## License
 

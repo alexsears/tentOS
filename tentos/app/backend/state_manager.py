@@ -210,6 +210,7 @@ class TentState:
         self.config = config
         self.sensors: dict[str, Any] = {}
         self.actuators: dict[str, Any] = {}
+        self.slot_to_entity: dict[str, str] = {}
         self.vpd: float | None = None
         self.avg_temperature: float | None = None
         self.avg_humidity: float | None = None
@@ -217,7 +218,24 @@ class TentState:
         self.alerts: list[dict] = []
         self.last_updated: datetime | None = None
         self.growth_stage: dict = {}
+        self._build_actuator_slots()
         self._update_growth_stage()
+
+    def _build_actuator_slots(self):
+        """Expand multi-entity actuator arrays into numbered slots.
+
+        e.g. exhaust_fan: [fan.a, fan.b] becomes:
+          slot_to_entity["exhaust_fan"] = "fan.a"
+          slot_to_entity["exhaust_fan_2"] = "fan.b"
+        """
+        for actuator_type, entity_ids in self.config.actuators.items():
+            if isinstance(entity_ids, list):
+                for idx, entity_id in enumerate(entity_ids):
+                    if entity_id:
+                        slot = actuator_type if idx == 0 else f"{actuator_type}_{idx + 1}"
+                        self.slot_to_entity[slot] = entity_id
+            elif entity_ids:
+                self.slot_to_entity[actuator_type] = entity_ids
 
     def _update_growth_stage(self):
         """Update growth stage info from config and schedules."""
@@ -371,14 +389,10 @@ class StateManager:
                 elif entity_ids:
                     self.entity_to_tent[entity_ids] = (config.id, "sensor", sensor_type)
 
-            # Map actuators (handle both single entity_id and arrays)
-            for actuator_type, entity_ids in config.actuators.items():
-                if isinstance(entity_ids, list):
-                    for entity_id in entity_ids:
-                        if entity_id:
-                            self.entity_to_tent[entity_id] = (config.id, "actuator", actuator_type)
-                elif entity_ids:
-                    self.entity_to_tent[entity_ids] = (config.id, "actuator", actuator_type)
+            # Map actuators using expanded slots (e.g. exhaust_fan, exhaust_fan_2)
+            tent_state = self.tents[config.id]
+            for slot, entity_id in tent_state.slot_to_entity.items():
+                self.entity_to_tent[entity_id] = (config.id, "actuator", slot)
 
         logger.info(f"Loaded {len(self.tents)} tent configurations")
 

@@ -61,15 +61,17 @@ function AppContent() {
       })
       .catch(console.error)
 
-    // Preload automations and tents data for instant page loads
+    // Preload automations, events, and tents data for instant page loads
     Promise.all([
       apiFetch('api/tents').then(r => r.json()).catch(() => ({ tents: [] })),
       apiFetch('api/automations?show_all=false').then(r => r.json()).catch(() => ({ automations: [] })),
-    ]).then(([tentsData, autoData]) => {
+      apiFetch('api/events/ha-history?hours=24').then(r => r.json()).catch(() => ({ events: [] })),
+    ]).then(([tentsData, autoData, eventsData]) => {
       setPreloadedData(prev => ({
         ...prev,
         tents: tentsData.tents || [],
-        automations: autoData
+        automations: autoData,
+        events: eventsData
       }))
     })
   }, [])

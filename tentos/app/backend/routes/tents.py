@@ -85,7 +85,7 @@ async def tent_action(
 
     try:
         if action == "toggle_light":
-            entity_id = tent.config.actuators.get("light")
+            entity_id = tent.slot_to_entity.get("light")
             if not entity_id:
                 raise HTTPException(status_code=400, detail="No light entity configured")
 
@@ -99,7 +99,7 @@ async def tent_action(
 
         elif action == "set_fan":
             fan_type = action_request.entity_type or "exhaust_fan"
-            entity_id = tent.config.actuators.get(fan_type)
+            entity_id = tent.slot_to_entity.get(fan_type)
             if not entity_id:
                 raise HTTPException(status_code=400, detail=f"No {fan_type} entity configured")
 
@@ -120,7 +120,7 @@ async def tent_action(
             return {"success": True, "message": f"{fan_type} updated"}
 
         elif action == "run_watering":
-            entity_id = tent.config.actuators.get("water_pump")
+            entity_id = tent.slot_to_entity.get("water_pump")
             if not entity_id:
                 raise HTTPException(status_code=400, detail="No water pump configured")
 
@@ -144,7 +144,7 @@ async def tent_action(
             if not action_request.entity_type:
                 raise HTTPException(status_code=400, detail="entity_type required")
 
-            entity_id = tent.config.actuators.get(action_request.entity_type)
+            entity_id = tent.slot_to_entity.get(action_request.entity_type)
             if not entity_id:
                 raise HTTPException(status_code=400, detail=f"No {action_request.entity_type} configured")
 
@@ -191,7 +191,7 @@ async def tent_action(
             if not entity_type:
                 raise HTTPException(status_code=400, detail="entity_type required")
 
-            entity_id = tent.config.actuators.get(entity_type)
+            entity_id = tent.slot_to_entity.get(entity_type)
             if not entity_id:
                 raise HTTPException(status_code=400, detail=f"No {entity_type} configured")
 
@@ -203,7 +203,7 @@ async def tent_action(
             if not entity_type:
                 raise HTTPException(status_code=400, detail="entity_type required")
 
-            entity_id = tent.config.actuators.get(entity_type)
+            entity_id = tent.slot_to_entity.get(entity_type)
             if not entity_id:
                 raise HTTPException(status_code=400, detail=f"No {entity_type} configured")
 
@@ -232,7 +232,7 @@ async def toggle_actuator(
     if not tent:
         raise HTTPException(status_code=404, detail="Tent not found")
 
-    entity_id = tent.config.actuators.get(slot)
+    entity_id = tent.slot_to_entity.get(slot)
     if not entity_id:
         raise HTTPException(status_code=400, detail=f"No {slot} configured")
 
@@ -410,7 +410,7 @@ async def flip_to_flower(
         # Create light automation if requested
         automation_id = None
         if flip_request.create_light_automation:
-            light_entity = tent.config.actuators.get("light")
+            light_entity = tent.slot_to_entity.get("light")
             if light_entity:
                 # Handle array of lights
                 if isinstance(light_entity, list):

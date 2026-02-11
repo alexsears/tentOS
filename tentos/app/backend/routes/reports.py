@@ -47,13 +47,12 @@ def get_entity_ids_for_sensor(tent, sensor_type: str) -> list[str]:
 
 
 def get_light_entity_ids(tent) -> list[str]:
-    """Get all light entity IDs from tent actuators config."""
-    entity_ids = tent.config.actuators.get("light")
-    if not entity_ids:
-        return []
-    if isinstance(entity_ids, list):
-        return [e for e in entity_ids if e]
-    return [entity_ids] if entity_ids else []
+    """Get all light entity IDs from tent expanded slot mapping."""
+    entities = []
+    for slot, entity_id in tent.slot_to_entity.items():
+        if slot == "light" or slot.startswith("light_"):
+            entities.append(entity_id)
+    return entities
 
 
 def extract_light_periods(history_data: list) -> list[dict]:
