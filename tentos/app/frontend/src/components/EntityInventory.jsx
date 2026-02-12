@@ -104,13 +104,17 @@ export default function EntityInventory({
   onSelectAll,
   onDeselectAll,
   onAddSelected,
-  onQuickAdd
+  onQuickAdd,
+  hiddenEntities = [],
+  onHideEntities,
+  onUnhideEntity
 }) {
   const [search, setSearch] = useState('')
   const [domainFilter, setDomainFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [collapsedDomains, setCollapsedDomains] = useState(new Set())
   const [expandedDomains, setExpandedDomains] = useState(new Set())
+  const [showHidden, setShowHidden] = useState(false)
 
   // Toggle domain collapse
   const toggleDomain = (domain) => {
@@ -125,14 +129,22 @@ export default function EntityInventory({
     })
   }
 
-  // Filter to only allowed domains and exclude unavailable entities
+  const hiddenSet = useMemo(() => new Set(hiddenEntities), [hiddenEntities])
+
+  // Filter to only allowed domains and exclude unavailable/hidden entities
   const relevantEntities = useMemo(() => {
     return entities.filter(e =>
       ALLOWED_DOMAINS.has(e.domain) &&
       e.state !== 'unavailable' &&
-      e.state !== 'unknown'
+      e.state !== 'unknown' &&
+      !hiddenSet.has(e.entity_id)
     )
-  }, [entities])
+  }, [entities, hiddenSet])
+
+  // Hidden entities list (for the hidden panel)
+  const hiddenEntityObjects = useMemo(() => {
+    return entities.filter(e => hiddenSet.has(e.entity_id))
+  }, [entities, hiddenSet])
 
   // Get unique domains from relevant entities only
   const domains = useMemo(() => {
@@ -321,14 +333,30 @@ export default function EntityInventory({
             </span>
           )}
 
-          {/* Quick-add button - visible when entities are selected */}
-          {visibleSelectedCount > 0 && onQuickAdd && (
-            <button
-              onClick={() => onQuickAdd(filteredEntities.filter(e => selectedEntities.includes(e.entity_id)))}
-              className="ml-auto px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-colors"
-            >
-              + Add to Tent
-            </button>
+          {/* Action buttons - visible when entities are selected */}
+          {visibleSelectedCount > 0 && (
+            <div className="ml-auto flex items-center gap-1.5">
+              {onQuickAdd && (
+                <button
+                  onClick={() => onQuickAdd(filteredEntities.filter(e => selectedEntities.includes(e.entity_id)))}
+                  className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-colors"
+                >
+                  + Add to Tent
+                </button>
+              )}
+              {onHideEntities && (
+                <button
+                  onClick={() => {
+                    onHideEntities(filteredEntities.filter(e => selectedEntities.includes(e.entity_id)).map(e => e.entity_id))
+                    onDeselectAll()
+                  }}
+                  className="px-3 py-1 rounded bg-gray-600 hover:bg-gray-700 text-white text-xs font-medium transition-colors"
+                  title="Hide selected entities"
+                >
+                  Hide
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -401,6 +429,39 @@ export default function EntityInventory({
             })
         )}
       </div>
+
+      {/* Hidden entities toggle + list */}
+      {hiddenEntityObjects.length > 0 && (
+        <div className="border-t border-[#2d3a5c]">
+          <button
+            onClick={() => setShowHidden(!showHidden)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            <span>{showHidden ? '▼' : '▶'}</span>
+            <span>Hidden ({hiddenEntityObjects.length})</span>
+          </button>
+          {showHidden && (
+            <div className="px-3 pb-2 space-y-1 max-h-48 overflow-y-auto">
+              {hiddenEntityObjects.map(entity => (
+                <div key={entity.entity_id} className="flex items-center gap-2 p-1.5 bg-[#1a1a2e] rounded text-sm opacity-60">
+                  <span>{entity.icon || '📍'}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-xs">{entity.friendly_name || entity.entity_id}</div>
+                  </div>
+                  {onUnhideEntity && (
+                    <button
+                      onClick={() => onUnhideEntity(entity.entity_id)}
+                      className="flex-shrink-0 px-2 py-0.5 rounded text-xs bg-gray-600/30 hover:bg-gray-600 text-gray-400 hover:text-white transition-colors"
+                    >
+                      Show
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="p-2 border-t border-[#2d3a5c] text-xs text-gray-500 text-center">
         {filteredEntities.length} of {relevantEntities.length} entities

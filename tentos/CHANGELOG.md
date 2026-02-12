@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.25
+- Hide entities: select entities and click "Hide" to remove them from the available list
+- Hidden entities collapsible section at bottom with "Show" button to unhide
+- Hidden entity IDs persist in config (auto-saved)
+
 ## 1.2.24
 - Quick-add: single "+ Add to Tent" button appears at top after selecting entities
 - Auto-detects which tent by matching entity name to tent names

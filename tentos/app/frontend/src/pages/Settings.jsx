@@ -390,6 +390,19 @@ export default function Settings() {
     setSelectedEntities([])
   }
 
+  // Hide entities
+  const handleHideEntities = (entityIds) => {
+    const current = config.hiddenEntities || []
+    const updated = [...new Set([...current, ...entityIds])]
+    setConfig({ ...config, hiddenEntities: updated })
+  }
+
+  // Unhide an entity
+  const handleUnhideEntity = (entityId) => {
+    const current = config.hiddenEntities || []
+    setConfig({ ...config, hiddenEntities: current.filter(id => id !== entityId) })
+  }
+
   // Handle slot selection (pass tentId along)
   const handleSlotSelect = (slotInfo) => {
     setSlotFilter(slotInfo)
@@ -676,6 +689,9 @@ export default function Settings() {
                 onDeselectAll={handleDeselectAll}
                 onAddSelected={handleAddSelected}
                 onQuickAdd={handleQuickAdd}
+                hiddenEntities={config.hiddenEntities || []}
+                onHideEntities={handleHideEntities}
+                onUnhideEntity={handleUnhideEntity}
               />
             </div>
 
