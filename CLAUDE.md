@@ -182,7 +182,15 @@ The Dockerfile:
 5. Exposes :8099
 
 ### Version Bumps
-Update version in `tentos/config.yaml` — the backend reads it at startup.
+1. Update version in `tentos/config.yaml`
+2. Add changelog entry in `tentos/CHANGELOG.md`
+3. Commit and push to `origin master` (HTTPS: `https://github.com/alexsears/tentOS.git`)
+4. HA detects the update via the TentOS Settings page update check
+
+### Deploying
+- Remote: `https://github.com/alexsears/tentOS.git` (HTTPS, push works from Windows)
+- SSH remote fails from Windows (no key), use HTTPS
+- HA checks GitHub for version changes and offers one-click update
 
 ## Conventions
 
@@ -192,3 +200,4 @@ Update version in `tentos/config.yaml` — the backend reads it at startup.
 - Entity IDs: standard HA format (`sensor.tent_temperature`, `switch.tent_light`)
 - Automations created by TentOS are prefixed with `tentos_` in their HA entity ID
 - Config priority: config.json (Tent Builder UI) > options.json (HA add-on config)
+- Multi-entity actuators: arrays are expanded into numbered slots (`exhaust_fan`, `exhaust_fan_2`) via `TentState._build_actuator_slots()`. Use `tent.slot_to_entity` to resolve slot -> entity_id, NOT `tent.config.actuators.get()`
