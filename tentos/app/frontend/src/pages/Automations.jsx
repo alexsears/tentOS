@@ -692,7 +692,7 @@ export default function Automations() {
   const handleToggle = async (entityId) => {
     try {
       await apiFetch(`api/automations/${encodeURIComponent(entityId)}/toggle`, { method: 'POST' })
-      loadData()
+      loadData(true)
     } catch (e) {
       setError('Failed to toggle automation')
       setTimeout(() => setError(null), 3000)
@@ -704,7 +704,7 @@ export default function Automations() {
     try {
       await apiFetch(`api/automations/${encodeURIComponent(entityId)}`, { method: 'DELETE' })
       setSuccess('Automation deleted')
-      loadData()
+      loadData(true)
       setTimeout(() => setSuccess(null), 3000)
     } catch (e) {
       setError('Failed to delete automation')
@@ -737,7 +737,7 @@ export default function Automations() {
       }
       setApplyingItem(null)
       setApplyingType(null)
-      loadData()
+      loadData(true)
       setTimeout(() => setSuccess(null), 3000)
     } catch (e) {
       setError(e.message || 'Failed to create automation')
@@ -775,7 +775,7 @@ export default function Automations() {
       setSuccess(`Enabled ${selectedIds.size} automations`)
       setSelectedIds(new Set())
       setSelectMode(false)
-      loadData()
+      loadData(true)
       setTimeout(() => setSuccess(null), 3000)
     } catch (e) {
       setError('Failed to enable automations')
@@ -793,7 +793,7 @@ export default function Automations() {
       setSuccess(`Disabled ${selectedIds.size} automations`)
       setSelectedIds(new Set())
       setSelectMode(false)
-      loadData()
+      loadData(true)
       setTimeout(() => setSuccess(null), 3000)
     } catch (e) {
       setError('Failed to disable automations')
