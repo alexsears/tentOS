@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.28
+- Dashboard actuator tiles now show real HA entity names instead of slot categories
+
 ## 1.2.27
 - Fix: tent-only automations filter now matches exact entity IDs only (no more nap modes and bathroom motions)
 - Fix: automations list no longer resets to "all" after toggling/deleting an automation
