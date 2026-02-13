@@ -27,13 +27,13 @@ function getActuatorDef(slot) {
   return { icon: '⚡', activeColor: 'text-green-400', label: slot }
 }
 
-function ActuatorButton({ slot, state, pending, onToggle, customLabel, customIcon }) {
+function ActuatorButton({ slot, state, pending, onToggle, customLabel, customIcon, friendlyName }) {
   const def = getActuatorDef(slot)
   const isOn = state === 'on' || state === 'playing' || state === 'open'
   const isUnavailable = state === 'unavailable' || state === 'unknown'
 
-  // Use custom label/icon if provided
-  const displayLabel = customLabel || def.label
+  // Use custom label > friendly name > default slot label
+  const displayLabel = customLabel || friendlyName || def.label
   const displayIcon = customIcon || def.icon
 
   return (
@@ -411,6 +411,10 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
 
   const getActuatorState = (type) => {
     return tent.actuators?.[type]?.state || 'unknown'
+  }
+
+  const getActuatorName = (type) => {
+    return tent.actuators?.[type]?.attributes?.friendly_name || null
   }
 
   // Use averaged values if available, fallback to single sensor
@@ -791,6 +795,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
                   onToggle={handleToggle}
                   customLabel={getDisplayLabel(slot)}
                   customIcon={getCustomIcon(slot)}
+                  friendlyName={getActuatorName(slot)}
                 />
               ))}
             </div>
