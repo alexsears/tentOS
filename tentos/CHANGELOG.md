@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.27
+- Fix: tent-only automations filter now matches exact entity IDs only (no more nap modes and bathroom motions)
+- Fix: automations list no longer resets to "all" after toggling/deleting an automation
+
 ## 1.2.26
 - Entity rename: click pencil on assigned entities to set custom display names (stored in config.customNames)
 - Show entity_id suffix below name on assigned entity tiles for identification
