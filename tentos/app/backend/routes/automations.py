@@ -1200,8 +1200,7 @@ async def list_ha_automations(
             if automation_references_entities(a, entity_ids, config):
                 filtered.append(a)
 
-        if filtered:
-            all_automations = filtered
+        all_automations = filtered
 
     # Group by category
     by_category = {}

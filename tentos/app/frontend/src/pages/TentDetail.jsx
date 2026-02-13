@@ -140,7 +140,7 @@ export default function TentDetail() {
     <div>
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Link to="/" className="text-gray-400 hover:text-white">←</Link>
+        <Link to="/" className="text-gray-400 hover:text-white text-2xl px-2 py-1">←</Link>
         <div>
           <h2 className="text-2xl font-bold">{tent.name}</h2>
           {tent.description && <p className="text-gray-400">{tent.description}</p>}
@@ -432,9 +432,8 @@ export default function TentDetail() {
                           }}
                           disabled={actionLoading === auto.entity_id}
                           className="btn btn-sm"
-                          title="Run now"
                         >
-                          {actionLoading === auto.entity_id ? '...' : '▶'}
+                          {actionLoading === auto.entity_id ? '...' : '▶ Run'}
                         </button>
                         <button
                           onClick={async () => {
@@ -450,16 +449,14 @@ export default function TentDetail() {
                           }}
                           disabled={actionLoading === `toggle-${auto.entity_id}`}
                           className={`btn btn-sm ${isEnabled ? '' : 'btn-primary'}`}
-                          title={isEnabled ? 'Disable' : 'Enable'}
                         >
-                          {actionLoading === `toggle-${auto.entity_id}` ? '...' : (isEnabled ? '⏸' : '▶')}
+                          {actionLoading === `toggle-${auto.entity_id}` ? '...' : (isEnabled ? '⏸ Disable' : '▶ Enable')}
                         </button>
                         <button
                           onClick={() => setEditingAutomation(auto)}
                           className="btn btn-sm"
-                          title="Edit"
                         >
-                          ✏️
+                          ✏️ Edit
                         </button>
                         <button
                           onClick={async () => {
@@ -473,9 +470,8 @@ export default function TentDetail() {
                             }
                           }}
                           className="btn btn-sm text-red-400 hover:bg-red-500/20"
-                          title="Delete"
                         >
-                          🗑️
+                          🗑️ Delete
                         </button>
                       </div>
                     </div>

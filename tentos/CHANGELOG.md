@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.26
+- Entity rename: click pencil on assigned entities to set custom display names (stored in config.customNames)
+- Show entity_id suffix below name on assigned entity tiles for identification
+- Mobile/touch fixes: all icon-only buttons now have text labels and larger touch targets across the app
+- Growth stage badge shows visible "Change" label instead of hover-only indicator
+- Customize Controls section collapsed by default, click to expand
+- Quick-add slot matching uses entity name to guess correct slot (fan→exhaust_fan, water→water_pump, etc.)
+- Fix: tent-only automations filter no longer falls back to showing all automations
+
 ## 1.2.25
 - Hide entities: select entities and click "Hide" to remove them from the available list
 - Hidden entities collapsible section at bottom with "Show" button to unhide

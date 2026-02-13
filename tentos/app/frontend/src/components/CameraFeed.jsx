@@ -101,8 +101,7 @@ export function CameraFeed({ tentId, entityId, label, defaultMode = 'snapshot', 
           {mode === 'snapshot' && (
             <button
               onClick={handleRefresh}
-              className="p-1 text-white/70 hover:text-white"
-              title="Refresh snapshot"
+              className="px-2 py-1 text-white/70 hover:text-white rounded hover:bg-white/10"
               aria-label="Refresh camera snapshot"
             >
               🔄
@@ -111,8 +110,7 @@ export function CameraFeed({ tentId, entityId, label, defaultMode = 'snapshot', 
           {/* Fullscreen button */}
           <button
             onClick={toggleFullscreen}
-            className="p-1 text-white/70 hover:text-white"
-            title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            className="px-2 py-1 text-white/70 hover:text-white rounded hover:bg-white/10"
             aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
             {fullscreen ? '⛶' : '⛶'}

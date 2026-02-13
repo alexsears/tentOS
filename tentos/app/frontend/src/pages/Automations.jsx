@@ -49,7 +49,7 @@ function SuggestionsBanner({ suggestions, onApply, onDismiss }) {
             </button>
             <button
               onClick={() => setDismissed(prev => new Set([...prev, `${s.tent_id}-${s.template_id}`]))}
-              className="p-1 text-gray-400 hover:text-white"
+              className="px-2 py-1 text-gray-400 hover:text-white rounded hover:bg-[#2d3a5c]"
             >
               ✕
             </button>
@@ -138,9 +138,8 @@ function AutomationCard({ automation, tagsInfo, onTrigger, onToggle, onDelete, c
           <button
             onClick={() => onTrigger(entityId)}
             className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-xs"
-            title="Run"
           >
-            ▶
+            ▶ Run
           </button>
           <button
             onClick={() => onToggle(entityId)}
@@ -153,17 +152,17 @@ function AutomationCard({ automation, tagsInfo, onTrigger, onToggle, onDelete, c
           {isTentOS && (
             <button
               onClick={() => onDelete(entityId)}
-              className="p-1 hover:bg-red-500/20 rounded text-red-400 text-xs"
+              className="px-2 py-1 hover:bg-red-500/20 rounded text-red-400 text-xs"
             >
-              ✕
+              ✕ Delete
             </button>
           )}
           <a
             href={`/config/automation/edit/${entityId.replace('automation.', '')}`}
             target="_top"
-            className="p-1 hover:bg-[#2d3a5c] rounded text-xs"
+            className="px-2 py-1 hover:bg-[#2d3a5c] rounded text-xs"
           >
-            ✏️
+            ✏️ Edit
           </a>
         </div>
       </div>
@@ -223,19 +222,17 @@ function AutomationCard({ automation, tagsInfo, onTrigger, onToggle, onDelete, c
         {isTentOS && (
           <button
             onClick={() => onDelete(entityId)}
-            className="p-2 hover:bg-red-500/20 rounded text-red-400"
-            title="Delete this automation"
+            className="px-2 py-1 hover:bg-red-500/20 rounded text-red-400 text-xs"
           >
-            🗑️
+            🗑️ Delete
           </button>
         )}
         <a
           href={`/config/automation/edit/${entityId.replace('automation.', '')}`}
           target="_top"
-          className="p-2 hover:bg-[#2d3a5c] rounded"
-          title="Edit in Home Assistant"
+          className="px-2 py-1 hover:bg-[#2d3a5c] rounded text-xs"
         >
-          ✏️
+          ✏️ Edit
         </a>
       </div>
     </div>
@@ -451,7 +448,7 @@ function ApplyModal({ item, type, onApply, onCancel }) {
             <span>{item.icon}</span>
             {item.name}
           </h3>
-          <button onClick={onCancel} className="text-gray-400 hover:text-white">✕</button>
+          <button onClick={onCancel} className="text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-[#2d3a5c]">✕</button>
         </div>
 
         <p className="text-sm text-gray-400">{item.description}</p>
@@ -548,8 +545,8 @@ function BulkActionsBar({ selectedCount, onEnable, onDisable, onTrigger, onClear
       <button onClick={onTrigger} className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-xs">
         Trigger All
       </button>
-      <button onClick={onClear} className="p-1 text-gray-400 hover:text-white">
-        ✕
+      <button onClick={onClear} className="px-2 py-1 text-gray-400 hover:text-white rounded hover:bg-[#2d3a5c]">
+        ✕ Clear
       </button>
     </div>
   )

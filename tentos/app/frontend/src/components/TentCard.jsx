@@ -203,10 +203,10 @@ function GrowthStageBadge({ stage, flowerWeek, onFlip, loading }) {
   return (
     <div className="flex items-center gap-2">
       {/* Stage indicator */}
-      <div
+      <button
         className={`
           px-3 py-1.5 rounded-full font-medium text-sm flex items-center gap-2 cursor-pointer
-          transition-all hover:scale-105
+          transition-all active:scale-95 border-2 border-transparent hover:border-white/20
           ${isFlower
             ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-lg shadow-pink-500/30'
             : isVeg
@@ -215,7 +215,6 @@ function GrowthStageBadge({ stage, flowerWeek, onFlip, loading }) {
           }
         `}
         onClick={onFlip}
-        title="Click to change growth stage"
       >
         <span className="text-lg">{isFlower ? '🌸' : isVeg ? '🌱' : '❓'}</span>
         <span>{isFlower ? 'Flower' : isVeg ? 'Veg' : 'Unknown'}</span>
@@ -225,7 +224,8 @@ function GrowthStageBadge({ stage, flowerWeek, onFlip, loading }) {
           </span>
         )}
         {loading && <span className="animate-spin">⏳</span>}
-      </div>
+        <span className="text-white/50 text-xs">Change</span>
+      </button>
     </div>
   )
 }
@@ -705,8 +705,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
             {!editMode ? (
               <button
                 onClick={enterEditMode}
-                className="text-xs text-gray-400 hover:text-white px-2 py-0.5 rounded hover:bg-[#2d3a5c]"
-                title="Customize controls"
+                className="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded hover:bg-[#2d3a5c]"
               >
                 ✏️ Edit
               </button>
@@ -714,13 +713,13 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
               <div className="flex gap-2">
                 <button
                   onClick={exitEditMode}
-                  className="text-xs text-gray-400 hover:text-white px-2 py-0.5 rounded hover:bg-[#2d3a5c]"
+                  className="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded hover:bg-[#2d3a5c]"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={saveChanges}
-                  className="text-xs text-green-400 hover:text-green-300 px-2 py-0.5 rounded bg-green-900/30 hover:bg-green-900/50"
+                  className="text-xs text-green-400 hover:text-green-300 px-3 py-1.5 rounded bg-green-900/30 hover:bg-green-900/50"
                 >
                   Save
                 </button>
@@ -741,18 +740,18 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
                 return (
                   <div key={slot} className="flex items-center gap-2 p-2 bg-[#1a1a2e] rounded-lg">
                     {/* Reorder buttons */}
-                    <div className="flex flex-col">
+                    <div className="flex flex-col gap-0.5">
                       <button
                         onClick={() => moveControl(slot, 'up')}
                         disabled={idx === 0}
-                        className="text-xs text-gray-400 hover:text-white disabled:opacity-30 px-1"
+                        className="px-2 py-1 text-sm text-gray-400 hover:text-white hover:bg-[#2d3a5c] rounded disabled:opacity-30"
                       >
                         ▲
                       </button>
                       <button
                         onClick={() => moveControl(slot, 'down')}
                         disabled={idx === getDisplayOrder().length - 1}
-                        className="text-xs text-gray-400 hover:text-white disabled:opacity-30 px-1"
+                        className="px-2 py-1 text-sm text-gray-400 hover:text-white hover:bg-[#2d3a5c] rounded disabled:opacity-30"
                       >
                         ▼
                       </button>
@@ -772,10 +771,9 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
                     {/* Edit button */}
                     <button
                       onClick={() => startEditSlot(slot)}
-                      className="p-1 hover:bg-[#2d3a5c] rounded text-gray-400 hover:text-white"
-                      title="Edit label & icon"
+                      className="px-2 py-1 hover:bg-[#2d3a5c] rounded text-gray-400 hover:text-white text-sm"
                     >
-                      ✏️
+                      ✏️ Edit
                     </button>
                   </div>
                 )

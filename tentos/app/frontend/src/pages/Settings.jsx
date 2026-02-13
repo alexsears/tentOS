@@ -320,6 +320,22 @@ export default function Settings() {
       }
     }
 
+    // Score how well an entity name matches a slot type
+    const scoreSlotMatch = (entity, slotType) => {
+      const name = (entity.friendly_name || '').toLowerCase()
+      const eid = entity.entity_id.split('.').pop().toLowerCase()
+      const slotWords = slotType.split('_')
+
+      let score = 0
+      for (const word of slotWords) {
+        if (word.length < 3) continue
+        if (eid.includes(word)) score += 10
+        if (name.includes(word)) score += 5
+      }
+      // Also check the slot label
+      return score
+    }
+
     // For each entity, find compatible slots
     const entitySlotMap = entitiesToAdd.map(entity => {
       const compatible = []
@@ -336,6 +352,8 @@ export default function Settings() {
           }
         }
       }
+      // Sort by name match — best match first
+      compatible.sort((a, b) => scoreSlotMatch(entity, b.slotType) - scoreSlotMatch(entity, a.slotType))
       return { entity, compatibleSlots: compatible, selectedSlot: compatible[0] || null }
     })
 

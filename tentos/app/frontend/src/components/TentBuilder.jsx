@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 
-function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, tentId, onSelect, isSelected, compact }) {
+function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, tentId, onSelect, isSelected, compact, customNames, onRename }) {
+  const [editingEntity, setEditingEntity] = useState(null)
+  const [editName, setEditName] = useState('')
+
   const { setNodeRef, isOver } = useDroppable({
     id: `${tentId}.${category}.${slotType}`,
     data: { slotType, slotDef, category, tentId, multiple: slotDef.multiple }
@@ -16,6 +19,19 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
       e.stopPropagation()
       onSelect({ category, slotType, slotDef, tentId })
     }
+  }
+
+  const startRename = (e, entityId, entity) => {
+    e.stopPropagation()
+    setEditingEntity(entityId)
+    setEditName(customNames?.[entityId] || entity?.friendly_name || '')
+  }
+
+  const saveRename = () => {
+    if (editingEntity && onRename) {
+      onRename(editingEntity, editName)
+    }
+    setEditingEntity(null)
   }
 
   // Compact mode for empty/unused slots
@@ -92,22 +108,12 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
               if (isOn) dotColor = 'bg-green-400'
               else if (isNumeric) dotColor = 'bg-cyan-400'
 
-              const name = entity?.friendly_name || entityId.split('.').pop().replace(/_/g, ' ')
+              const name = customNames?.[entityId] || entity?.friendly_name || entityId.split('.').pop().replace(/_/g, ' ')
 
               return (
                 <div key={entityId} className={'relative flex flex-col items-center justify-center p-2 rounded-lg transition-all min-w-[60px] ' + tileBg} title={entityId}>
                   {/* Status dot */}
                   <span className={'absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full ' + dotColor} />
-
-                  {/* Remove button */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onRemove(category, slotType, idx) }}
-                    className="absolute top-0.5 left-0.5 w-4 h-4 flex items-center justify-center rounded-full hover:bg-red-500/30 text-red-400 hover:text-red-300 opacity-0 hover:opacity-100 transition-opacity"
-                    style={{ fontSize: 10 }}
-                    title="Remove"
-                  >
-                    ✕
-                  </button>
 
                   {/* Icon */}
                   <span className={'text-lg ' + iconColor}>
@@ -126,10 +132,31 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
                     </span>
                   )}
 
-                  {/* Name */}
-                  <span className="text-xs text-gray-500 truncate w-full text-center mt-0.5" style={{ fontSize: 9 }}>
+                  {/* Name + entity ID */}
+                  <span className={'text-xs truncate w-full text-center mt-0.5 ' + (customNames?.[entityId] ? 'text-blue-400' : 'text-gray-500')} style={{ fontSize: 9 }}>
                     {name}
                   </span>
+                  <span className="text-gray-600 truncate w-full text-center" style={{ fontSize: 8 }}>
+                    {entityId.split('.').pop()}
+                  </span>
+
+                  {/* Action buttons */}
+                  <div className="flex gap-1 mt-1">
+                    <button
+                      onClick={(e) => startRename(e, entityId, entity)}
+                      className="px-1.5 py-0.5 rounded text-gray-500 hover:text-blue-300 hover:bg-blue-500/20"
+                      style={{ fontSize: 10 }}
+                    >
+                      ✏ Rename
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onRemove(category, slotType, idx) }}
+                      className="px-1.5 py-0.5 rounded text-red-400/60 hover:text-red-300 hover:bg-red-500/20"
+                      style={{ fontSize: 10 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -139,11 +166,38 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
           )}
         </div>
       )}
+
+      {/* Rename modal */}
+      {editingEntity && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setEditingEntity(null)}>
+          <div className="bg-[#16213e] rounded-lg p-4 w-80" onClick={e => e.stopPropagation()}>
+            <h4 className="font-semibold mb-1">Rename Entity</h4>
+            <p className="text-xs text-gray-500 mb-3">{editingEntity}</p>
+            <input
+              type="text"
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setEditingEntity(null) }}
+              className="input w-full mb-3"
+              placeholder="Custom display name"
+              autoFocus
+            />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setEditingEntity(null)} className="btn">Cancel</button>
+              {customNames?.[editingEntity] && (
+                <button onClick={() => { onRename(editingEntity, ''); setEditingEntity(null) }} className="btn text-red-400">Reset</button>
+              )}
+              <button onClick={saveRename} className="btn btn-primary">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 function ControlCustomizer({ tent, onUpdate }) {
+  const [expanded, setExpanded] = useState(false)
   const [editingSlot, setEditingSlot] = useState(null)
   const [tempLabel, setTempLabel] = useState('')
   const [tempIcon, setTempIcon] = useState('')
@@ -233,8 +287,14 @@ function ControlCustomizer({ tent, onUpdate }) {
 
   return (
     <div className="mt-4 pt-4 border-t border-[#2d3a5c]">
-      <h4 className="text-sm font-medium text-gray-400 mb-2">Customize Controls</h4>
-      <div className="space-y-1">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="text-sm font-medium text-gray-400 hover:text-white flex items-center gap-2 px-2 py-1 rounded hover:bg-[#2d3a5c]"
+      >
+        <span>{expanded ? '▼' : '▶'}</span>
+        Customize Controls
+      </button>
+      {expanded && <div className="space-y-1 mt-2">
         {orderedActuators.map((slot, idx) => {
           const label = tent.control_settings?.labels?.[slot] || defaultLabels[slot] || slot
           const icon = tent.control_settings?.icons?.[slot] || defaultIcons[slot] || '⚡'
@@ -246,14 +306,12 @@ function ControlCustomizer({ tent, onUpdate }) {
                 <button
                   onClick={() => moveUp(slot)}
                   disabled={idx === 0}
-                  className="text-xs text-gray-400 hover:text-white disabled:opacity-30"
-                  title="Move up"
+                  className="px-2 py-1 text-sm text-gray-400 hover:text-white hover:bg-[#2d3a5c] rounded disabled:opacity-30"
                 >▲</button>
                 <button
                   onClick={() => moveDown(slot)}
                   disabled={idx === orderedActuators.length - 1}
-                  className="text-xs text-gray-400 hover:text-white disabled:opacity-30"
-                  title="Move down"
+                  className="px-2 py-1 text-sm text-gray-400 hover:text-white hover:bg-[#2d3a5c] rounded disabled:opacity-30"
                 >▼</button>
               </div>
 
@@ -265,13 +323,12 @@ function ControlCustomizer({ tent, onUpdate }) {
               {/* Edit button */}
               <button
                 onClick={() => startEdit(slot)}
-                className="p-1 hover:bg-[#2d3a5c] rounded text-gray-400 hover:text-white"
-                title="Edit label & icon"
-              >✏️</button>
+                className="px-2 py-1 hover:bg-[#2d3a5c] rounded text-gray-400 hover:text-white text-sm"
+              >✏️ Edit</button>
             </div>
           )
         })}
-      </div>
+      </div>}
 
       {/* Edit modal */}
       {editingSlot && (
@@ -312,7 +369,7 @@ function ControlCustomizer({ tent, onUpdate }) {
   )
 }
 
-function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, selectedSlot }) {
+function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, selectedSlot, customNames, onRename }) {
   const [expanded, setExpanded] = useState(true)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(tent.name)
@@ -387,17 +444,15 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
             </div>
             <button
               onClick={() => setEditing(true)}
-              className="p-2 hover:bg-[#2d3a5c] rounded"
-              title="Edit"
+              className="px-2 py-1 hover:bg-[#2d3a5c] rounded text-sm"
             >
-              ✏️
+              ✏️ Edit
             </button>
             <button
               onClick={() => onDelete(tent.id)}
-              className="p-2 hover:bg-red-500/20 rounded text-red-400"
-              title="Delete tent"
+              className="px-2 py-1 hover:bg-red-500/20 rounded text-red-400 text-sm"
             >
-              🗑️
+              🗑️ Delete
             </button>
           </>
         )}
@@ -436,6 +491,8 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
                       tentId={tent.id}
                       onSelect={onSlotSelect}
                       isSelected={selectedSlot?.tentId === tent.id && selectedSlot?.category === 'sensors' && selectedSlot?.slotType === slotType}
+                      customNames={customNames}
+                      onRename={onRename}
                     />
                   ))}
                 </div>
@@ -458,6 +515,8 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
                       tentId={tent.id}
                       onSelect={onSlotSelect}
                       isSelected={selectedSlot?.tentId === tent.id && selectedSlot?.category === 'actuators' && selectedSlot?.slotType === slotType}
+                      customNames={customNames}
+                      onRename={onRename}
                     />
                   ))}
                 </div>
@@ -550,6 +609,17 @@ export default function TentBuilder({ config, slots, entities, onConfigChange, o
     }
   }
 
+  // Rename an entity (custom display name)
+  const handleRename = (entityId, newName) => {
+    const customNames = { ...(config.customNames || {}) }
+    if (newName.trim()) {
+      customNames[entityId] = newName.trim()
+    } else {
+      delete customNames[entityId]
+    }
+    onConfigChange({ ...config, customNames })
+  }
+
   // Get all assigned entities across all tents
   const assignedEntities = {}
   for (const tent of config.tents || []) {
@@ -588,6 +658,8 @@ export default function TentBuilder({ config, slots, entities, onConfigChange, o
             onDelete={deleteTent}
             onSlotSelect={onSlotSelect}
             selectedSlot={selectedSlot}
+            customNames={config.customNames}
+            onRename={handleRename}
           />
         ))
       )}

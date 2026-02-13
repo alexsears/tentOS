@@ -28,7 +28,7 @@ export function AlertBanner() {
         </div>
         <button
           onClick={() => setDismissed(prev => new Set([...prev, visibleAlerts[0].id || visibleAlerts[0].message]))}
-          className="text-red-400 hover:text-red-300"
+          className="text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-500/20"
         >
           ✕
         </button>

@@ -244,7 +244,7 @@ export default function Chat() {
                   setNicknameInput(user?.nickname || '')
                   setEditingNickname(true)
                 }}
-                className="text-xs text-gray-400 hover:text-white px-2 py-0.5 rounded hover:bg-[#2d3a5c]"
+                className="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded hover:bg-[#2d3a5c]"
               >
                 Change name
               </button>

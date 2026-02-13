@@ -263,7 +263,7 @@ export function AutomationEditor({ tent, automation, onClose, onSave }) {
           <h3 className="text-lg font-semibold">
             {automation ? 'Edit Automation' : 'Create Automation'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl px-2 py-1 rounded hover:bg-[#2d3a5c]">
             &times;
           </button>
         </div>
