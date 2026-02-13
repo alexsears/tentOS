@@ -340,25 +340,24 @@ def get_tent_entity_ids(tent) -> set[str]:
 
 
 def automation_references_entities(automation: dict, entity_ids: set[str], config: dict = None) -> bool:
-    """Check if an automation references any of the given entities."""
+    """Check if an automation references any of the given entities.
+
+    Matches by exact entity_id in the automation config or automation entity_id/name.
+    Also matches tentos_ prefixed automations.
+    """
+    auto_id = automation.get("entity_id", "")
+
+    # TentOS-created automations always belong to tent
+    if "tentos_" in auto_id:
+        return True
+
+    # Check automation config for exact entity references
     if config:
         config_str = str(config).lower()
         for entity_id in entity_ids:
             if entity_id.lower() in config_str:
                 return True
 
-    auto_id = automation.get("entity_id", "")
-    auto_name = automation.get("attributes", {}).get("friendly_name", "")
-    search_text = f"{auto_id} {auto_name}".lower()
-
-    for entity_id in entity_ids:
-        if entity_id.lower() in search_text:
-            return True
-        parts = entity_id.replace(".", "_").split("_")
-        meaningful_parts = [p for p in parts if len(p) > 2 and p not in ("sensor", "switch", "fan", "light", "binary")]
-        for part in meaningful_parts:
-            if part.lower() in search_text:
-                return True
     return False
 
 
