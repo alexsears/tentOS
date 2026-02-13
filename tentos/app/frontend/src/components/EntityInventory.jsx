@@ -32,6 +32,60 @@ const DOMAIN_INFO = {
   button: { icon: '🔘', label: 'Buttons', order: 11 },
 }
 
+// Smart group detection rules
+const GROUP_RULES = [
+  { id: 'energy_today', label: 'Energy Today', match: (eid) => eid.endsWith('_energy_today') },
+  { id: 'power_minute_avg', label: 'Power Avg', match: (eid) => eid.includes('_power_minute_average') || eid.includes('_power_avg') },
+  { id: 'energy', label: 'Energy', match: (eid) => eid.endsWith('_energy') && !eid.endsWith('_energy_today') },
+  { id: 'voltage', label: 'Voltage', match: (eid) => eid.endsWith('_voltage') },
+  { id: 'current', label: 'Current (A)', match: (eid) => eid.endsWith('_current') },
+  { id: 'power', label: 'Power', match: (eid) => eid.endsWith('_power') && !eid.includes('_power_minute') },
+  { id: 'signal_strength', label: 'Signal', match: (eid) => eid.includes('_signal_strength') || eid.includes('_rssi') },
+  { id: 'uptime', label: 'Uptime', match: (eid) => eid.endsWith('_uptime') || eid.endsWith('_last_restart') },
+  { id: 'battery', label: 'Battery', match: (_, e) => e.device_class === 'battery' },
+  { id: 'timestamp', label: 'Timestamps', match: (_, e) => e.device_class === 'timestamp' },
+  { id: 'duration', label: 'Duration', match: (_, e) => e.device_class === 'duration' },
+]
+
+function detectGroups(entities) {
+  const groups = []
+  const matched = new Set()
+
+  for (const rule of GROUP_RULES) {
+    const members = entities.filter(e => {
+      const eid = e.entity_id.split('.').pop()
+      return rule.match(eid, e)
+    })
+    if (members.length > 0) {
+      groups.push({ id: rule.id, label: rule.label, count: members.length, entityIds: new Set(members.map(e => e.entity_id)) })
+      members.forEach(e => matched.add(e.entity_id))
+    }
+  }
+
+  // Dynamic prefix detection (integration groups, 5+ entities)
+  const prefixCounts = {}
+  for (const e of entities) {
+    if (matched.has(e.entity_id)) continue
+    const parts = e.entity_id.split('.').pop().split('_')
+    if (parts.length < 2 || parts[0].length < 3) continue
+    const prefix = parts[0]
+    if (!prefixCounts[prefix]) prefixCounts[prefix] = []
+    prefixCounts[prefix].push(e.entity_id)
+  }
+  for (const [prefix, entityIds] of Object.entries(prefixCounts)) {
+    if (entityIds.length >= 5) {
+      groups.push({
+        id: 'prefix_' + prefix,
+        label: prefix.charAt(0).toUpperCase() + prefix.slice(1),
+        count: entityIds.length,
+        entityIds: new Set(entityIds)
+      })
+    }
+  }
+
+  return groups.sort((a, b) => b.count - a.count)
+}
+
 function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: entity.entity_id,
@@ -107,7 +161,11 @@ export default function EntityInventory({
   onQuickAdd,
   hiddenEntities = [],
   onHideEntities,
-  onUnhideEntity
+  onUnhideEntity,
+  hiddenGroups = [],
+  onToggleGroup,
+  onHideAllGroups,
+  onShowAllGroups
 }) {
   const [search, setSearch] = useState('')
   const [domainFilter, setDomainFilter] = useState('')
@@ -115,6 +173,7 @@ export default function EntityInventory({
   const [collapsedDomains, setCollapsedDomains] = useState(new Set())
   const [expandedDomains, setExpandedDomains] = useState(new Set())
   const [showHidden, setShowHidden] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
 
   // Toggle domain collapse
   const toggleDomain = (domain) => {
@@ -131,8 +190,8 @@ export default function EntityInventory({
 
   const hiddenSet = useMemo(() => new Set(hiddenEntities), [hiddenEntities])
 
-  // Filter to only allowed domains and exclude unavailable/hidden entities
-  const relevantEntities = useMemo(() => {
+  // Base entities: allowed domains, not unavailable, not individually hidden
+  const baseEntities = useMemo(() => {
     return entities.filter(e =>
       ALLOWED_DOMAINS.has(e.domain) &&
       e.state !== 'unavailable' &&
@@ -140,6 +199,27 @@ export default function EntityInventory({
       !hiddenSet.has(e.entity_id)
     )
   }, [entities, hiddenSet])
+
+  // Detect smart groups from base entities (before group filtering, so counts stay accurate)
+  const detectedGroups = useMemo(() => detectGroups(baseEntities), [baseEntities])
+
+  // Build set of entity IDs that belong to hidden groups
+  const hiddenGroupSet = useMemo(() => new Set(hiddenGroups), [hiddenGroups])
+  const hiddenGroupEntityIds = useMemo(() => {
+    const ids = new Set()
+    for (const group of detectedGroups) {
+      if (hiddenGroupSet.has(group.id)) {
+        group.entityIds.forEach(id => ids.add(id))
+      }
+    }
+    return ids
+  }, [detectedGroups, hiddenGroupSet])
+
+  // Relevant entities = base minus hidden group entities
+  const relevantEntities = useMemo(() => {
+    if (hiddenGroupEntityIds.size === 0) return baseEntities
+    return baseEntities.filter(e => !hiddenGroupEntityIds.has(e.entity_id))
+  }, [baseEntities, hiddenGroupEntityIds])
 
   // Hidden entities list (for the hidden panel)
   const hiddenEntityObjects = useMemo(() => {
@@ -318,6 +398,56 @@ export default function EntityInventory({
           </div>
         )}
 
+        {/* Smart Filters */}
+        {!slotFilter && detectedGroups.length > 0 && (
+          <div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="text-xs text-gray-400 hover:text-white flex items-center gap-1"
+            >
+              <span>{showFilters ? '▼' : '▶'}</span>
+              <span>Smart Filters</span>
+              {hiddenGroups.length > 0 && (
+                <span className="text-red-400 ml-1">({hiddenGroups.length} hidden)</span>
+              )}
+            </button>
+            {showFilters && (
+              <div className="mt-1.5 space-y-1.5">
+                <div className="flex flex-wrap gap-1">
+                  {detectedGroups.map(g => {
+                    const isHidden = hiddenGroupSet.has(g.id)
+                    return (
+                      <button
+                        key={g.id}
+                        onClick={() => onToggleGroup && onToggleGroup(g.id)}
+                        className={'px-2 py-0.5 rounded-full text-xs font-medium transition-colors ' +
+                          (isHidden
+                            ? 'bg-red-900/40 text-red-400 border border-red-500/30 hover:bg-red-900/60'
+                            : 'bg-[#2d3a5c] text-gray-300 border border-[#3d4a6c] hover:bg-[#3d4a6c]'
+                          )}
+                      >
+                        {g.label} ({g.count})
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="flex gap-2">
+                  {onHideAllGroups && (
+                    <button onClick={() => onHideAllGroups(detectedGroups.map(g => g.id))} className="text-xs text-red-400 hover:text-red-300">
+                      Hide All
+                    </button>
+                  )}
+                  {onShowAllGroups && hiddenGroups.length > 0 && (
+                    <button onClick={onShowAllGroups} className="text-xs text-green-400 hover:text-green-300">
+                      Show All
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Selection controls */}
         <div className="flex items-center gap-2">
           <button
@@ -465,6 +595,7 @@ export default function EntityInventory({
 
       <div className="p-2 border-t border-[#2d3a5c] text-xs text-gray-500 text-center">
         {filteredEntities.length} of {relevantEntities.length} entities
+        {hiddenGroupEntityIds.size > 0 && ` • ${hiddenGroupEntityIds.size} filtered`}
         {selectedEntities.length > 0 && ` • ${selectedEntities.length} selected`}
       </div>
     </div>

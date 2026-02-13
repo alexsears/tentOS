@@ -421,6 +421,25 @@ export default function Settings() {
     setConfig({ ...config, hiddenEntities: current.filter(id => id !== entityId) })
   }
 
+  // Toggle a smart filter group
+  const handleToggleGroup = (groupId) => {
+    const current = config.hiddenGroups || []
+    const updated = current.includes(groupId)
+      ? current.filter(id => id !== groupId)
+      : [...current, groupId]
+    setConfig({ ...config, hiddenGroups: updated })
+  }
+
+  // Hide all detected groups
+  const handleHideAllGroups = (groupIds) => {
+    setConfig({ ...config, hiddenGroups: groupIds })
+  }
+
+  // Show all groups (clear hidden)
+  const handleShowAllGroups = () => {
+    setConfig({ ...config, hiddenGroups: [] })
+  }
+
   // Handle slot selection (pass tentId along)
   const handleSlotSelect = (slotInfo) => {
     setSlotFilter(slotInfo)
@@ -710,6 +729,10 @@ export default function Settings() {
                 hiddenEntities={config.hiddenEntities || []}
                 onHideEntities={handleHideEntities}
                 onUnhideEntity={handleUnhideEntity}
+                hiddenGroups={config.hiddenGroups || []}
+                onToggleGroup={handleToggleGroup}
+                onHideAllGroups={handleHideAllGroups}
+                onShowAllGroups={handleShowAllGroups}
               />
             </div>
 

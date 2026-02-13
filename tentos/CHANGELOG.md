@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.29
+- Smart Filters: auto-detect entity groups (energy, power, voltage, signal, battery, integration prefixes)
+- Toggle pills to hide/show entire groups at once, dramatically reducing entity list clutter
+- Hide All / Show All buttons for quick bulk filtering
+- Hidden group counts shown in footer and filter badge
+
 ## 1.2.28
 - Dashboard actuator tiles now show real HA entity names instead of slot categories
 

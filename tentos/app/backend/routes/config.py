@@ -182,6 +182,9 @@ class AppConfig(BaseModel):
     """Full application configuration."""
     version: str = "1.0"
     tents: list[TentConfig] = []
+    hiddenEntities: list[str] = []
+    hiddenGroups: list[str] = []
+    customNames: dict = {}
 
 
 def load_config() -> AppConfig:
