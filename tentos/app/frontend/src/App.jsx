@@ -7,6 +7,7 @@ import Settings from './pages/Settings'
 import Automations from './pages/Automations'
 import Reports from './pages/Reports'
 import Chat from './pages/Chat'
+import Climate from './pages/Climate'
 import { useWebSocket } from './hooks/useWebSocket'
 import { AlertBanner } from './components/AlertBanner'
 import { apiFetch } from './utils/api'
@@ -84,6 +85,7 @@ function AppContent() {
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: '🌱' },
+    { path: '/climate', label: 'Climate', icon: '🌡️' },
     { path: '/reports', label: 'Reports', icon: '📊' },
     { path: '/automations', label: 'Automations', icon: '🤖' },
     { path: '/events', label: 'Events', icon: '📋' },
@@ -158,6 +160,7 @@ function AppContent() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/climate" element={<Climate />} />
           <Route path="/tent/:tentId" element={<TentDetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/automations" element={<Automations />} />

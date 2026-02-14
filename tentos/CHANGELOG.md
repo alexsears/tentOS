@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.30
+- New Climate page: visual flow diagram showing sensor → rule → actuator control chains
+- Node-RED-style layout: see how temp, humidity, VPD, and schedules connect to fans, heater, humidifier, etc.
+- Inline threshold editing: click values to change, auto-saves to config
+- Automation status per chain: green = active, gray = missing with one-click create
+- "Create All Missing" bulk button to set up all automations at once
+- Context bar showing day/night mode, growth stage, VPD target, environment score
+- Collapsible targets panel for editing temp/humidity ranges and light schedule
+- Responsive: stacked cards on mobile
+
 ## 1.2.29
 - Smart Filters: auto-detect entity groups (energy, power, voltage, signal, battery, integration prefixes)
 - Toggle pills to hide/show entire groups at once, dramatically reducing entity list clutter
