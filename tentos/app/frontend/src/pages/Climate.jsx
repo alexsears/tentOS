@@ -564,14 +564,14 @@ export default function Climate() {
   // Load config + suggestions + weather
   useEffect(() => {
     Promise.all([
-      apiFetch('api/config').then(r => r.json()),
-      apiFetch('api/automations/suggestions').then(r => r.json()),
+      apiFetch('api/config').then(r => r.json()).catch(() => null),
+      apiFetch('api/automations/suggestions').then(r => r.json()).catch(() => ({ suggestions: [] })),
       apiFetch('api/system/entities?domain=weather').then(r => r.json()).catch(() => ({ entities: [] })),
     ]).then(([configData, suggestionsData, entitiesData]) => {
-      setConfig(configData)
-      setSuggestions(suggestionsData.suggestions || [])
+      if (configData) setConfig(configData)
+      setSuggestions(suggestionsData?.suggestions || [])
       // Find weather entity and fetch full details
-      const weatherEntities = (entitiesData.entities || []).filter(e => e.entity_id.startsWith('weather.'))
+      const weatherEntities = (entitiesData?.entities || []).filter(e => e.entity_id.startsWith('weather.'))
       if (weatherEntities.length > 0) {
         apiFetch('api/system/entity/' + weatherEntities[0].entity_id)
           .then(r => r.json())
