@@ -502,6 +502,55 @@ async def auto_update():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/create-webhook")
+async def create_webhook_automation(request: Request):
+    """Create an HA automation that updates TentOS when triggered via webhook.
+
+    After creating, trigger updates with:
+      curl -X POST http://homeassistant.local:8123/api/webhook/tentos_auto_update
+    """
+    try:
+        slug = await get_addon_slug()
+
+        config = {
+            "id": "tentos_auto_update_webhook",
+            "alias": "[TentOS] Auto-Update on Push",
+            "description": "Automatically updates TentOS addon when triggered via webhook after a git push",
+            "mode": "single",
+            "trigger": [
+                {
+                    "platform": "webhook",
+                    "webhook_id": "tentos_auto_update",
+                    "allowed_methods": ["POST"],
+                    "local_only": False
+                }
+            ],
+            "action": [
+                {"delay": {"seconds": 90}},
+                {"service": "hassio.addon_update", "data": {"addon": slug}}
+            ]
+        }
+
+        ha_client = request.app.state.ha_client
+        result = await ha_client.create_automation(config)
+
+        if result.get("success"):
+            return {
+                "success": True,
+                "webhook_url": "/api/webhook/tentos_auto_update",
+                "addon_slug": slug,
+                "message": "Webhook automation created. Trigger with: curl -X POST http://<ha-url>:8123/api/webhook/tentos_auto_update"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create automation in HA")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Create webhook error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/restart")
 async def restart_addon():
     """Restart the add-on (faster than rebuild, but won't pull new code)."""
