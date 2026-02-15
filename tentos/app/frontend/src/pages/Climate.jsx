@@ -108,6 +108,19 @@ const CHAIN_DEFS = [
     unit: '',
   },
   {
+    templateId: 'high_temp_ac',
+    sensorType: 'temperature',
+    actuatorType: 'ac',
+    label: 'High Temp',
+    condition: 'above',
+    defaultThreshold: 28,
+    targetKey: 'temp_day_max',
+    sensorIcon: '\u{1F321}\u{FE0F}',
+    actuatorIcon: '\u{2744}\u{FE0F}',
+    actuatorLabel: 'A/C',
+    unit: '\u{00B0}',
+  },
+  {
     templateId: 'watering_schedule',
     sensorType: null,
     actuatorType: 'water_pump',
@@ -119,6 +132,19 @@ const CHAIN_DEFS = [
     unit: '',
   },
 ]
+
+// All actuator slot info for the equipment section
+const ACTUATOR_INFO = {
+  light: { icon: '\u{1F4A1}', label: 'Grow Lights' },
+  exhaust_fan: { icon: '\u{1F300}', label: 'Exhaust Fan' },
+  circulation_fan: { icon: '\u{1F504}', label: 'Circ Fan' },
+  humidifier: { icon: '\u{1F4A8}', label: 'Humidifier' },
+  dehumidifier: { icon: '\u{1F3DC}\u{FE0F}', label: 'Dehumidifier' },
+  heater: { icon: '\u{1F525}', label: 'Heater' },
+  ac: { icon: '\u{2744}\u{FE0F}', label: 'A/C' },
+  water_pump: { icon: '\u{1F6BF}', label: 'Water Pump' },
+  drain_pump: { icon: '\u{1F53D}', label: 'Drain Pump' },
+}
 
 function hasEntity(mapping, key) {
   const val = mapping?.[key]
@@ -531,17 +557,27 @@ export default function Climate() {
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [showTargets, setShowTargets] = useState(false)
+  const [weather, setWeather] = useState(null)
   const autoSaveTimer = useRef(null)
   const isInitialLoad = useRef(true)
 
-  // Load config + suggestions
+  // Load config + suggestions + weather
   useEffect(() => {
     Promise.all([
       apiFetch('api/config').then(r => r.json()),
       apiFetch('api/automations/suggestions').then(r => r.json()),
-    ]).then(([configData, suggestionsData]) => {
+      apiFetch('api/system/entities?domain=weather').then(r => r.json()).catch(() => ({ entities: [] })),
+    ]).then(([configData, suggestionsData, entitiesData]) => {
       setConfig(configData)
       setSuggestions(suggestionsData.suggestions || [])
+      // Find weather entity and fetch full details
+      const weatherEntities = (entitiesData.entities || []).filter(e => e.entity_id.startsWith('weather.'))
+      if (weatherEntities.length > 0) {
+        apiFetch('api/system/entity/' + weatherEntities[0].entity_id)
+          .then(r => r.json())
+          .then(data => setWeather(data))
+          .catch(() => {})
+      }
     }).catch(err => {
       setError('Failed to load climate data')
     }).finally(() => {
@@ -579,6 +615,21 @@ export default function Climate() {
   const tentConfig = config?.tents?.find(t => t.id === selectedTentId)
   const chains = useMemo(() => buildChains(tent, tentConfig, suggestions), [tent, tentConfig, suggestions])
   const missingCount = chains.filter(c => c.status === 'missing').length
+
+  // All configured equipment (actuators + sensors) for the equipment summary
+  const equipment = useMemo(() => {
+    if (!tentConfig) return []
+    const items = []
+    const actuators = tentConfig.actuators || {}
+    for (const [type, val] of Object.entries(actuators)) {
+      const entities = Array.isArray(val) ? val.filter(v => v) : (val ? [val] : [])
+      if (entities.length === 0) continue
+      const info = ACTUATOR_INFO[type] || { icon: '\u{26A1}', label: type }
+      const state = getActuatorState(tent, type)
+      items.push({ type, ...info, count: entities.length, state, entityIds: entities })
+    }
+    return items
+  }, [tentConfig, tent])
 
   const handleTargetChange = (key, value) => {
     if (!tentConfig) return
@@ -732,6 +783,80 @@ export default function Climate() {
           <ContextBar tent={tent} schedules={tentConfig?.schedules} />
         </div>
       )}
+
+      {/* Outdoor Weather + Equipment Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Outdoor Conditions */}
+        {weather ? (
+          <div className="card py-3">
+            <h3 className="font-semibold mb-2 text-sm text-gray-400">OUTDOOR CONDITIONS</h3>
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{'\u{1F326}\u{FE0F}'}</span>
+                <div>
+                  <div className="text-sm font-medium capitalize">{weather.state}</div>
+                  <div className="text-xs text-gray-500">{weather.attributes?.friendly_name || 'Weather'}</div>
+                </div>
+              </div>
+              {weather.attributes?.temperature != null && (
+                <div className="text-center">
+                  <div className="text-lg font-bold">{formatTemp(weather.attributes.temperature)}</div>
+                  <div className="text-xs text-gray-500">Temp</div>
+                </div>
+              )}
+              {weather.attributes?.humidity != null && (
+                <div className="text-center">
+                  <div className="text-lg font-bold">{weather.attributes.humidity}%</div>
+                  <div className="text-xs text-gray-500">Humidity</div>
+                </div>
+              )}
+              {weather.attributes?.wind_speed != null && (
+                <div className="text-center">
+                  <div className="text-sm font-bold">{weather.attributes.wind_speed}</div>
+                  <div className="text-xs text-gray-500">Wind</div>
+                </div>
+              )}
+              {weather.attributes?.pressure != null && (
+                <div className="text-center">
+                  <div className="text-sm font-bold">{weather.attributes.pressure}</div>
+                  <div className="text-xs text-gray-500">hPa</div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="card py-3">
+            <h3 className="font-semibold mb-2 text-sm text-gray-400">OUTDOOR CONDITIONS</h3>
+            <p className="text-xs text-gray-500">No weather integration found. Add OpenWeatherMap in HA for outdoor data.</p>
+          </div>
+        )}
+
+        {/* Equipment Summary */}
+        <div className="card py-3">
+          <h3 className="font-semibold mb-2 text-sm text-gray-400">EQUIPMENT ({equipment.length})</h3>
+          {equipment.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {equipment.map(eq => {
+                const isOn = eq.state === 'on'
+                return (
+                  <div
+                    key={eq.type}
+                    className={'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-sm ' +
+                      (isOn ? 'bg-green-900/20 border-green-600/40 text-white' : 'bg-[#1a1a2e] border-[#2d3a5c] text-gray-500')}
+                  >
+                    <span>{eq.icon}</span>
+                    <span className="text-xs font-medium">{eq.label}</span>
+                    {eq.count > 1 && <span className="text-xs text-gray-500">x{eq.count}</span>}
+                    <span className={'w-1.5 h-1.5 rounded-full ' + (isOn ? 'bg-green-400' : 'bg-gray-600')} />
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500">No actuators configured. Add equipment in Settings.</p>
+          )}
+        </div>
+      </div>
 
       {/* Flow diagram */}
       {chains.length > 0 ? (

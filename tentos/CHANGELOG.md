@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.31
+- Climate page now shows all configured equipment with live on/off status
+- Add A/C automation template (High Temp → A/C) for climate-controlled AC units
+- Outdoor weather conditions from OpenWeatherMap integration (temp, humidity, wind, pressure)
+- Equipment summary shows all actuators at a glance, not just ones with automation chains
+
 ## 1.2.30
 - New Climate page: visual flow diagram showing sensor → rule → actuator control chains
 - Node-RED-style layout: see how temp, humidity, VPD, and schedules connect to fans, heater, humidifier, etc.

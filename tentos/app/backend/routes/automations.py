@@ -266,6 +266,16 @@ AUTOMATION_TEMPLATES = {
         "time_on": "08:00:00",
         "time_off": "08:05:00",  # 5 min watering
     },
+    "high_temp_ac": {
+        "name": "High Temp → A/C",
+        "icon": "❄️",
+        "description": "Turn on A/C when temperature exceeds threshold",
+        "sensor_type": "temperature",
+        "actuator_type": "ac",
+        "trigger_type": "numeric_state",
+        "above": 28,
+        "below": None,
+    },
 }
 
 
