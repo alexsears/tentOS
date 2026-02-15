@@ -1197,19 +1197,24 @@ async def list_ha_automations(
         auto["tags"] = get_automation_tags(auto, config)
 
     # Filter by tent if requested
-    if tent_id and not show_all:
-        tent = state_manager.get_tent(tent_id)
-        if not tent:
-            raise HTTPException(status_code=404, detail="Tent not found")
+    if not show_all:
+        entity_ids = set()
+        if tent_id:
+            tent = state_manager.get_tent(tent_id)
+            if tent:
+                entity_ids = get_tent_entity_ids(tent)
+        else:
+            # No specific tent — collect entities from ALL tents
+            for tent in state_manager.tents.values():
+                entity_ids.update(get_tent_entity_ids(tent))
 
-        entity_ids = get_tent_entity_ids(tent)
-        filtered = []
-        for a in all_automations:
-            config = configs.get(a.get("entity_id"))
-            if automation_references_entities(a, entity_ids, config):
-                filtered.append(a)
-
-        all_automations = filtered
+        if entity_ids:
+            filtered = []
+            for a in all_automations:
+                config = configs.get(a.get("entity_id"))
+                if automation_references_entities(a, entity_ids, config):
+                    filtered.append(a)
+            all_automations = filtered
 
     # Group by category
     by_category = {}

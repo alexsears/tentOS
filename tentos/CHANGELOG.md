@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.36
+- Fix: "My Tent" automations filter now works — show_all=false without tent_id was returning all automations
+
 ## 1.2.35
 - Fix: Config API merges config.json settings with options.json tent data when config.json has empty tents
 
