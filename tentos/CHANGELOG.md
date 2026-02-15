@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.33
+- Test auto-update webhook
+
 ## 1.2.32
 - Auto-update webhook: POST /api/updates/create-webhook sets up an HA automation that updates TentOS on webhook trigger
 - After git push, trigger with: curl -X POST http://homeassistant.local:8123/api/webhook/tentos_auto_update
