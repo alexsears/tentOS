@@ -188,7 +188,10 @@ class AppConfig(BaseModel):
 
 
 def load_config() -> AppConfig:
-    """Load configuration from file."""
+    """Load configuration from file.
+
+    Priority: config.json (Tent Builder UI) > options.json (HA addon config).
+    """
     if CONFIG_PATH.exists():
         try:
             with open(CONFIG_PATH) as f:
@@ -196,6 +199,32 @@ def load_config() -> AppConfig:
                 return AppConfig(**data)
         except Exception as e:
             logger.error(f"Failed to load config: {e}")
+
+    # Fallback to options.json (HA addon config)
+    options_path = Path("/data/options.json")
+    if options_path.exists():
+        try:
+            with open(options_path) as f:
+                options = json.load(f)
+            tents_data = options.get("tents", [])
+            if tents_data:
+                tents = []
+                for t in tents_data:
+                    tent_id = t.get("name", "").lower().replace(" ", "_")
+                    tents.append(TentConfig(
+                        id=tent_id,
+                        name=t.get("name", ""),
+                        description=t.get("description", ""),
+                        sensors=t.get("sensors", {}),
+                        actuators=t.get("actuators", {}),
+                        targets=t.get("targets", {}),
+                        schedules=t.get("schedules", {}),
+                        notifications=t.get("notifications", {"enabled": True}),
+                    ))
+                return AppConfig(tents=tents)
+        except Exception as e:
+            logger.error(f"Failed to load options.json fallback: {e}")
+
     return AppConfig()
 
 

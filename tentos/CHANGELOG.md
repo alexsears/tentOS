@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.34
+- Fix Climate page not showing chains/equipment when tents configured via HA addon options
+- Config API now falls back to options.json when config.json doesn't exist
+
 ## 1.2.33
 - Test auto-update webhook
 
