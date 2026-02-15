@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.35
+- Fix: Config API merges config.json settings with options.json tent data when config.json has empty tents
+
 ## 1.2.34
 - Fix Climate page not showing chains/equipment when tents configured via HA addon options
 - Config API now falls back to options.json when config.json doesn't exist

@@ -187,45 +187,59 @@ class AppConfig(BaseModel):
     customNames: dict = {}
 
 
+def _load_tents_from_options() -> list[TentConfig]:
+    """Load tent configs from HA addon options.json."""
+    options_path = Path("/data/options.json")
+    if not options_path.exists():
+        return []
+    try:
+        with open(options_path) as f:
+            options = json.load(f)
+        tents = []
+        for t in options.get("tents", []):
+            tent_id = t.get("name", "").lower().replace(" ", "_")
+            tents.append(TentConfig(
+                id=tent_id,
+                name=t.get("name", ""),
+                description=t.get("description", ""),
+                sensors=t.get("sensors", {}),
+                actuators=t.get("actuators", {}),
+                targets=t.get("targets", {}),
+                schedules=t.get("schedules", {}),
+                notifications=t.get("notifications", {"enabled": True}),
+            ))
+        return tents
+    except Exception as e:
+        logger.error(f"Failed to load options.json: {e}")
+        return []
+
+
 def load_config() -> AppConfig:
     """Load configuration from file.
 
-    Priority: config.json (Tent Builder UI) > options.json (HA addon config).
+    Merges config.json (app settings) with options.json (tent config from HA).
+    If config.json has no tents, pulls tent data from options.json.
     """
+    config = None
     if CONFIG_PATH.exists():
         try:
             with open(CONFIG_PATH) as f:
                 data = json.load(f)
-                return AppConfig(**data)
+                config = AppConfig(**data)
         except Exception as e:
             logger.error(f"Failed to load config: {e}")
 
-    # Fallback to options.json (HA addon config)
-    options_path = Path("/data/options.json")
-    if options_path.exists():
-        try:
-            with open(options_path) as f:
-                options = json.load(f)
-            tents_data = options.get("tents", [])
-            if tents_data:
-                tents = []
-                for t in tents_data:
-                    tent_id = t.get("name", "").lower().replace(" ", "_")
-                    tents.append(TentConfig(
-                        id=tent_id,
-                        name=t.get("name", ""),
-                        description=t.get("description", ""),
-                        sensors=t.get("sensors", {}),
-                        actuators=t.get("actuators", {}),
-                        targets=t.get("targets", {}),
-                        schedules=t.get("schedules", {}),
-                        notifications=t.get("notifications", {"enabled": True}),
-                    ))
-                return AppConfig(tents=tents)
-        except Exception as e:
-            logger.error(f"Failed to load options.json fallback: {e}")
+    if config and config.tents:
+        return config
 
-    return AppConfig()
+    # config.json missing or has no tents — get tents from options.json
+    options_tents = _load_tents_from_options()
+    if config:
+        # Keep app settings (hiddenEntities, hiddenGroups, customNames) but add tents
+        config.tents = options_tents
+        return config
+
+    return AppConfig(tents=options_tents)
 
 
 def save_config(config: AppConfig) -> bool:
