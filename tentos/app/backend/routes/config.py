@@ -217,27 +217,44 @@ def _load_tents_from_options() -> list[TentConfig]:
 def load_config() -> AppConfig:
     """Load configuration from file.
 
-    Merges config.json (app settings) with options.json (tent config from HA).
-    If config.json has no tents, pulls tent data from options.json.
+    Always uses options.json as source of truth for tent sensors/actuators.
+    Merges in targets/schedules from config.json if available.
+    App settings (hiddenEntities, hiddenGroups, customNames) come from config.json.
     """
-    config = None
+    # Load app-level config from config.json
+    app_config = None
     if CONFIG_PATH.exists():
         try:
             with open(CONFIG_PATH) as f:
                 data = json.load(f)
-                config = AppConfig(**data)
+                app_config = AppConfig(**data)
         except Exception as e:
             logger.error(f"Failed to load config: {e}")
 
-    if config and config.tents:
-        return config
-
-    # config.json missing or has no tents — get tents from options.json
+    # Always load tents from options.json (authoritative source for entities)
     options_tents = _load_tents_from_options()
-    if config:
-        # Keep app settings (hiddenEntities, hiddenGroups, customNames) but add tents
-        config.tents = options_tents
-        return config
+
+    if app_config and options_tents:
+        # Merge: use options.json for sensors/actuators, config.json for targets/schedules
+        config_tent_map = {t.id: t for t in app_config.tents}
+        merged_tents = []
+        for opt_tent in options_tents:
+            cfg_tent = config_tent_map.get(opt_tent.id)
+            if cfg_tent:
+                # Keep targets/schedules from config.json if they have data
+                if cfg_tent.targets:
+                    opt_tent.targets = cfg_tent.targets
+                if cfg_tent.schedules:
+                    opt_tent.schedules = cfg_tent.schedules
+            merged_tents.append(opt_tent)
+        app_config.tents = merged_tents
+        return app_config
+
+    if app_config:
+        # config.json exists but no options.json tents
+        if not app_config.tents:
+            app_config.tents = options_tents
+        return app_config
 
     return AppConfig(tents=options_tents)
 

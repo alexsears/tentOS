@@ -1,6 +1,7 @@
 # Changelog
 
-## 1.2.36
+## 1.2.37
+- Fix: Config API always uses options.json for tent sensors/actuators (authoritative source), merges targets from config.json
 - Fix: "My Tent" automations filter now works — show_all=false without tent_id was returning all automations
 
 ## 1.2.35
