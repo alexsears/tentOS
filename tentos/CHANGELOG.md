@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.40
+- Climate page now shows all tents at once instead of a dropdown selector
+
 ## 1.2.39
 - Fix: Entities added via Settings UI now appear on Climate page (config.json entity assignments were being ignored in favor of options.json)
 

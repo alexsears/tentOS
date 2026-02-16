@@ -544,79 +544,15 @@ function TargetsPanel({ tentConfig, onTargetChange, onScheduleChange, formatTemp
   )
 }
 
-// --- Main Component ---
+// --- Per-Tent Section ---
 
-export default function Climate() {
-  const { tents, loading: tentsLoading, connected } = useTents()
-  const { formatTemp, unit } = useTemperatureUnit()
-  const [selectedTentId, setSelectedTentId] = useState(null)
-  const [config, setConfig] = useState(null)
-  const [suggestions, setSuggestions] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [creating, setCreating] = useState(null)
-  const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(null)
+function TentSection({ tent, tentConfig, suggestions, config, setConfig, creating, setCreating, setError, setSuccess, reloadSuggestions, formatTemp, unit }) {
   const [showTargets, setShowTargets] = useState(false)
-  const [weather, setWeather] = useState(null)
-  const autoSaveTimer = useRef(null)
-  const isInitialLoad = useRef(true)
+  const tentId = tentConfig?.id
 
-  // Load config + suggestions + weather
-  useEffect(() => {
-    Promise.all([
-      apiFetch('api/config').then(r => r.json()).catch(() => null),
-      apiFetch('api/automations/suggestions').then(r => r.json()).catch(() => ({ suggestions: [] })),
-      apiFetch('api/system/entities?domain=weather').then(r => r.json()).catch(() => ({ entities: [] })),
-    ]).then(([configData, suggestionsData, entitiesData]) => {
-      if (configData) setConfig(configData)
-      setSuggestions(suggestionsData?.suggestions || [])
-      // Find weather entity and fetch full details
-      const weatherEntities = (entitiesData?.entities || []).filter(e => e.entity_id.startsWith('weather.'))
-      if (weatherEntities.length > 0) {
-        apiFetch('api/system/entity/' + weatherEntities[0].entity_id)
-          .then(r => r.json())
-          .then(data => setWeather(data))
-          .catch(() => {})
-      }
-    }).catch(err => {
-      setError('Failed to load climate data')
-    }).finally(() => {
-      setLoading(false)
-      setTimeout(() => { isInitialLoad.current = false }, 500)
-    })
-  }, [])
-
-  // Auto-select first tent
-  useEffect(() => {
-    if (!selectedTentId && tents.length > 0) {
-      setSelectedTentId(tents[0].id)
-    }
-  }, [tents, selectedTentId])
-
-  // Auto-save config changes
-  useEffect(() => {
-    if (isInitialLoad.current || !config) return
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
-    autoSaveTimer.current = setTimeout(async () => {
-      try {
-        await apiFetch('api/config', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(config)
-        })
-      } catch (err) {
-        setError('Failed to save targets')
-      }
-    }, 1500)
-    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current) }
-  }, [config])
-
-  const tent = tents.find(t => t.id === selectedTentId)
-  const tentConfig = config?.tents?.find(t => t.id === selectedTentId)
   const chains = useMemo(() => buildChains(tent, tentConfig, suggestions), [tent, tentConfig, suggestions])
   const missingCount = chains.filter(c => c.status === 'missing').length
 
-  // All configured equipment (actuators + sensors) for the equipment summary
   const equipment = useMemo(() => {
     if (!tentConfig) return []
     const items = []
@@ -634,7 +570,7 @@ export default function Climate() {
   const handleTargetChange = (key, value) => {
     if (!tentConfig) return
     const updatedTents = config.tents.map(t => {
-      if (t.id !== selectedTentId) return t
+      if (t.id !== tentId) return t
       return { ...t, targets: { ...t.targets, [key]: value } }
     })
     setConfig({ ...config, tents: updatedTents })
@@ -643,7 +579,7 @@ export default function Climate() {
   const handleScheduleChange = (key, value) => {
     if (!tentConfig) return
     const updatedTents = config.tents.map(t => {
-      if (t.id !== selectedTentId) return t
+      if (t.id !== tentId) return t
       return { ...t, schedules: { ...t.schedules, [key]: value } }
     })
     setConfig({ ...config, tents: updatedTents })
@@ -655,19 +591,11 @@ export default function Climate() {
     }
   }
 
-  const reloadSuggestions = async () => {
-    try {
-      const res = await apiFetch('api/automations/suggestions')
-      const data = await res.json()
-      setSuggestions(data.suggestions || [])
-    } catch {}
-  }
-
   const handleCreateAutomation = async (chain) => {
     setCreating(chain.templateId)
     setError(null)
     try {
-      const body = { tent_id: selectedTentId }
+      const body = { tent_id: tentId }
       if (chain.condition === 'above' || chain.condition === 'below') {
         body.threshold = chain.threshold
       }
@@ -704,7 +632,7 @@ export default function Climate() {
     for (const chain of missing) {
       setCreating(chain.templateId)
       try {
-        const body = { tent_id: selectedTentId }
+        const body = { tent_id: tentId }
         if (chain.condition === 'above' || chain.condition === 'below') {
           body.threshold = chain.threshold
         }
@@ -727,135 +655,38 @@ export default function Climate() {
     await reloadSuggestions()
   }
 
-  if (loading || tentsLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400">Loading climate data...</div>
-      </div>
-    )
-  }
-
-  if (!config?.tents?.length) {
-    return (
-      <div className="card text-center py-12">
-        <div className="text-4xl mb-4">{'\u{1F331}'}</div>
-        <h3 className="text-xl font-semibold mb-2">No Tents Configured</h3>
-        <p className="text-gray-400 mb-4">Set up a tent in Settings to see the climate control flow.</p>
-        <a href="#/settings" className="btn btn-primary">Go to Settings</a>
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-2xl font-bold">Climate Control</h2>
-        <div className="flex items-center gap-2">
-          {!connected && (
-            <span className="text-xs text-red-400">Disconnected</span>
-          )}
-          {tents.length > 1 && (
-            <select
-              value={selectedTentId || ''}
-              onChange={e => setSelectedTentId(e.target.value)}
-              className="input text-sm"
-            >
-              {tents.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          )}
-        </div>
+    <div className="space-y-3">
+      {/* Tent header + context */}
+      <div className="card py-3">
+        <h3 className="font-semibold text-lg mb-2">{tent?.name || tentConfig?.name || tentId}</h3>
+        {tent && <ContextBar tent={tent} schedules={tentConfig?.schedules} />}
       </div>
 
-      {/* Status messages */}
-      {error && (
-        <div className="p-3 bg-red-500/20 border border-red-500/50 rounded text-red-300 text-sm">{error}</div>
-      )}
-      {success && (
-        <div className="p-3 bg-green-500/20 border border-green-500/50 rounded text-green-300 text-sm">{success}</div>
-      )}
-
-      {/* Context bar */}
-      {tent && (
-        <div className="card py-3">
-          <ContextBar tent={tent} schedules={tentConfig?.schedules} />
-        </div>
-      )}
-
-      {/* Outdoor Weather + Equipment Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Outdoor Conditions */}
-        {weather ? (
-          <div className="card py-3">
-            <h3 className="font-semibold mb-2 text-sm text-gray-400">OUTDOOR CONDITIONS</h3>
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{'\u{1F326}\u{FE0F}'}</span>
-                <div>
-                  <div className="text-sm font-medium capitalize">{weather.state}</div>
-                  <div className="text-xs text-gray-500">{weather.attributes?.friendly_name || 'Weather'}</div>
+      {/* Equipment */}
+      <div className="card py-3">
+        <h3 className="font-semibold mb-2 text-sm text-gray-400">EQUIPMENT ({equipment.length})</h3>
+        {equipment.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {equipment.map(eq => {
+              const isOn = eq.state === 'on'
+              return (
+                <div
+                  key={eq.type}
+                  className={'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-sm ' +
+                    (isOn ? 'bg-green-900/20 border-green-600/40 text-white' : 'bg-[#1a1a2e] border-[#2d3a5c] text-gray-500')}
+                >
+                  <span>{eq.icon}</span>
+                  <span className="text-xs font-medium">{eq.label}</span>
+                  {eq.count > 1 && <span className="text-xs text-gray-500">x{eq.count}</span>}
+                  <span className={'w-1.5 h-1.5 rounded-full ' + (isOn ? 'bg-green-400' : 'bg-gray-600')} />
                 </div>
-              </div>
-              {weather.attributes?.temperature != null && (
-                <div className="text-center">
-                  <div className="text-lg font-bold">{formatTemp(weather.attributes.temperature)}</div>
-                  <div className="text-xs text-gray-500">Temp</div>
-                </div>
-              )}
-              {weather.attributes?.humidity != null && (
-                <div className="text-center">
-                  <div className="text-lg font-bold">{weather.attributes.humidity}%</div>
-                  <div className="text-xs text-gray-500">Humidity</div>
-                </div>
-              )}
-              {weather.attributes?.wind_speed != null && (
-                <div className="text-center">
-                  <div className="text-sm font-bold">{weather.attributes.wind_speed}</div>
-                  <div className="text-xs text-gray-500">Wind</div>
-                </div>
-              )}
-              {weather.attributes?.pressure != null && (
-                <div className="text-center">
-                  <div className="text-sm font-bold">{weather.attributes.pressure}</div>
-                  <div className="text-xs text-gray-500">hPa</div>
-                </div>
-              )}
-            </div>
+              )
+            })}
           </div>
         ) : (
-          <div className="card py-3">
-            <h3 className="font-semibold mb-2 text-sm text-gray-400">OUTDOOR CONDITIONS</h3>
-            <p className="text-xs text-gray-500">No weather integration found. Add OpenWeatherMap in HA for outdoor data.</p>
-          </div>
+          <p className="text-xs text-gray-500">No actuators configured. Add equipment in Settings.</p>
         )}
-
-        {/* Equipment Summary */}
-        <div className="card py-3">
-          <h3 className="font-semibold mb-2 text-sm text-gray-400">EQUIPMENT ({equipment.length})</h3>
-          {equipment.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {equipment.map(eq => {
-                const isOn = eq.state === 'on'
-                return (
-                  <div
-                    key={eq.type}
-                    className={'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-sm ' +
-                      (isOn ? 'bg-green-900/20 border-green-600/40 text-white' : 'bg-[#1a1a2e] border-[#2d3a5c] text-gray-500')}
-                  >
-                    <span>{eq.icon}</span>
-                    <span className="text-xs font-medium">{eq.label}</span>
-                    {eq.count > 1 && <span className="text-xs text-gray-500">x{eq.count}</span>}
-                    <span className={'w-1.5 h-1.5 rounded-full ' + (isOn ? 'bg-green-400' : 'bg-gray-600')} />
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <p className="text-xs text-gray-500">No actuators configured. Add equipment in Settings.</p>
-          )}
-        </div>
       </div>
 
       {/* Flow diagram */}
@@ -920,6 +751,178 @@ export default function Climate() {
           />
         )}
       </div>
+    </div>
+  )
+}
+
+// --- Main Component ---
+
+export default function Climate() {
+  const { tents, loading: tentsLoading, connected } = useTents()
+  const { formatTemp, unit } = useTemperatureUnit()
+  const [config, setConfig] = useState(null)
+  const [suggestions, setSuggestions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(null)
+  const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
+  const [weather, setWeather] = useState(null)
+  const autoSaveTimer = useRef(null)
+  const isInitialLoad = useRef(true)
+
+  // Load config + suggestions + weather
+  useEffect(() => {
+    Promise.all([
+      apiFetch('api/config').then(r => r.json()).catch(() => null),
+      apiFetch('api/automations/suggestions').then(r => r.json()).catch(() => ({ suggestions: [] })),
+      apiFetch('api/system/entities?domain=weather').then(r => r.json()).catch(() => ({ entities: [] })),
+    ]).then(([configData, suggestionsData, entitiesData]) => {
+      if (configData) setConfig(configData)
+      setSuggestions(suggestionsData?.suggestions || [])
+      const weatherEntities = (entitiesData?.entities || []).filter(e => e.entity_id.startsWith('weather.'))
+      if (weatherEntities.length > 0) {
+        apiFetch('api/system/entity/' + weatherEntities[0].entity_id)
+          .then(r => r.json())
+          .then(data => setWeather(data))
+          .catch(() => {})
+      }
+    }).catch(() => {
+      setError('Failed to load climate data')
+    }).finally(() => {
+      setLoading(false)
+      setTimeout(() => { isInitialLoad.current = false }, 500)
+    })
+  }, [])
+
+  // Auto-save config changes
+  useEffect(() => {
+    if (isInitialLoad.current || !config) return
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(async () => {
+      try {
+        await apiFetch('api/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config)
+        })
+      } catch (err) {
+        setError('Failed to save targets')
+      }
+    }, 1500)
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current) }
+  }, [config])
+
+  const reloadSuggestions = async () => {
+    try {
+      const res = await apiFetch('api/automations/suggestions')
+      const data = await res.json()
+      setSuggestions(data.suggestions || [])
+    } catch {}
+  }
+
+  if (loading || tentsLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-400">Loading climate data...</div>
+      </div>
+    )
+  }
+
+  if (!config?.tents?.length) {
+    return (
+      <div className="card text-center py-12">
+        <div className="text-4xl mb-4">{'\u{1F331}'}</div>
+        <h3 className="text-xl font-semibold mb-2">No Tents Configured</h3>
+        <p className="text-gray-400 mb-4">Set up a tent in Settings to see the climate control flow.</p>
+        <a href="#/settings" className="btn btn-primary">Go to Settings</a>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-2xl font-bold">Climate Control</h2>
+        {!connected && (
+          <span className="text-xs text-red-400">Disconnected</span>
+        )}
+      </div>
+
+      {/* Status messages */}
+      {error && (
+        <div className="p-3 bg-red-500/20 border border-red-500/50 rounded text-red-300 text-sm">{error}</div>
+      )}
+      {success && (
+        <div className="p-3 bg-green-500/20 border border-green-500/50 rounded text-green-300 text-sm">{success}</div>
+      )}
+
+      {/* Outdoor Conditions */}
+      {weather ? (
+        <div className="card py-3">
+          <h3 className="font-semibold mb-2 text-sm text-gray-400">OUTDOOR CONDITIONS</h3>
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{'\u{1F326}\u{FE0F}'}</span>
+              <div>
+                <div className="text-sm font-medium capitalize">{weather.state}</div>
+                <div className="text-xs text-gray-500">{weather.attributes?.friendly_name || 'Weather'}</div>
+              </div>
+            </div>
+            {weather.attributes?.temperature != null && (
+              <div className="text-center">
+                <div className="text-lg font-bold">{formatTemp(weather.attributes.temperature)}</div>
+                <div className="text-xs text-gray-500">Temp</div>
+              </div>
+            )}
+            {weather.attributes?.humidity != null && (
+              <div className="text-center">
+                <div className="text-lg font-bold">{weather.attributes.humidity}%</div>
+                <div className="text-xs text-gray-500">Humidity</div>
+              </div>
+            )}
+            {weather.attributes?.wind_speed != null && (
+              <div className="text-center">
+                <div className="text-sm font-bold">{weather.attributes.wind_speed}</div>
+                <div className="text-xs text-gray-500">Wind</div>
+              </div>
+            )}
+            {weather.attributes?.pressure != null && (
+              <div className="text-center">
+                <div className="text-sm font-bold">{weather.attributes.pressure}</div>
+                <div className="text-xs text-gray-500">hPa</div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="card py-3">
+          <h3 className="font-semibold mb-2 text-sm text-gray-400">OUTDOOR CONDITIONS</h3>
+          <p className="text-xs text-gray-500">No weather integration found. Add OpenWeatherMap in HA for outdoor data.</p>
+        </div>
+      )}
+
+      {/* All tents */}
+      {(config?.tents || []).map(tentConfig => {
+        const tent = tents.find(t => t.id === tentConfig.id)
+        return (
+          <TentSection
+            key={tentConfig.id}
+            tent={tent}
+            tentConfig={tentConfig}
+            suggestions={suggestions}
+            config={config}
+            setConfig={setConfig}
+            creating={creating}
+            setCreating={setCreating}
+            setError={setError}
+            setSuccess={setSuccess}
+            reloadSuggestions={reloadSuggestions}
+            formatTemp={formatTemp}
+            unit={unit}
+          />
+        )
+      })}
 
       {/* Legend */}
       <div className="text-xs text-gray-500 flex items-center gap-4 flex-wrap">
