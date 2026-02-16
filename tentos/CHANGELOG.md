@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.39
+- Fix: Entities added via Settings UI now appear on Climate page (config.json entity assignments were being ignored in favor of options.json)
+
 ## 1.2.38
 - Add `fan` domain to Settings entity list (was missing — Sonoff fans and other fan entities now show up)
 

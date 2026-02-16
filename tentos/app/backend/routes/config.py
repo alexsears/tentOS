@@ -214,11 +214,19 @@ def _load_tents_from_options() -> list[TentConfig]:
         return []
 
 
+def _has_value(val) -> bool:
+    """Check if a sensor/actuator slot value is non-empty."""
+    if isinstance(val, list):
+        return any(v for v in val)
+    return bool(val)
+
+
 def load_config() -> AppConfig:
     """Load configuration from file.
 
-    Always uses options.json as source of truth for tent sensors/actuators.
-    Merges in targets/schedules from config.json if available.
+    Merges options.json (HA addon config) with config.json (Settings UI).
+    options.json provides base tent entity assignments.
+    config.json overrides per-slot when it has non-empty values (user edits via Settings UI).
     App settings (hiddenEntities, hiddenGroups, customNames) come from config.json.
     """
     # Load app-level config from config.json
@@ -231,16 +239,24 @@ def load_config() -> AppConfig:
         except Exception as e:
             logger.error(f"Failed to load config: {e}")
 
-    # Always load tents from options.json (authoritative source for entities)
+    # Load tents from options.json (HA addon config)
     options_tents = _load_tents_from_options()
 
     if app_config and options_tents:
-        # Merge: use options.json for sensors/actuators, config.json for targets/schedules
+        # Merge: options.json as base, config.json overrides per-slot
         config_tent_map = {t.id: t for t in app_config.tents}
         merged_tents = []
         for opt_tent in options_tents:
             cfg_tent = config_tent_map.get(opt_tent.id)
             if cfg_tent:
+                # Merge sensors: config.json overrides per-slot
+                for key, val in (cfg_tent.sensors or {}).items():
+                    if _has_value(val):
+                        opt_tent.sensors[key] = val
+                # Merge actuators: config.json overrides per-slot
+                for key, val in (cfg_tent.actuators or {}).items():
+                    if _has_value(val):
+                        opt_tent.actuators[key] = val
                 # Keep targets/schedules from config.json if they have data
                 if cfg_tent.targets:
                     opt_tent.targets = cfg_tent.targets
