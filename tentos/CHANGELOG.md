@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.38
+- Add `fan` domain to Settings entity list (was missing — Sonoff fans and other fan entities now show up)
+
 ## 1.2.37
 - Fix: Config API always uses options.json for tent sensors/actuators (authoritative source), merges targets from config.json
 - Fix: "My Tent" automations filter now works — show_all=false without tent_id was returning all automations

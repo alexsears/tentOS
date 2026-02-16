@@ -8,7 +8,8 @@ const ALLOWED_DOMAINS = new Set([
   'binary_sensor', // Leak sensors, motion, door/window
   'switch',        // Smart plugs for lights, fans, pumps
   'light',         // Grow lights with dimming
-  'climate',       // HVAC units
+  'fan',           // Exhaust fans, circulation fans
+  'climate',       // HVAC units (AC, thermostats)
   'humidifier',    // Humidifiers/dehumidifiers
   'water_heater',  // Reservoir heaters
   'counter',       // Event counters
@@ -23,13 +24,14 @@ const DOMAIN_INFO = {
   binary_sensor: { icon: '🚨', label: 'Binary Sensors', order: 2 },
   switch: { icon: '🔌', label: 'Switches', order: 3 },
   light: { icon: '💡', label: 'Lights', order: 4 },
-  climate: { icon: '🌡️', label: 'Climate', order: 5 },
-  humidifier: { icon: '💨', label: 'Humidifiers', order: 6 },
-  water_heater: { icon: '🔥', label: 'Water Heaters', order: 7 },
-  counter: { icon: '🔢', label: 'Counters', order: 8 },
-  camera: { icon: '📷', label: 'Cameras', order: 9 },
-  cover: { icon: '🚪', label: 'Covers', order: 10 },
-  button: { icon: '🔘', label: 'Buttons', order: 11 },
+  fan: { icon: '🌀', label: 'Fans', order: 5 },
+  climate: { icon: '🌡️', label: 'Climate', order: 6 },
+  humidifier: { icon: '💨', label: 'Humidifiers', order: 7 },
+  water_heater: { icon: '🔥', label: 'Water Heaters', order: 8 },
+  counter: { icon: '🔢', label: 'Counters', order: 9 },
+  camera: { icon: '📷', label: 'Cameras', order: 10 },
+  cover: { icon: '🚪', label: 'Covers', order: 11 },
+  button: { icon: '🔘', label: 'Buttons', order: 12 },
 }
 
 // Smart group detection rules
