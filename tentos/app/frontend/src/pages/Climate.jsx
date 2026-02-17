@@ -755,6 +755,129 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
   )
 }
 
+// --- Debug Panel ---
+
+function DebugPanel({ config, tents, suggestions }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="card mt-4 border border-yellow-600/30">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full text-left text-sm font-medium text-yellow-400 flex items-center gap-2"
+      >
+        <span>{open ? '\u25BC' : '\u25B6'}</span>
+        Debug Panel
+      </button>
+      {open && (
+        <div className="mt-3 space-y-4 text-xs font-mono">
+          {/* Config tents overview */}
+          <div>
+            <h4 className="text-yellow-400 font-bold mb-1">config.tents ({config?.tents?.length || 0})</h4>
+            {(config?.tents || []).map((t, i) => (
+              <div key={i} className="bg-[#1a1a2e] p-2 rounded mb-2">
+                <div className="text-white font-bold mb-1">Tent: {t.name} (id: {t.id})</div>
+                <div className="text-gray-400">
+                  <div>sensors: {JSON.stringify(t.sensors)}</div>
+                  <div className="mt-1">actuators: {JSON.stringify(t.actuators)}</div>
+                  <div className="mt-1">targets: {JSON.stringify(t.targets)}</div>
+                  <div className="mt-1">schedules: {JSON.stringify(t.schedules)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Live tents from useTents() */}
+          <div>
+            <h4 className="text-yellow-400 font-bold mb-1">useTents() ({tents?.length || 0})</h4>
+            {(tents || []).map((t, i) => (
+              <div key={i} className="bg-[#1a1a2e] p-2 rounded mb-2">
+                <div className="text-white font-bold mb-1">Tent: {t.name} (id: {t.id})</div>
+                <div className="text-gray-400">
+                  <div>avg_temperature: {t.avg_temperature}</div>
+                  <div>avg_humidity: {t.avg_humidity}</div>
+                  <div>vpd: {t.vpd}</div>
+                  <div>sensors: {JSON.stringify(t.sensors)}</div>
+                  <div className="mt-1">actuators: {JSON.stringify(t.actuators)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Chain building per tent */}
+          <div>
+            <h4 className="text-yellow-400 font-bold mb-1">buildChains() results</h4>
+            {(config?.tents || []).map((tentConfig, i) => {
+              const tent = tents?.find(t => t.id === tentConfig.id)
+              const chains = buildChains(tent, tentConfig, suggestions)
+              const actuators = tentConfig.actuators || {}
+              const sensors = tentConfig.sensors || {}
+              return (
+                <div key={i} className="bg-[#1a1a2e] p-2 rounded mb-2">
+                  <div className="text-white font-bold mb-1">{tentConfig.name}: {chains.length} chains</div>
+                  <div className="text-gray-500 mb-1">
+                    hasEntity checks:
+                    {Object.keys(ACTUATOR_INFO).map(k => (
+                      <span key={k} className={'ml-2 ' + (hasEntity(actuators, k) ? 'text-green-400' : 'text-red-400')}>
+                        {k}:{hasEntity(actuators, k) ? 'Y' : 'N'}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="text-gray-500 mb-1">
+                    sensor checks:
+                    {['temperature', 'humidity', 'co2', 'light_level'].map(k => (
+                      <span key={k} className={'ml-2 ' + (hasEntity(sensors, k) ? 'text-green-400' : 'text-red-400')}>
+                        {k}:{hasEntity(sensors, k) ? 'Y' : 'N'}
+                      </span>
+                    ))}
+                  </div>
+                  {chains.length > 0 ? chains.map((c, j) => (
+                    <div key={j} className="text-gray-400 ml-2">
+                      {c.templateId}: sensor={c.sensorValue} threshold={c.threshold} actuator={c.actuatorState} status={c.status}
+                    </div>
+                  )) : (
+                    <div className="text-red-400 ml-2">No chains built — all CHAIN_DEFS filtered out (missing actuators or sensors)</div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Suggestions */}
+          <div>
+            <h4 className="text-yellow-400 font-bold mb-1">suggestions ({suggestions?.length || 0})</h4>
+            <div className="bg-[#1a1a2e] p-2 rounded">
+              {suggestions?.length > 0
+                ? suggestions.map((s, i) => (
+                    <div key={i} className="text-gray-400">{s.tent_id}: {s.template_id}</div>
+                  ))
+                : <div className="text-gray-500">No suggestions returned</div>}
+            </div>
+          </div>
+
+          {/* ID matching */}
+          <div>
+            <h4 className="text-yellow-400 font-bold mb-1">Tent ID matching</h4>
+            <div className="bg-[#1a1a2e] p-2 rounded">
+              {(config?.tents || []).map((tc, i) => {
+                const match = tents?.find(t => t.id === tc.id)
+                return (
+                  <div key={i} className={'text-gray-400'}>
+                    config tent "{tc.id}" → useTents match: <span className={match ? 'text-green-400' : 'text-red-400'}>{match ? 'FOUND (id=' + match.id + ')' : 'NOT FOUND'}</span>
+                    {!match && tents?.length > 0 && (
+                      <span className="text-yellow-400"> (available IDs: {tents.map(t => t.id).join(', ')})</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // --- Main Component ---
 
 export default function Climate() {
@@ -940,6 +1063,9 @@ export default function Climate() {
         </span>
         <span>Click threshold values to edit</span>
       </div>
+
+      {/* Debug Panel */}
+      <DebugPanel config={config} tents={tents} suggestions={suggestions} />
     </div>
   )
 }

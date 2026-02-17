@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.41
+- Add debug panel to Climate page (collapsible, shows raw config, live tent data, chain building, and ID matching)
+
 ## 1.2.40
 - Climate page now shows all tents at once instead of a dropdown selector
 
