@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.42
+- Fix debug panel not showing when config.tents is empty (was behind early return)
+
 ## 1.2.41
 - Add debug panel to Climate page (collapsible, shows raw config, live tent data, chain building, and ID matching)
 

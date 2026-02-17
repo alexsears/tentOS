@@ -953,11 +953,14 @@ export default function Climate() {
 
   if (!config?.tents?.length) {
     return (
-      <div className="card text-center py-12">
-        <div className="text-4xl mb-4">{'\u{1F331}'}</div>
-        <h3 className="text-xl font-semibold mb-2">No Tents Configured</h3>
-        <p className="text-gray-400 mb-4">Set up a tent in Settings to see the climate control flow.</p>
-        <a href="#/settings" className="btn btn-primary">Go to Settings</a>
+      <div className="space-y-4">
+        <div className="card text-center py-12">
+          <div className="text-4xl mb-4">{'\u{1F331}'}</div>
+          <h3 className="text-xl font-semibold mb-2">No Tents Configured</h3>
+          <p className="text-gray-400 mb-4">Set up a tent in Settings to see the climate control flow.</p>
+          <a href="#/settings" className="btn btn-primary">Go to Settings</a>
+        </div>
+        <DebugPanel config={config} tents={tents} suggestions={suggestions} />
       </div>
     )
   }
