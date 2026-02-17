@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.43
+- Fix browser caching: nginx now sends no-cache headers for index.html
+- Add version indicator to Climate page header for cache verification
+
 ## 1.2.42
 - Fix debug panel not showing when config.tents is empty (was behind early return)
 
