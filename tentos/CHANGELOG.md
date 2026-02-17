@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.44
+- Move debug panel to top of Climate page (right after header)
+
 ## 1.2.43
 - Fix browser caching: nginx now sends no-cache headers for index.html
 - Add version indicator to Climate page header for cache verification

@@ -969,11 +969,14 @@ export default function Climate() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-2xl font-bold">Climate Control <span className="text-xs text-gray-600 font-normal">v1.2.43</span></h2>
+        <h2 className="text-2xl font-bold">Climate Control <span className="text-xs text-gray-600 font-normal">v1.2.44</span></h2>
         {!connected && (
           <span className="text-xs text-red-400">Disconnected</span>
         )}
       </div>
+
+      {/* Debug Panel - right after header */}
+      <DebugPanel config={config} tents={tents} suggestions={suggestions} />
 
       {/* Status messages */}
       {error && (
@@ -1067,8 +1070,6 @@ export default function Climate() {
         <span>Click threshold values to edit</span>
       </div>
 
-      {/* Debug Panel */}
-      <DebugPanel config={config} tents={tents} suggestions={suggestions} />
     </div>
   )
 }
