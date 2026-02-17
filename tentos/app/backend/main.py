@@ -130,6 +130,60 @@ async def health_check():
     }
 
 
+@app.get("/api/debug/climate")
+async def debug_climate():
+    """Debug page for Climate - bypasses frontend caching."""
+    from fastapi.responses import HTMLResponse
+    from routes.config import load_config
+    import json as json_mod
+
+    cfg = load_config()
+    tents_data = []
+    if state_manager:
+        for tent in state_manager.tents.values():
+            tents_data.append({
+                "id": tent.id,
+                "name": tent.name,
+                "avg_temperature": getattr(tent, 'avg_temperature', None),
+                "avg_humidity": getattr(tent, 'avg_humidity', None),
+                "vpd": getattr(tent, 'vpd', None),
+                "sensors": {k: str(v) for k, v in (getattr(tent, 'sensors', {}) or {}).items()},
+                "actuators": {k: str(v) for k, v in (getattr(tent, 'actuators', {}) or {}).items()},
+            })
+
+    config_dump = cfg.model_dump()
+    version = get_version()
+
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>TentOS Climate Debug</title>
+<style>body{{font-family:monospace;background:#111;color:#eee;padding:20px}}
+h1{{color:#facc15}}h2{{color:#4ade80;margin-top:20px}}
+pre{{background:#1a1a2e;padding:10px;border-radius:5px;overflow-x:auto;white-space:pre-wrap}}
+.ok{{color:#4ade80}}.bad{{color:#ef4444}}</style></head>
+<body>
+<h1>TentOS Climate Debug v{version}</h1>
+<p>This page is served directly by the backend — no frontend caching.</p>
+
+<h2>Config Tents ({len(config_dump.get('tents', []))})</h2>
+<pre>{json_mod.dumps(config_dump.get('tents', []), indent=2)}</pre>
+
+<h2>Live Tents from StateManager ({len(tents_data)})</h2>
+<pre>{json_mod.dumps(tents_data, indent=2)}</pre>
+
+<h2>Hidden Entities</h2>
+<pre>{json_mod.dumps(config_dump.get('hiddenEntities', []), indent=2)}</pre>
+
+<h2>Full Config</h2>
+<pre>{json_mod.dumps(config_dump, indent=2)}</pre>
+</body></html>"""
+
+    return HTMLResponse(content=html, headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+    })
+
+
 async def handle_chat_message(websocket: WebSocket, msg: dict, state_manager):
     """Handle incoming chat message via WebSocket."""
     from routes.chat import (

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.48
+- Add /api/debug/climate backend endpoint (bypasses all frontend caching)
+- Fix nginx no-cache headers to apply on all HTML responses (not just /index.html)
+
 ## 1.2.47
 - Debug panel starts open by default with loud yellow styling
 - Shows HTML version vs JS version to diagnose caching
