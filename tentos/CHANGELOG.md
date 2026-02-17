@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.49
+- Fix Climate page showing no chains: config tent IDs (timestamp-based) didn't match live tent IDs (name-based)
+- Match tents by name as fallback when IDs differ
+- Suggestions now match using both config ID and name-derived ID
+
 ## 1.2.48
 - Add /api/debug/climate backend endpoint (bypasses all frontend caching)
 - Fix nginx no-cache headers to apply on all HTML responses (not just /index.html)

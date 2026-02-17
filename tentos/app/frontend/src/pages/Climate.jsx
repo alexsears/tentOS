@@ -152,6 +152,17 @@ function hasEntity(mapping, key) {
   return !!val
 }
 
+function nameToId(name) {
+  return (name || '').toLowerCase().replace(/\s+/g, '_')
+}
+
+function findMatchingTent(tents, tentConfig) {
+  // Match by ID first, then fall back to name-based matching
+  return tents.find(t => t.id === tentConfig.id) ||
+    tents.find(t => t.id === nameToId(tentConfig.name)) ||
+    tents.find(t => nameToId(t.name) === nameToId(tentConfig.name))
+}
+
 function getSensorValue(tent, sensorType) {
   if (sensorType === 'temperature') return tent?.avg_temperature ?? tent?.sensors?.temperature?.value ?? null
   if (sensorType === 'humidity') return tent?.avg_humidity ?? tent?.sensors?.humidity?.value ?? null
@@ -183,10 +194,11 @@ function buildChains(tent, tentConfig, suggestions) {
   const actuators = tentConfig.actuators || {}
   const targets = tentConfig.targets || {}
   const tentId = tentConfig.id
+  const tentNameId = nameToId(tentConfig.name)
 
   const suggestionSet = new Set(
     (suggestions || [])
-      .filter(s => s.tent_id === tentId)
+      .filter(s => s.tent_id === tentId || s.tent_id === tentNameId)
       .map(s => s.template_id)
   )
 
@@ -549,6 +561,8 @@ function TargetsPanel({ tentConfig, onTargetChange, onScheduleChange, formatTemp
 function TentSection({ tent, tentConfig, suggestions, config, setConfig, creating, setCreating, setError, setSuccess, reloadSuggestions, formatTemp, unit }) {
   const [showTargets, setShowTargets] = useState(false)
   const tentId = tentConfig?.id
+  // Use the live tent's ID for API calls (name-derived), fall back to config ID
+  const apiTentId = tent?.id || nameToId(tentConfig?.name) || tentId
 
   const chains = useMemo(() => buildChains(tent, tentConfig, suggestions), [tent, tentConfig, suggestions])
   const missingCount = chains.filter(c => c.status === 'missing').length
@@ -595,7 +609,7 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
     setCreating(chain.templateId)
     setError(null)
     try {
-      const body = { tent_id: tentId }
+      const body = { tent_id: apiTentId }
       if (chain.condition === 'above' || chain.condition === 'below') {
         body.threshold = chain.threshold
       }
@@ -632,7 +646,7 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
     for (const chain of missing) {
       setCreating(chain.templateId)
       try {
-        const body = { tent_id: tentId }
+        const body = { tent_id: apiTentId }
         if (chain.condition === 'above' || chain.condition === 'below') {
           body.threshold = chain.threshold
         }
@@ -1035,7 +1049,7 @@ export default function Climate() {
 
       {/* All tents */}
       {(config?.tents || []).map(tentConfig => {
-        const tent = tents.find(t => t.id === tentConfig.id)
+        const tent = findMatchingTent(tents, tentConfig)
         return (
           <TentSection
             key={tentConfig.id}
