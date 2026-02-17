@@ -758,16 +758,18 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
 // --- Debug Panel ---
 
 function DebugPanel({ config, tents, suggestions }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
+  const htmlVersion = typeof window !== 'undefined' ? window.__TENTOS_HTML_VERSION__ : 'unknown'
 
   return (
-    <div className="card mt-4 border border-yellow-600/30">
+    <div className="card mt-4 border-2 border-yellow-500" style={{background: '#2a2000'}}>
+      <div className="text-yellow-300 font-bold text-lg mb-2">DEBUG PANEL (HTML: {htmlVersion} / JS: v1.2.47)</div>
       <button
         onClick={() => setOpen(!open)}
         className="w-full text-left text-sm font-medium text-yellow-400 flex items-center gap-2"
       >
         <span>{open ? '\u25BC' : '\u25B6'}</span>
-        Debug Panel
+        {open ? 'Collapse' : 'Expand'} Details
       </button>
       {open && (
         <div className="mt-3 space-y-4 text-xs font-mono">
@@ -969,7 +971,7 @@ export default function Climate() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-2xl font-bold">Climate Control <span className="text-xs text-gray-600 font-normal">v1.2.46</span></h2>
+        <h2 className="text-2xl font-bold">Climate Control <span className="text-xs text-gray-600 font-normal">v1.2.47</span></h2>
         {!connected && (
           <span className="text-xs text-red-400">Disconnected</span>
         )}

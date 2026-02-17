@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.47
+- Debug panel starts open by default with loud yellow styling
+- Shows HTML version vs JS version to diagnose caching
+
 ## 1.2.46
 - Add no-cache meta tags to index.html to prevent HA ingress caching
 
