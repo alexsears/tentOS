@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.46
+- Add no-cache meta tags to index.html to prevent HA ingress caching
+
 ## 1.2.45
 - Fix Docker layer caching: frontend now rebuilds on every version bump
 - Move debug panel to top of Climate page (right after header)
