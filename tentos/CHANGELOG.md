@@ -1,7 +1,11 @@
 # Changelog
 
-## 1.2.44
+## 1.2.45
+- Fix Docker layer caching: frontend now rebuilds on every version bump
 - Move debug panel to top of Climate page (right after header)
+
+## 1.2.44
+- (skipped — Docker cache served stale frontend)
 
 ## 1.2.43
 - Fix browser caching: nginx now sends no-cache headers for index.html

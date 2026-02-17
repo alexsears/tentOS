@@ -17,6 +17,10 @@ WORKDIR /app
 COPY app/backend/requirements.txt /app/backend/
 RUN pip3 install --no-cache-dir --break-system-packages -r /app/backend/requirements.txt
 
+# Bust Docker cache when version changes (BUILD_VERSION passed by Supervisor)
+ARG BUILD_VERSION
+RUN echo "Building TentOS ${BUILD_VERSION}"
+
 # Copy frontend and build
 COPY app/frontend /app/frontend
 WORKDIR /app/frontend
