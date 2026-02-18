@@ -376,16 +376,21 @@ class HAClient:
             "Content-Type": "application/json"
         }
         url = f"{self.rest_url}/config/automation/config/{config['id']}"
+        logger.info(f"Creating automation: POST {url}")
 
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=headers, json=config) as resp:
                 if resp.status in (200, 201):
-                    # Reload automations
-                    await self.call_service("automation", "reload")
+                    # Reload automations (non-fatal if this fails)
+                    try:
+                        await self.call_service("automation", "reload")
+                    except Exception as e:
+                        logger.warning(f"Automation created but reload failed: {e}")
                     return {"success": True}
                 else:
                     error = await resp.text()
-                    raise Exception(f"Failed to create automation: {error}")
+                    logger.error(f"HA API returned {resp.status}: {error}")
+                    raise Exception(f"HA returned {resp.status}: {error}")
 
     async def update_automation(self, automation_id: str, config: dict) -> dict:
         """Update an existing automation via HA config API."""

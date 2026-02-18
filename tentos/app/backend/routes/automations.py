@@ -441,8 +441,10 @@ class TemplateApply(BaseModel):
 @router.post("/templates/{template_id}/apply")
 async def apply_template(template_id: str, data: TemplateApply, request: Request):
     """Create an HA automation from a template."""
+    logger.info(f"apply_template: template={template_id}, tent_id={data.tent_id}")
+
     if template_id not in AUTOMATION_TEMPLATES:
-        raise HTTPException(status_code=404, detail="Template not found")
+        raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
 
     template = AUTOMATION_TEMPLATES[template_id]
     ha_client = request.app.state.ha_client
@@ -450,7 +452,9 @@ async def apply_template(template_id: str, data: TemplateApply, request: Request
 
     tent = state_manager.get_tent(data.tent_id)
     if not tent:
-        raise HTTPException(status_code=404, detail="Tent not found")
+        available = list(state_manager.tents.keys())
+        logger.error(f"Tent '{data.tent_id}' not found. Available: {available}")
+        raise HTTPException(status_code=404, detail=f"Tent '{data.tent_id}' not found. Available tents: {available}")
 
     sensors = tent.config.sensors or {}
     actuators = tent.config.actuators or {}

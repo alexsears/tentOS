@@ -618,21 +618,28 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
         body.time_on = (schedules.photoperiod_on || '06:00') + ':00'
         body.time_off = (schedules.photoperiod_off || '22:00') + ':00'
       }
+      console.log('[Climate] Creating automation:', chain.templateId, 'body:', body)
       const res = await apiFetch('api/automations/templates/' + chain.templateId + '/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.detail || 'Failed to create automation')
+        let detail = 'Failed to create automation (HTTP ' + res.status + ')'
+        try {
+          const data = await res.json()
+          detail = data.detail || detail
+        } catch { /* response wasn't JSON */ }
+        throw new Error(detail)
       }
+      const result = await res.json()
+      console.log('[Climate] Automation created:', result)
       setSuccess('Automation created: ' + chain.label)
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), 5000)
       await reloadSuggestions()
     } catch (err) {
-      setError(err.message)
-      setTimeout(() => setError(null), 5000)
+      console.error('[Climate] Create automation failed:', err)
+      setError('Create failed: ' + err.message)
     } finally {
       setCreating(null)
     }
@@ -643,6 +650,7 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
     if (missing.length === 0) return
     setError(null)
     let created = 0
+    const errors = []
     for (const chain of missing) {
       setCreating(chain.templateId)
       try {
@@ -655,17 +663,31 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
           body.time_on = (schedules.photoperiod_on || '06:00') + ':00'
           body.time_off = (schedules.photoperiod_off || '22:00') + ':00'
         }
+        console.log('[Climate] Creating automation:', chain.templateId, 'body:', body)
         const res = await apiFetch('api/automations/templates/' + chain.templateId + '/apply', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         })
-        if (res.ok) created++
-      } catch {}
+        if (res.ok) {
+          created++
+        } else {
+          let detail = 'HTTP ' + res.status
+          try { const d = await res.json(); detail = d.detail || detail } catch {}
+          errors.push(chain.label + ': ' + detail)
+        }
+      } catch (err) {
+        errors.push(chain.label + ': ' + err.message)
+      }
     }
     setCreating(null)
-    setSuccess('Created ' + created + ' automation' + (created !== 1 ? 's' : ''))
-    setTimeout(() => setSuccess(null), 3000)
+    if (created > 0) {
+      setSuccess('Created ' + created + ' automation' + (created !== 1 ? 's' : ''))
+      setTimeout(() => setSuccess(null), 5000)
+    }
+    if (errors.length > 0) {
+      setError('Failed: ' + errors.join('; '))
+    }
     await reloadSuggestions()
   }
 
@@ -996,7 +1018,10 @@ export default function Climate() {
 
       {/* Status messages */}
       {error && (
-        <div className="p-3 bg-red-500/20 border border-red-500/50 rounded text-red-300 text-sm">{error}</div>
+        <div className="p-3 bg-red-500/20 border border-red-500/50 rounded text-red-300 text-sm flex items-start justify-between gap-2">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-200 font-bold flex-shrink-0">X</button>
+        </div>
       )}
       {success && (
         <div className="p-3 bg-green-500/20 border border-green-500/50 rounded text-green-300 text-sm">{success}</div>

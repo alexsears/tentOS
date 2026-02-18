@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.50
+- Fix automation creation: errors now persist (dismissable) instead of vanishing after 5 seconds
+- Fix automation reload failure masking successful creation
+- Add detailed error messages showing HTTP status and HA response
+- Add console logging for debugging automation creation
+- Bulk create now shows per-chain error details
+
 ## 1.2.49
 - Fix Climate page showing no chains: config tent IDs (timestamp-based) didn't match live tent IDs (name-based)
 - Match tents by name as fallback when IDs differ
