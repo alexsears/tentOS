@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.52
+- Redesigned Climate page: cleaner, more scannable layout
+- Big live readings (temp, humidity, VPD) with in-range/out-of-range color coding
+- Equipment shown as compact inline pills — only configured items, no clutter
+- Automations as a simple list with status and one-click create
+- Inline threshold editing via pencil icon
+- Removed outdoor weather section, flow diagram, and legend
+- Single card per tent instead of multiple sections
+
 ## 1.2.51
 - Remove debug panel and hardcoded version from Climate page
 - Clean up Climate page UI
