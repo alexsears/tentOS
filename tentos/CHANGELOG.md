@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.51
+- Remove debug panel and hardcoded version from Climate page
+- Clean up Climate page UI
+
 ## 1.2.50
 - Fix automation creation: errors now persist (dismissable) instead of vanishing after 5 seconds
 - Fix automation reload failure masking successful creation
