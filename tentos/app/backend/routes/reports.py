@@ -131,9 +131,17 @@ async def get_history(
     result_data = {}
     stats = {}
 
+    # VPD is calculated from temp + humidity, so ensure both are fetched
+    fetch_list = list(sensor_list)
+    if "vpd" in fetch_list:
+        if "temperature" not in fetch_list:
+            fetch_list.append("temperature")
+        if "humidity" not in fetch_list:
+            fetch_list.append("humidity")
+
     # Collect all entity IDs we need to query
     entity_map = {}  # entity_id -> sensor_type
-    for sensor_type in sensor_list:
+    for sensor_type in fetch_list:
         if sensor_type == "vpd":
             continue  # VPD is calculated, not a direct sensor
         entity_ids = get_entity_ids_for_sensor(tent, sensor_type)
@@ -224,6 +232,13 @@ async def get_history(
                     "current": round(values[-1], 2) if values else None,
                     "points": len(data)
                 }
+
+    # Remove helper sensors that were only fetched for VPD calculation
+    for extra in ("temperature", "humidity"):
+        if extra not in sensor_list and extra in result_data:
+            del result_data[extra]
+        if extra not in sensor_list and extra in stats:
+            del stats[extra]
 
     # Fetch light state history for overlay
     light_periods = []

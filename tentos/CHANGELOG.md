@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.54
+- Fix VPD history: auto-fetch temperature+humidity when requesting VPD-only history (VPD is calculated, not a direct sensor)
+
 ## 1.2.53
 - Redesigned Climate page as VPD-centric dashboard
 - Large live VPD reading with color-coded in-range/out-of-range status
