@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useTent, useTents } from '../hooks/useTents'
 import { SensorChart } from '../components/SensorChart'
@@ -10,6 +10,7 @@ import { apiFetch } from '../utils/api'
 
 export default function TentDetail() {
   const { tentId } = useParams()
+  const navigate = useNavigate()
   const { tent, loading, error } = useTent(tentId)
   const { performAction } = useTents()
   const { formatTemp, getTempUnit } = useTemperatureUnit()
@@ -267,7 +268,22 @@ export default function TentDetail() {
               {tent.actuators?.humidifier && getActuatorControl('humidifier', 'Humidifier', '💨')}
               {tent.actuators?.dehumidifier && getActuatorControl('dehumidifier', 'Dehumidifier', '🏜️')}
               {tent.actuators?.heater && getActuatorControl('heater', 'Heater', '🔥')}
-              {tent.actuators?.ac && getActuatorControl('ac', 'A/C', '❄️')}
+              {tent.actuators?.ac && (
+                <button onClick={() => navigate('/climate')} className="card w-full text-left hover:bg-[#2d3a5c] transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-2xl ${tent.actuators.ac.state === 'cool' || tent.actuators.ac.state === 'on' ? '' : 'opacity-50'}`}>❄️</span>
+                      <div>
+                        <div className="font-medium">A/C</div>
+                        <div className={`text-sm ${tent.actuators.ac.state !== 'off' ? 'text-cyan-400' : 'text-gray-400'}`}>
+                          {tent.actuators.ac.state}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-gray-400 text-lg">→</span>
+                  </div>
+                </button>
+              )}
               {tent.actuators?.water_pump && getActuatorControl('water_pump', 'Water Pump 1', '🚿')}
               {tent.actuators?.water_pump_2 && getActuatorControl('water_pump_2', 'Water Pump 2', '🚿')}
               {tent.actuators?.water_pump_3 && getActuatorControl('water_pump_3', 'Water Pump 3', '🚿')}

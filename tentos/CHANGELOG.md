@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.53
+- Redesigned Climate page as VPD-centric dashboard
+- Large live VPD reading with color-coded in-range/out-of-range status
+- VPD history chart (ECharts) with target zone band and red/green visual map
+- Flower week timeline showing growth phases with VPD targets per week
+- Time range selector (6H, 12H, 24H, 3D, 7D) with dataZoom slider
+- Light period overlays on chart when available
+- Live WebSocket VPD updates appended to chart in real-time
+- Stats footer showing min, max, avg, current VPD
+- Moved automation chain builder to Automations > Chains tab
+
 ## 1.2.52
 - Redesigned Climate page: cleaner, more scannable layout
 - Big live readings (temp, humidity, VPD) with in-range/out-of-range color coding

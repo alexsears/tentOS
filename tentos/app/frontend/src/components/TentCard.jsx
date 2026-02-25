@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { getApiBase, apiFetch } from '../utils/api'
@@ -27,7 +27,7 @@ function getActuatorDef(slot) {
   return { icon: '⚡', activeColor: 'text-green-400', label: slot }
 }
 
-function ActuatorButton({ slot, state, pending, onToggle, customLabel, customIcon, friendlyName }) {
+function ActuatorButton({ slot, state, pending, onToggle, onClick, customLabel, customIcon, friendlyName }) {
   const def = getActuatorDef(slot)
   const isOn = state === 'on' || state === 'playing' || state === 'open'
   const isUnavailable = state === 'unavailable' || state === 'unknown'
@@ -38,7 +38,7 @@ function ActuatorButton({ slot, state, pending, onToggle, customLabel, customIco
 
   return (
     <button
-      onClick={() => onToggle(slot)}
+      onClick={onClick || (() => onToggle(slot))}
       disabled={pending || isUnavailable}
       className={`
         relative flex flex-col items-center justify-center p-3 rounded-lg
@@ -359,6 +359,7 @@ function GrowTentIcon({ color = '#22c55e', size = 40 }) {
 }
 
 export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlSettings, onRefresh }) {
+  const navigate = useNavigate()
   const { unit, formatTemp, getTempUnit } = useTemperatureUnit()
   const [editMode, setEditMode] = useState(false)
   const [editingSlot, setEditingSlot] = useState(null)
@@ -793,6 +794,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
                   state={getActuatorState(slot)}
                   pending={checkPending(slot)}
                   onToggle={handleToggle}
+                  onClick={slot === 'ac' ? () => navigate('/climate') : undefined}
                   customLabel={getDisplayLabel(slot)}
                   customIcon={getCustomIcon(slot)}
                   friendlyName={getActuatorName(slot)}

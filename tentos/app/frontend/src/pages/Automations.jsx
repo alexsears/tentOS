@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { apiFetch } from '../utils/api'
 import { usePreloadedData } from '../App'
+import AutomationChains from '../components/AutomationChains'
 
 // Tag colors
 const TAG_COLORS = {
@@ -862,6 +863,12 @@ export default function Automations() {
         >
           History
         </button>
+        <button
+          onClick={() => setActiveTab('chains')}
+          className={`px-4 py-2 font-medium ${activeTab === 'chains' ? 'border-b-2 border-orange-500 text-orange-400' : 'text-gray-400'}`}
+        >
+          Chains
+        </button>
       </div>
 
       {error && (
@@ -1076,6 +1083,11 @@ export default function Automations() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Chains Tab */}
+      {activeTab === 'chains' && (
+        <AutomationChains />
       )}
 
       {/* Bulk Actions Bar */}
