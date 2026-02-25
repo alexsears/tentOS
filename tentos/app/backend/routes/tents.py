@@ -410,65 +410,69 @@ async def flip_to_flower(
         # Create light automation if requested
         automation_id = None
         if flip_request.create_light_automation:
-            light_entity = tent.slot_to_entity.get("light")
-            if light_entity:
-                # Handle array of lights
-                if isinstance(light_entity, list):
-                    light_entity = light_entity[0] if light_entity else None
+            # Collect ALL light entities (light, light_2, light_3, ...)
+            light_entities = [
+                eid for slot, eid in tent.slot_to_entity.items()
+                if slot == "light" or slot.startswith("light_")
+            ]
 
-                if light_entity:
-                    auto_id = f"tentos_{tent_id}_flower_light"
+            if light_entities:
+                auto_id = f"tentos_{tent_id}_flower_light"
+                # Use single entity string if only one, else list
+                target_ids = light_entities[0] if len(light_entities) == 1 else light_entities
+                # Determine service domain from first entity
+                svc_domain = "light" if "light." in light_entities[0] else "switch"
 
-                    # Create automation config
-                    auto_config = {
-                        "id": auto_id,
-                        "alias": f"{tent.config.name} Flower Light Schedule (12/12)",
-                        "description": f"Auto-created by TentOS for flower stage - 12 hours on",
-                        "mode": "single",
-                        "trigger": [
-                            {
-                                "platform": "time",
-                                "at": flip_request.light_on_time + ":00"
-                            },
-                            {
-                                "platform": "time",
-                                "at": flip_request.light_off_time + ":00"
-                            }
-                        ],
-                        "action": [
-                            {
-                                "choose": [
-                                    {
-                                        "conditions": [
-                                            {
-                                                "condition": "time",
-                                                "after": flip_request.light_on_time + ":00",
-                                                "before": flip_request.light_off_time + ":00"
-                                            }
-                                        ],
-                                        "sequence": [
-                                            {
-                                                "service": "light.turn_on" if "light." in light_entity else "switch.turn_on",
-                                                "target": {"entity_id": light_entity}
-                                            }
-                                        ]
-                                    }
-                                ],
-                                "default": [
-                                    {
-                                        "service": "light.turn_off" if "light." in light_entity else "switch.turn_off",
-                                        "target": {"entity_id": light_entity}
-                                    }
-                                ]
-                            }
-                        ]
-                    }
+                # Create automation config
+                auto_config = {
+                    "id": auto_id,
+                    "alias": f"{tent.config.name} Flower Light Schedule (12/12)",
+                    "description": f"Auto-created by TentOS for flower stage - 12 hours on",
+                    "mode": "single",
+                    "trigger": [
+                        {
+                            "platform": "time",
+                            "at": flip_request.light_on_time + ":00"
+                        },
+                        {
+                            "platform": "time",
+                            "at": flip_request.light_off_time + ":00"
+                        }
+                    ],
+                    "action": [
+                        {
+                            "choose": [
+                                {
+                                    "conditions": [
+                                        {
+                                            "condition": "time",
+                                            "after": flip_request.light_on_time + ":00",
+                                            "before": flip_request.light_off_time + ":00"
+                                        }
+                                    ],
+                                    "sequence": [
+                                        {
+                                            "service": f"{svc_domain}.turn_on",
+                                            "target": {"entity_id": target_ids}
+                                        }
+                                    ]
+                                }
+                            ],
+                            "default": [
+                                {
+                                    "service": f"{svc_domain}.turn_off",
+                                    "target": {"entity_id": target_ids}
+                                }
+                            ]
+                        }
+                    ]
+                }
 
-                    try:
-                        await ha_client.create_automation(auto_config)
-                        automation_id = auto_id
-                    except Exception as e:
-                        logger.warning(f"Failed to create light automation: {e}")
+                try:
+                    await ha_client.create_automation(auto_config)
+                    automation_id = auto_id
+                except Exception as e:
+                    logger.warning(f"Failed to create light automation: {e}")
 
         # Reload config in state manager
         await state_manager.reload_config()

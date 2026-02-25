@@ -459,11 +459,11 @@ async def apply_template(template_id: str, data: TemplateApply, request: Request
     sensors = tent.config.sensors or {}
     actuators = tent.config.actuators or {}
 
-    # Get the actual entity IDs
+    # Get the actual entity IDs (supports multi-entity actuators)
     def get_entity(mapping, key):
         val = mapping.get(key)
         if isinstance(val, list):
-            return val[0] if val else None
+            return val if val else None
         return val
 
     actuator_entity = get_entity(actuators, template["actuator_type"])
