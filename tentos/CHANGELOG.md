@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.55
+- Group same-type actuators on dashboard (e.g. "Fans 2") into a single button with count badge
+- Click grouped button opens popup with individual toggle controls
+- Single-item types render as normal buttons (no change)
+- Edit mode unchanged — still shows all individual slots for reorder/rename
+
 ## 1.2.54
 - Fix VPD history: auto-fetch temperature+humidity when requesting VPD-only history (VPD is calculated, not a direct sensor)
 

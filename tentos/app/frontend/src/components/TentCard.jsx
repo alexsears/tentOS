@@ -27,6 +27,36 @@ function getActuatorDef(slot) {
   return { icon: '⚡', activeColor: 'text-green-400', label: slot }
 }
 
+// Plural labels for grouped actuators
+const GROUP_LABELS = {
+  light: 'Lights', exhaust_fan: 'Fans', circulation_fan: 'Circ Fans',
+  humidifier: 'Humidifiers', dehumidifier: 'Dehumidifiers', heater: 'Heaters',
+  ac: 'A/Cs', water_pump: 'Pumps', drain_pump: 'Drains'
+}
+
+function getBaseType(slot) {
+  if (ACTUATOR_ICONS[slot]) return slot
+  const match = slot.match(/^(.+)_(\d+)$/)
+  if (match && ACTUATOR_ICONS[match[1]]) return match[1]
+  return slot
+}
+
+function groupActuatorsByType(slots) {
+  const groups = []
+  const seen = new Set()
+  for (const slot of slots) {
+    const base = getBaseType(slot)
+    if (seen.has(base)) {
+      const group = groups.find(g => g.baseType === base)
+      if (group) group.slots.push(slot)
+    } else {
+      seen.add(base)
+      groups.push({ baseType: base, slots: [slot], def: ACTUATOR_ICONS[base] || { icon: '⚡', activeColor: 'text-green-400', label: base } })
+    }
+  }
+  return groups
+}
+
 function ActuatorButton({ slot, state, pending, onToggle, onClick, customLabel, customIcon, friendlyName }) {
   const def = getActuatorDef(slot)
   const isOn = state === 'on' || state === 'playing' || state === 'open'
@@ -72,6 +102,78 @@ function ActuatorButton({ slot, state, pending, onToggle, onClick, customLabel, 
           isOn ? 'bg-green-400' : 'bg-gray-600'}
       `} />
     </button>
+  )
+}
+
+function ActuatorGroupButton({ group, getState, onClick }) {
+  const def = group.def
+  const anyOn = group.slots.some(s => {
+    const st = getState(s)
+    return st === 'on' || st === 'playing' || st === 'open'
+  })
+  const label = GROUP_LABELS[group.baseType] || `${def.label}s`
+
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        relative flex flex-col items-center justify-center p-3 rounded-lg
+        transition-all duration-200 min-w-[70px]
+        ${anyOn
+          ? 'bg-green-900/30 hover:bg-green-900/50 border border-green-600/50'
+          : 'bg-[#1a1a2e] hover:bg-[#2d3a5c] border border-transparent'
+        }
+      `}
+      title={`${label} (${group.slots.length})`}
+    >
+      <span className={`text-2xl ${anyOn ? def.activeColor : 'text-gray-500'}`}>
+        {def.icon}
+      </span>
+      <span className={`text-xs mt-1 flex items-center gap-1 ${anyOn ? 'text-white' : 'text-gray-500'}`}>
+        {label}
+        <span className="bg-white/10 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+          {group.slots.length}
+        </span>
+      </span>
+      <span className={`absolute top-1 right-1 w-2 h-2 rounded-full ${anyOn ? 'bg-green-400' : 'bg-gray-600'}`} />
+    </button>
+  )
+}
+
+function GroupPopup({ group, getState, checkPending, onToggle, getDisplayLabel, getCustomIcon, getActuatorName, onClose }) {
+  const def = group.def
+  const label = GROUP_LABELS[group.baseType] || `${def.label}s`
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-[#16213e] rounded-lg w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+        <div className="p-4 border-b border-[#2d3a5c] flex items-center justify-between">
+          <h4 className="font-semibold flex items-center gap-2">
+            <span className="text-xl">{def.icon}</span> {label}
+          </h4>
+          <button onClick={onClose} className="text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-[#2d3a5c]">
+            ✕
+          </button>
+        </div>
+        <div className="p-4 space-y-2">
+          {group.slots.map(slot => (
+            <div key={slot} className="flex items-center gap-3">
+              <div className="flex-1">
+                <ActuatorButton
+                  slot={slot}
+                  state={getState(slot)}
+                  pending={checkPending(slot)}
+                  onToggle={onToggle}
+                  customLabel={getDisplayLabel(slot)}
+                  customIcon={getCustomIcon(slot)}
+                  friendlyName={getActuatorName(slot)}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -370,6 +472,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
   const [localIcons, setLocalIcons] = useState({})
   const [showFlipModal, setShowFlipModal] = useState(false)
   const [flipping, setFlipping] = useState(false)
+  const [openGroup, setOpenGroup] = useState(null)
 
   // Growth stage from tent data
   const growthStage = tent.growth_stage || {}
@@ -785,20 +888,29 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
               })}
             </div>
           ) : (
-            // Normal mode: clickable buttons
+            // Normal mode: grouped buttons
             <div className="flex flex-wrap gap-2">
-              {getDisplayOrder().map(slot => (
-                <ActuatorButton
-                  key={slot}
-                  slot={slot}
-                  state={getActuatorState(slot)}
-                  pending={checkPending(slot)}
-                  onToggle={handleToggle}
-                  onClick={slot === 'ac' ? () => navigate('/climate') : undefined}
-                  customLabel={getDisplayLabel(slot)}
-                  customIcon={getCustomIcon(slot)}
-                  friendlyName={getActuatorName(slot)}
-                />
+              {groupActuatorsByType(getDisplayOrder()).map(group => (
+                group.slots.length === 1 ? (
+                  <ActuatorButton
+                    key={group.slots[0]}
+                    slot={group.slots[0]}
+                    state={getActuatorState(group.slots[0])}
+                    pending={checkPending(group.slots[0])}
+                    onToggle={handleToggle}
+                    onClick={group.slots[0] === 'ac' ? () => navigate('/climate') : undefined}
+                    customLabel={getDisplayLabel(group.slots[0])}
+                    customIcon={getCustomIcon(group.slots[0])}
+                    friendlyName={getActuatorName(group.slots[0])}
+                  />
+                ) : (
+                  <ActuatorGroupButton
+                    key={group.baseType}
+                    group={group}
+                    getState={getActuatorState}
+                    onClick={() => setOpenGroup(group)}
+                  />
+                )
               ))}
             </div>
           )}
@@ -891,6 +1003,20 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           Details →
         </Link>
       </div>
+
+      {/* Actuator Group Popup */}
+      {openGroup && (
+        <GroupPopup
+          group={openGroup}
+          getState={getActuatorState}
+          checkPending={checkPending}
+          onToggle={handleToggle}
+          getDisplayLabel={getDisplayLabel}
+          getCustomIcon={getCustomIcon}
+          getActuatorName={getActuatorName}
+          onClose={() => setOpenGroup(null)}
+        />
+      )}
 
       {/* Flip Stage Modal */}
       {showFlipModal && (
