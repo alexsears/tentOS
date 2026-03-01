@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.56
+- Viewport-locked layout: app always fits on one screen without page-level scrolling
+- Header compacted (smaller padding, tighter nav spacing)
+- TentCard reduced spacing: smaller sensors, actuator buttons, camera preview
+- Content area scrolls internally when needed
+
 ## 1.2.55
 - Group same-type actuators on dashboard (e.g. "Fans 2") into a single button with count badge
 - Click grouped button opens popup with individual toggle controls

@@ -71,8 +71,8 @@ function ActuatorButton({ slot, state, pending, onToggle, onClick, customLabel, 
       onClick={onClick || (() => onToggle(slot))}
       disabled={pending || isUnavailable}
       className={`
-        relative flex flex-col items-center justify-center p-3 rounded-lg
-        transition-all duration-200 min-w-[70px]
+        relative flex flex-col items-center justify-center p-2 rounded-lg
+        transition-all duration-200 min-w-[60px]
         ${isUnavailable
           ? 'bg-gray-800 cursor-not-allowed opacity-50'
           : isOn
@@ -84,19 +84,19 @@ function ActuatorButton({ slot, state, pending, onToggle, onClick, customLabel, 
       title={`${displayLabel}: ${state || 'unknown'}`}
     >
       {/* Icon with animation for fans */}
-      <span className={`text-2xl ${isOn ? def.activeColor : 'text-gray-500'}
+      <span className={`text-xl ${isOn ? def.activeColor : 'text-gray-500'}
         ${isOn && (slot.includes('fan')) ? 'animate-spin' : ''}
       `} style={{ animationDuration: '2s' }}>
         {displayIcon}
       </span>
 
       {/* Label */}
-      <span className={`text-xs mt-1 ${isOn ? 'text-white' : 'text-gray-500'}`}>
+      <span className={`text-[10px] mt-0.5 ${isOn ? 'text-white' : 'text-gray-500'}`}>
         {displayLabel}
       </span>
 
       {/* State indicator dot */}
-      <span className={`absolute top-1 right-1 w-2 h-2 rounded-full
+      <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full
         ${pending ? 'bg-yellow-400 animate-pulse' :
           isUnavailable ? 'bg-gray-600' :
           isOn ? 'bg-green-400' : 'bg-gray-600'}
@@ -180,12 +180,12 @@ function GroupPopup({ group, getState, checkPending, onToggle, getDisplayLabel, 
 function SensorDisplay({ value, unit, label, icon, color = 'text-white' }) {
   return (
     <div className="text-center">
-      <div className="text-xs text-gray-500 mb-1">{icon}</div>
-      <div className={`text-xl font-bold ${color}`}>
+      <div className="text-[10px] text-gray-500">{icon}</div>
+      <div className={`text-lg font-bold leading-tight ${color}`}>
         {value != null ? value : '--'}
-        {value != null && unit && <span className="text-xs text-gray-400 ml-0.5">{unit}</span>}
+        {value != null && unit && <span className="text-[10px] text-gray-400 ml-0.5">{unit}</span>}
       </div>
-      <div className="text-xs text-gray-400">{label}</div>
+      <div className="text-[10px] text-gray-400">{label}</div>
     </div>
   )
 }
@@ -236,7 +236,7 @@ function CameraPreview({ tentId, entityId }) {
       {/* Normal preview */}
       {!expanded && (
         <div
-          className="relative rounded-lg overflow-hidden cursor-pointer bg-gray-900 h-32"
+          className="relative rounded-lg overflow-hidden cursor-pointer bg-gray-900 h-24"
           onClick={handleClick}
           role="button"
           tabIndex={0}
@@ -704,25 +704,25 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
   return (
     <div className="card hover:border-green-600/50 transition-colors">
       {/* Header */}
-      <div className="flex items-start gap-3 mb-3">
-        <GrowTentIcon color={getTentColor()} size={48} />
+      <div className="flex items-start gap-2 mb-2">
+        <GrowTentIcon color={getTentColor()} size={36} />
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between">
             <div>
-              <Link to={`/tent/${tent.id}`} className="text-lg font-semibold hover:text-green-400">
+              <Link to={`/tent/${tent.id}`} className="text-base font-semibold hover:text-green-400">
                 {tent.name}
               </Link>
               {tent.description && (
-                <p className="text-sm text-gray-400">{tent.description}</p>
+                <p className="text-xs text-gray-400">{tent.description}</p>
               )}
             </div>
             <div className="flex items-center gap-2">
               {tent.alerts?.length > 0 && (
-                <span className="badge badge-danger animate-pulse">
-                  {tent.alerts.length} Alert{tent.alerts.length !== 1 && 's'}
+                <span className="badge badge-danger animate-pulse text-xs">
+                  {tent.alerts.length}
                 </span>
               )}
-              <span className={`text-2xl font-bold ${getScoreColor(tent.environment_score)}`}>
+              <span className={`text-xl font-bold ${getScoreColor(tent.environment_score)}`}>
                 {tent.environment_score || '--'}
               </span>
             </div>
@@ -731,7 +731,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
       </div>
 
       {/* Growth Stage Badge */}
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between">
         <GrowthStageBadge
           stage={currentStage}
           flowerWeek={flowerWeek}
@@ -746,7 +746,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
       </div>
 
       {/* Sensors - Real-time values */}
-      <div className="grid grid-cols-4 gap-2 mb-4 p-3 bg-[#1a1a2e] rounded-lg">
+      <div className="grid grid-cols-4 gap-2 mb-2 p-2 bg-[#1a1a2e] rounded-lg">
         <SensorDisplay
           value={temp != null ? formatTemp(temp, 1) : null}
           unit={getTempUnit()}
@@ -789,7 +789,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
 
       {/* Camera Preview */}
       {getCameras().length > 0 && (
-        <div className="mb-4">
+        <div className="mb-2">
           <div className="text-xs text-gray-500 mb-2">Camera{getCameras().length > 1 ? 's' : ''}</div>
           <div className={`grid gap-2 ${getCameras().length > 1 ? 'grid-cols-2' : ''}`}>
             {getCameras().map(cameraId => (
@@ -805,7 +805,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
 
       {/* Actuators - Clickable Controls */}
       {getDisplayOrder().length > 0 && (
-        <div className="mb-4">
+        <div className="mb-2">
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs text-gray-500">
               {editMode ? 'Drag to reorder, click ✏️ to rename' : 'Controls (click to toggle)'}
@@ -967,7 +967,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
 
       {/* Alerts */}
       {tent.alerts?.length > 0 && (
-        <div className="mb-4 space-y-1">
+        <div className="mb-2 space-y-1">
           {tent.alerts.slice(0, 2).map((alert, i) => {
             // Format alert message based on user's temperature preference
             let message = alert.message
@@ -995,7 +995,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-3 border-t border-[#2d3a5c]">
+      <div className="flex items-center justify-between pt-2 border-t border-[#2d3a5c]">
         <div className="text-xs text-gray-500">
           {tent.last_updated && `Updated: ${new Date(tent.last_updated).toLocaleTimeString()}`}
         </div>

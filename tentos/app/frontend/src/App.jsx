@@ -95,40 +95,40 @@ function AppContent() {
 
   return (
     <PreloadContext.Provider value={preloadedData}>
-    <div className="min-h-screen">
+    <div className="h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="bg-[#16213e] border-b border-[#2d3a5c] sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3">
+      <header className="bg-[#16213e] border-b border-[#2d3a5c] shrink-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">🌿</span>
-              <h1 className="text-xl font-semibold">TentOS</h1>
+              <span className="text-xl">🌿</span>
+              <h1 className="text-lg font-semibold">TentOS</h1>
               {version && <span className="text-xs text-gray-500">v{version}</span>}
               {updateAvailable && (
                 <a
                   href="/hassio/addon/f2f41762_tentos/info"
                   target="_top"
-                  className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-colors"
+                  className="px-2 py-0.5 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-colors"
                   title={`v${latestVersion} available - click to update in HA`}
                 >
-                  Update Available
+                  Update
                 </a>
               )}
               <TempToggle />
             </div>
 
-            <nav className="flex items-center gap-1">
+            <nav className="flex items-center gap-0.5">
               {navItems.map(item => (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg transition-colors text-sm ${
                     location.pathname === item.path
                       ? 'bg-green-600/20 text-green-400'
                       : 'hover:bg-[#1f2b4d] text-gray-300'
                   }`}
                 >
-                  <span className="mr-2">{item.icon}</span>
+                  <span className="mr-1">{item.icon}</span>
                   {item.label}
                 </Link>
               ))}
@@ -156,18 +156,20 @@ function AppContent() {
       {/* Alert Banner */}
       <AlertBanner />
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/climate" element={<Climate />} />
-          <Route path="/tent/:tentId" element={<TentDetail />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/automations" element={<Automations />} />
-          <Route path="/events" element={<Events />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/settings" element={<Settings />} />
-        </Routes>
+      {/* Main Content - scrolls internally */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/climate" element={<Climate />} />
+            <Route path="/tent/:tentId" element={<TentDetail />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/automations" element={<Automations />} />
+            <Route path="/events" element={<Events />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/settings" element={<Settings />} />
+          </Routes>
+        </div>
       </main>
     </div>
     </PreloadContext.Provider>

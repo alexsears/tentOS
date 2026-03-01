@@ -38,12 +38,12 @@ export default function Home() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold">Dashboard</h2>
-          <p className="text-gray-400">
-            {tents.length} tent{tents.length !== 1 && 's'} configured
-          </p>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-bold">Dashboard</h2>
+          <span className="text-sm text-gray-400">
+            {tents.length} tent{tents.length !== 1 && 's'}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
@@ -53,7 +53,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {tents.map(tent => (
           <TentCard
             key={tent.id}
