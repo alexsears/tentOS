@@ -226,7 +226,10 @@ API from one origin and is suitable for Cloud Run or another container host.
 ### Android app
 
 The `android-app` directory contains a thin Capacitor shell for the hosted
-standalone website. Build it with JDK 17 and the Android SDK installed:
+TentOS service. The checked-in build targets the LAN-only Home Assistant add-on
+at `http://192.168.77.50:8109`; change `server.url` in
+`android-app/capacitor.config.json` for another HA host. Build it with JDK 17
+and the Android SDK installed:
 
 ```powershell
 cd android-app

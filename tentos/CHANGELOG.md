@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.57
+- Expose the TentOS web interface on LAN host port 8109 for the Android app
+- Keep Home Assistant API credentials inside the add-on container
+
 ## 1.2.56
 - Viewport-locked layout: app always fits on one screen without page-level scrolling
 - Header compacted (smaller padding, tighter nav spacing)

@@ -1,6 +1,6 @@
 name: "TentOS"
 description: "Monitor and automate indoor grow tents with scheduling, alerts, and visualization"
-version: "1.2.56"
+version: "1.2.57"
 slug: "tentos"
 url: "https://github.com/alexsears/tentOS"
 arch:
@@ -12,6 +12,8 @@ hassio_api: true
 auth_api: true
 ingress: true
 ingress_port: 8099
+ports:
+  8099/tcp: 8109
 panel_icon: "mdi:sprout"
 panel_title: "TentOS"
 map:
@@ -88,4 +90,4 @@ schema:
 startup: "application"
 boot: "auto"
 ports_description:
-  8099/tcp: "Web interface (ingress)"
+  8099/tcp: "Web interface (LAN; mapped to host port 8109)"
