@@ -346,7 +346,7 @@ export default function EntityInventory({
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full min-h-0 w-full flex flex-col">
       <div className="p-3 border-b border-[#2d3a5c] space-y-2">
         <h3 className="font-semibold text-sm">Available Entities</h3>
 
@@ -376,7 +376,7 @@ export default function EntityInventory({
         />
 
         {!slotFilter && (
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
@@ -451,7 +451,7 @@ export default function EntityInventory({
         )}
 
         {/* Selection controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleSelectAllVisible}
             className="text-xs text-gray-400 hover:text-white"
@@ -467,11 +467,11 @@ export default function EntityInventory({
 
           {/* Action buttons - visible when entities are selected */}
           {visibleSelectedCount > 0 && (
-            <div className="ml-auto flex items-center gap-1.5">
+            <div className="w-full sm:w-auto sm:ml-auto grid grid-cols-2 sm:flex items-center gap-1.5">
               {onQuickAdd && (
                 <button
                   onClick={() => onQuickAdd(filteredEntities.filter(e => selectedEntities.includes(e.entity_id)))}
-                  className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-colors"
+                  className="min-h-10 px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-colors"
                 >
                   + Add to Tent
                 </button>
@@ -482,7 +482,7 @@ export default function EntityInventory({
                     onHideEntities(filteredEntities.filter(e => selectedEntities.includes(e.entity_id)).map(e => e.entity_id))
                     onDeselectAll()
                   }}
-                  className="px-3 py-1 rounded bg-gray-600 hover:bg-gray-700 text-white text-xs font-medium transition-colors"
+                  className="min-h-10 px-3 py-1 rounded bg-gray-600 hover:bg-gray-700 text-white text-xs font-medium transition-colors"
                   title="Hide selected entities"
                 >
                   Hide

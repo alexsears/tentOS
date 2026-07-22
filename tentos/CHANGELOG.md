@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.59
+- Add a phone-first Entities/Tents workflow to the Tent Builder
+- Make entity filters, tent actions, slots, and Quick Add controls touch-friendly
+- Keep Settings tabs and builder content usable without horizontal overflow
+
 ## 1.2.58
 - Add a phone-first bottom navigation bar with a More sheet for secondary pages
 - Prevent mobile header overflow and add safe-area spacing for Android navigation
