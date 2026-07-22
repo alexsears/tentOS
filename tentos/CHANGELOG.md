@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.58
+- Add a phone-first bottom navigation bar with a More sheet for secondary pages
+- Prevent mobile header overflow and add safe-area spacing for Android navigation
+- Make dashboard cards more compact with touch-sized responsive actuator controls
+- Hide dashboard camera previews on small screens while keeping them available in details
+
 ## 1.2.57
 - Expose the TentOS web interface on LAN host port 8109 for the Android app
 - Keep Home Assistant API credentials inside the add-on container
