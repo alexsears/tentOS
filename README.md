@@ -211,6 +211,35 @@ npm run dev
 
 Dev mode activates automatically when `/data` doesn't exist, providing mock sensor data for two tents with simulated temperature and humidity fluctuations.
 
+### Standalone website
+
+TentOS can also run outside Home Assistant with simulated tent data:
+
+```bash
+docker build -f Dockerfile.standalone -t tentos-standalone .
+docker run --rm -p 8080:8080 tentos-standalone
+```
+
+Open `http://localhost:8080`. The standalone container serves the React app and
+API from one origin and is suitable for Cloud Run or another container host.
+
+### Android app
+
+The `android-app` directory contains a thin Capacitor shell for the hosted
+TentOS service. The checked-in build targets the LAN-only Home Assistant add-on
+at `http://192.168.77.50:8109`; change `server.url` in
+`android-app/capacitor.config.json` for another HA host. Build it with JDK 17
+and the Android SDK installed:
+
+```powershell
+cd android-app
+npm ci
+npm run android:build
+```
+
+The release APK is written under
+`android-app/android/app/build/outputs/apk/release/`.
+
 ## Tech Stack
 
 | Layer | Technology |

@@ -6,6 +6,8 @@ import yaml
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
@@ -123,10 +125,12 @@ app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
+    standalone = settings.standalone_mode
     return {
         "status": "healthy",
         "version": get_version(),
-        "ha_connected": ha_client.connected if ha_client else False
+        "mode": "standalone" if standalone else "home_assistant",
+        "ha_connected": False if standalone else (ha_client.connected if ha_client else False)
     }
 
 
@@ -315,3 +319,20 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         state_manager.remove_websocket_client(websocket)
+
+
+# A standalone deployment serves the compiled React application from the same
+# origin as the API. Home Assistant add-on builds continue to use nginx.
+frontend_dir = os.environ.get("FRONTEND_DIR")
+if frontend_dir and os.path.isdir(frontend_dir):
+    assets_dir = os.path.join(frontend_dir, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def standalone_frontend(full_path: str):
+        requested_file = os.path.abspath(os.path.join(frontend_dir, full_path))
+        frontend_root = os.path.abspath(frontend_dir)
+        if requested_file.startswith(frontend_root + os.sep) and os.path.isfile(requested_file):
+            return FileResponse(requested_file)
+        return FileResponse(os.path.join(frontend_root, "index.html"))

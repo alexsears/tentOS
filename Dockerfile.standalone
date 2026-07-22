@@ -1,0 +1,22 @@
+FROM node:20-alpine AS frontend
+WORKDIR /build
+COPY tentos/app/frontend/package*.json ./
+RUN npm ci
+COPY tentos/app/frontend/ ./
+RUN npm run build
+
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FRONTEND_DIR=/app/frontend \
+    STANDALONE_MODE=true
+WORKDIR /app/backend
+COPY tentos/app/backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY tentos/app/backend/ ./
+COPY tentos/config.yaml /app/config.yaml
+COPY tentos/app/backend/data/options.json /app/default-options.json
+COPY --from=frontend /build/dist /app/frontend
+RUN mkdir -p /data
+EXPOSE 8080
+CMD ["sh", "-c", "test -f /data/options.json || cp /app/default-options.json /data/options.json; uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]

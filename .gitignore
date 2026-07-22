@@ -35,3 +35,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local Android verification artifacts
+TentOS*.apk
+tentos-emulator.png
+tentos-review.png

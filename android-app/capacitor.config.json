@@ -1,0 +1,13 @@
+{
+  "appId": "org.alexsears.tentos",
+  "appName": "TentOS",
+  "webDir": "www",
+  "server": {
+    "url": "http://192.168.77.50:8109",
+    "cleartext": true,
+    "androidScheme": "http"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
