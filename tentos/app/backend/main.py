@@ -125,10 +125,12 @@ app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
+    standalone = settings.standalone_mode
     return {
         "status": "healthy",
         "version": get_version(),
-        "ha_connected": ha_client.connected if ha_client else False
+        "mode": "standalone" if standalone else "home_assistant",
+        "ha_connected": False if standalone else (ha_client.connected if ha_client else False)
     }
 
 
