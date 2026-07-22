@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TentOS</string>
+    <string name="title_activity_main">TentOS</string>
+    <string name="package_name">org.alexsears.tentos</string>
+    <string name="custom_url_scheme">org.alexsears.tentos</string>
+</resources>

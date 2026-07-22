@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     supervisor_token: str = Field(default="")
     hassio_token: str = Field(default="")
     ingress_path: str = Field(default="")
+    standalone_mode: bool = Field(default=False)
 
     class Config:
         env_prefix = ""
@@ -51,7 +52,7 @@ class Settings(BaseSettings):
     @property
     def is_dev_mode(self) -> bool:
         """Check if running in local dev mode."""
-        return not Path("/data").exists()
+        return self.standalone_mode or not Path("/data").exists()
 
     def load_addon_options(self) -> dict:
         """Load add-on options from options.json."""

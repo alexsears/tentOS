@@ -1,0 +1,13 @@
+{
+  "appId": "org.alexsears.tentos",
+  "appName": "TentOS",
+  "webDir": "www",
+  "server": {
+    "url": "https://tentos-preview-790843761307.us-central1.run.app",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
