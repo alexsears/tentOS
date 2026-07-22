@@ -24,6 +24,21 @@ body {
   overflow: hidden;
 }
 
+button, a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (max-width: 767px) {
+  .card {
+    border-radius: 1rem;
+    padding: 0.75rem;
+  }
+}
+
 .card {
   @apply bg-[#16213e] rounded-xl border border-[#2d3a5c] p-3 shadow-lg;
 }

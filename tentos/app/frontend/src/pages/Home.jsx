@@ -39,9 +39,9 @@ export default function Home() {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold">Dashboard</h2>
-          <span className="text-sm text-gray-400">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <h2 className="text-lg sm:text-xl font-bold">Dashboard</h2>
+          <span className="text-xs sm:text-sm text-gray-400">
             {tents.length} tent{tents.length !== 1 && 's'}
           </span>
         </div>
@@ -53,7 +53,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3">
         {tents.map(tent => (
           <TentCard
             key={tent.id}

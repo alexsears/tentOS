@@ -38,6 +38,7 @@ function AppContent() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [latestVersion, setLatestVersion] = useState('')
   const [preloadedData, setPreloadedData] = useState({ automations: null, events: null, tents: null })
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { lastMessage } = useWebSocket('api/ws')
 
   useEffect(() => {
@@ -92,17 +93,23 @@ function AppContent() {
     { path: '/chat', label: 'Chat', icon: '💬' },
     { path: '/settings', label: 'Settings', icon: '⚙️' },
   ]
+  const mobilePrimaryItems = navItems.slice(0, 4)
+  const mobileMoreItems = navItems.slice(4)
+
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
 
   return (
     <PreloadContext.Provider value={preloadedData}>
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Header */}
       <header className="bg-[#16213e] border-b border-[#2d3a5c] shrink-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-2">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-xl">🌿</span>
-              <h1 className="text-lg font-semibold">TentOS</h1>
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <span className="text-xl shrink-0">🌿</span>
+              <h1 className="text-lg font-semibold shrink-0">TentOS</h1>
               {version && <span className="text-xs text-gray-500">v{version}</span>}
               {updateAvailable && (
                 <a
@@ -117,7 +124,7 @@ function AppContent() {
               <TempToggle />
             </div>
 
-            <nav className="flex items-center gap-0.5">
+            <nav className="hidden md:flex items-center gap-0.5">
               {navItems.map(item => (
                 <Link
                   key={item.path}
@@ -136,7 +143,7 @@ function AppContent() {
 
             {/* Alert indicator */}
             {alerts.total > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-2">
                 {alerts.critical > 0 && (
                   <span className="badge badge-danger">
                     {alerts.critical} Critical
@@ -158,7 +165,7 @@ function AppContent() {
 
       {/* Main Content - scrolls internally */}
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 pb-24 md:pb-4">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/climate" element={<Climate />} />
@@ -171,6 +178,56 @@ function AppContent() {
           </Routes>
         </div>
       </main>
+
+      <nav className="md:hidden fixed inset-x-0 bottom-0 z-50 bg-[#121a31]/95 backdrop-blur border-t border-[#2d3a5c] safe-bottom">
+        <div className="grid grid-cols-5 h-16">
+          {mobilePrimaryItems.map(item => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`flex flex-col items-center justify-center gap-0.5 text-[11px] transition-colors ${
+                location.pathname === item.path ? 'text-green-400' : 'text-gray-400 active:text-white'
+              }`}
+            >
+              <span className="text-xl leading-none">{item.icon}</span>
+              <span>{item.label}</span>
+            </Link>
+          ))}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(open => !open)}
+            className={`flex flex-col items-center justify-center gap-0.5 text-[11px] ${
+              mobileMenuOpen || mobileMoreItems.some(item => location.pathname === item.path)
+                ? 'text-green-400' : 'text-gray-400'
+            }`}
+            aria-expanded={mobileMenuOpen}
+            aria-label="More navigation"
+          >
+            <span className="text-xl leading-none">•••</span>
+            <span>More</span>
+          </button>
+        </div>
+      </nav>
+
+      {mobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-black/60" onClick={() => setMobileMenuOpen(false)}>
+          <div
+            className="absolute inset-x-3 bottom-20 rounded-2xl border border-[#2d3a5c] bg-[#16213e] p-2 shadow-2xl"
+            onClick={event => event.stopPropagation()}
+          >
+            {mobileMoreItems.map(item => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className="flex items-center gap-3 min-h-12 px-4 rounded-xl text-gray-200 active:bg-[#2d3a5c]"
+              >
+                <span className="text-xl">{item.icon}</span>
+                <span className="font-medium">{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
     </PreloadContext.Provider>
   )

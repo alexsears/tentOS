@@ -72,7 +72,7 @@ function ActuatorButton({ slot, state, pending, onToggle, onClick, customLabel, 
       disabled={pending || isUnavailable}
       className={`
         relative flex flex-col items-center justify-center p-2 rounded-lg
-        transition-all duration-200 min-w-[60px]
+        transition-all duration-200 min-w-0 min-h-16 w-full sm:w-auto sm:min-w-[60px]
         ${isUnavailable
           ? 'bg-gray-800 cursor-not-allowed opacity-50'
           : isOn
@@ -117,8 +117,8 @@ function ActuatorGroupButton({ group, getState, onClick }) {
     <button
       onClick={onClick}
       className={`
-        relative flex flex-col items-center justify-center p-3 rounded-lg
-        transition-all duration-200 min-w-[70px]
+        relative flex flex-col items-center justify-center p-2 sm:p-3 rounded-lg
+        transition-all duration-200 min-w-0 min-h-16 w-full sm:w-auto sm:min-w-[70px]
         ${anyOn
           ? 'bg-green-900/30 hover:bg-green-900/50 border border-green-600/50'
           : 'bg-[#1a1a2e] hover:bg-[#2d3a5c] border border-transparent'
@@ -307,7 +307,7 @@ function GrowthStageBadge({ stage, flowerWeek, onFlip, loading }) {
       {/* Stage indicator */}
       <button
         className={`
-          px-3 py-1.5 rounded-full font-medium text-sm flex items-center gap-2 cursor-pointer
+          px-2.5 sm:px-3 py-1.5 rounded-full font-medium text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 cursor-pointer
           transition-all active:scale-95 border-2 border-transparent hover:border-white/20
           ${isFlower
             ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-lg shadow-pink-500/30'
@@ -702,7 +702,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
   }
 
   return (
-    <div className="card hover:border-green-600/50 transition-colors">
+    <div className="card hover:border-green-600/50 transition-colors overflow-hidden">
       {/* Header */}
       <div className="flex items-start gap-2 mb-2">
         <GrowTentIcon color={getTentColor()} size={36} />
@@ -713,7 +713,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
                 {tent.name}
               </Link>
               {tent.description && (
-                <p className="text-xs text-gray-400">{tent.description}</p>
+                <p className="hidden sm:block text-xs text-gray-400">{tent.description}</p>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -731,7 +731,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
       </div>
 
       {/* Growth Stage Badge */}
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <GrowthStageBadge
           stage={currentStage}
           flowerWeek={flowerWeek}
@@ -739,14 +739,14 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           loading={flipping}
         />
         {growthStage.vpd_target && (
-          <div className="text-xs text-gray-400">
+          <div className="hidden sm:block text-xs text-gray-400 text-right">
             Target VPD: {growthStage.vpd_target.min}-{growthStage.vpd_target.max} kPa
           </div>
         )}
       </div>
 
       {/* Sensors - Real-time values */}
-      <div className="grid grid-cols-4 gap-2 mb-2 p-2 bg-[#1a1a2e] rounded-lg">
+      <div className="grid grid-cols-4 gap-1 sm:gap-2 mb-2 p-2 bg-[#1a1a2e] rounded-lg">
         <SensorDisplay
           value={temp != null ? formatTemp(temp, 1) : null}
           unit={getTempUnit()}
@@ -789,7 +789,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
 
       {/* Camera Preview */}
       {getCameras().length > 0 && (
-        <div className="mb-2">
+        <div className="hidden sm:block mb-2">
           <div className="text-xs text-gray-500 mb-2">Camera{getCameras().length > 1 ? 's' : ''}</div>
           <div className={`grid gap-2 ${getCameras().length > 1 ? 'grid-cols-2' : ''}`}>
             {getCameras().map(cameraId => (
@@ -889,7 +889,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
             </div>
           ) : (
             // Normal mode: grouped buttons
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(64px,1fr))] gap-2 sm:flex sm:flex-wrap">
               {groupActuatorsByType(getDisplayOrder()).map(group => (
                 group.slots.length === 1 ? (
                   <ActuatorButton
