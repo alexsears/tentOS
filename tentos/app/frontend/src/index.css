@@ -32,6 +32,14 @@ button, a {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 @media (max-width: 767px) {
   .card {
     border-radius: 1rem;

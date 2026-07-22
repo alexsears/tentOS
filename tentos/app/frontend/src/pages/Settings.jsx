@@ -22,6 +22,7 @@ export default function Settings() {
   const [selectedEntities, setSelectedEntities] = useState([]) // Multi-select for bulk add
   const [autoSaveStatus, setAutoSaveStatus] = useState(null) // 'saving' | 'saved' | 'error'
   const [quickAddModal, setQuickAddModal] = useState(null) // { entity, guessedTentId, compatibleSlots, selectedTentId, selectedSlot }
+  const [mobileBuilderPanel, setMobileBuilderPanel] = useState('tents')
   const isInitialLoad = useRef(true)
   const autoSaveTimer = useRef(null)
 
@@ -443,6 +444,7 @@ export default function Settings() {
   // Handle slot selection (pass tentId along)
   const handleSlotSelect = (slotInfo) => {
     setSlotFilter(slotInfo)
+    setMobileBuilderPanel('entities')
   }
 
   // Check for updates
@@ -620,9 +622,9 @@ export default function Settings() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Settings</h2>
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xl sm:text-2xl font-bold">Settings</h2>
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Auto-save status indicator */}
           <div className="flex items-center gap-2 text-sm">
             {autoSaveStatus === 'saving' && (
@@ -635,12 +637,12 @@ export default function Settings() {
               <span className="text-red-400">Save failed</span>
             )}
             {!autoSaveStatus && !loading && (
-              <span className="text-gray-500">Auto-save on</span>
+              <span className="hidden sm:inline text-gray-500">Auto-save on</span>
             )}
           </div>
           <button
             onClick={validateConfig}
-            className="btn"
+            className="btn btn-sm sm:px-4 sm:py-2"
             disabled={saving}
           >
             Validate
@@ -661,10 +663,10 @@ export default function Settings() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-[#2d3a5c]">
+      <div className="flex gap-1 sm:gap-2 border-b border-[#2d3a5c] overflow-x-auto scrollbar-none">
         <button
           onClick={() => setActiveTab('builder')}
-          className={`px-4 py-2 -mb-px border-b-2 transition-colors ${
+          className={`px-3 sm:px-4 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
             activeTab === 'builder'
               ? 'border-green-500 text-green-400'
               : 'border-transparent text-gray-400 hover:text-white'
@@ -674,7 +676,7 @@ export default function Settings() {
         </button>
         <button
           onClick={() => setActiveTab('status')}
-          className={`px-4 py-2 -mb-px border-b-2 transition-colors ${
+          className={`px-3 sm:px-4 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
             activeTab === 'status'
               ? 'border-green-500 text-green-400'
               : 'border-transparent text-gray-400 hover:text-white'
@@ -684,7 +686,7 @@ export default function Settings() {
         </button>
         <button
           onClick={() => setActiveTab('reference')}
-          className={`px-4 py-2 -mb-px border-b-2 transition-colors ${
+          className={`px-3 sm:px-4 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
             activeTab === 'reference'
               ? 'border-green-500 text-green-400'
               : 'border-transparent text-gray-400 hover:text-white'
@@ -694,7 +696,7 @@ export default function Settings() {
         </button>
         <button
           onClick={() => { setActiveTab('updates'); checkForUpdates() }}
-          className={`px-4 py-2 -mb-px border-b-2 transition-colors ${
+          className={`px-3 sm:px-4 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
             activeTab === 'updates'
               ? 'border-green-500 text-green-400'
               : 'border-transparent text-gray-400 hover:text-white'
@@ -711,15 +713,31 @@ export default function Settings() {
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" style={{ minHeight: '600px' }}>
+          <div className="lg:hidden grid grid-cols-2 gap-1 p-1 rounded-xl bg-[#10172b] border border-[#2d3a5c]">
+            <button
+              type="button"
+              onClick={() => setMobileBuilderPanel('entities')}
+              className={`min-h-11 rounded-lg text-sm font-medium ${mobileBuilderPanel === 'entities' ? 'bg-green-600 text-white' : 'text-gray-400'}`}
+            >
+              1. Entities
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMobileBuilderPanel('tents'); setSlotFilter(null); setSelectedEntities([]) }}
+              className={`min-h-11 rounded-lg text-sm font-medium ${mobileBuilderPanel === 'tents' ? 'bg-green-600 text-white' : 'text-gray-400'}`}
+            >
+              2. Tents
+            </button>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:min-h-[600px]">
             {/* Entity Inventory (Left Panel) */}
-            <div className="lg:col-span-1 card p-0 overflow-hidden">
+            <div className={`${mobileBuilderPanel === 'entities' ? 'flex' : 'hidden'} lg:flex lg:col-span-1 card p-0 overflow-hidden max-h-[65vh] lg:max-h-none`}>
               <EntityInventory
                 entities={entities}
                 slots={slots}
                 assignedEntities={getAssignedEntities()}
                 slotFilter={slotFilter}
-                onClearFilter={() => { setSlotFilter(null); setSelectedEntities([]) }}
+                onClearFilter={() => { setSlotFilter(null); setSelectedEntities([]); setMobileBuilderPanel('tents') }}
                 selectedEntities={selectedEntities}
                 onToggleSelect={handleToggleSelect}
                 onSelectAll={handleSelectAll}
@@ -737,7 +755,7 @@ export default function Settings() {
             </div>
 
             {/* Tent Builder (Right Panel) */}
-            <div className="lg:col-span-2 overflow-auto">
+            <div className={`${mobileBuilderPanel === 'tents' ? 'block' : 'hidden'} lg:block lg:col-span-2 overflow-visible lg:overflow-auto`}>
               <TentBuilder
                 config={config}
                 slots={slots}
@@ -789,8 +807,8 @@ export default function Settings() {
           </DragOverlay>
           {/* Quick Add Modal */}
           {quickAddModal && (
-            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setQuickAddModal(null)}>
-              <div className="bg-[#16213e] rounded-lg p-5 w-96 max-w-[90vw] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setQuickAddModal(null)}>
+              <div className="bg-[#16213e] rounded-t-2xl sm:rounded-lg p-4 sm:p-5 w-full sm:w-96 sm:max-w-[90vw] max-h-[88vh] sm:max-h-[80vh] flex flex-col safe-bottom" onClick={e => e.stopPropagation()}>
                 <h3 className="font-semibold text-lg mb-4">
                   Add {quickAddModal.entities.length} {quickAddModal.entities.length === 1 ? 'Entity' : 'Entities'} to Tent
                 </h3>
@@ -848,11 +866,11 @@ export default function Settings() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 justify-end">
-                  <button onClick={() => setQuickAddModal(null)} className="btn">
+                <div className="grid grid-cols-2 sm:flex gap-2 sm:justify-end">
+                  <button onClick={() => setQuickAddModal(null)} className="btn min-h-11">
                     Cancel
                   </button>
-                  <button onClick={confirmQuickAdd} className="btn btn-primary">
+                  <button onClick={confirmQuickAdd} className="btn btn-primary min-h-11">
                     Add to Tent
                   </button>
                 </div>

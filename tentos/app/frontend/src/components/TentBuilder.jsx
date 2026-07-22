@@ -40,7 +40,7 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
       <div
         ref={setNodeRef}
         onClick={handleClick}
-        className={`px-2.5 py-1.5 rounded border border-dashed transition-all cursor-pointer flex items-center gap-1.5
+        className={`min-h-11 px-2.5 py-1.5 rounded border border-dashed transition-all cursor-pointer flex items-center gap-1.5
           ${isOver
             ? 'border-green-500 bg-green-500/10'
             : isSelected
@@ -60,7 +60,7 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
     <div
       ref={setNodeRef}
       onClick={handleClick}
-      className={`p-3 rounded-lg border-2 border-dashed transition-all cursor-pointer
+      className={`p-2.5 sm:p-3 rounded-lg border-2 border-dashed transition-all cursor-pointer min-w-0
         ${isOver
           ? 'border-green-500 bg-green-500/10'
           : isSelected
@@ -409,7 +409,7 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
   return (
     <div className="card">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 mb-4">
         <button
           onClick={() => setExpanded(!expanded)}
           className="text-lg"
@@ -418,12 +418,12 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
         </button>
 
         {editing ? (
-          <div className="flex-1 flex gap-2">
+          <div className="basis-full sm:basis-auto flex-1 grid grid-cols-2 sm:flex gap-2 order-last sm:order-none">
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              className="input flex-1"
+              className="input col-span-2 sm:flex-1 min-w-0"
               placeholder="Tent name"
             />
             <button onClick={saveInfo} className="btn btn-primary">Save</button>
@@ -437,20 +437,20 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
                 <p className="text-sm text-gray-400">{tent.description}</p>
               )}
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="hidden sm:flex items-center gap-2 text-sm text-gray-400">
               <span>{sensorCount} sensors</span>
               <span>•</span>
               <span>{actuatorCount} actuators</span>
             </div>
             <button
               onClick={() => setEditing(true)}
-              className="px-2 py-1 hover:bg-[#2d3a5c] rounded text-sm"
+              className="min-h-10 px-2 py-1 hover:bg-[#2d3a5c] rounded text-sm"
             >
               ✏️ Edit
             </button>
             <button
               onClick={() => onDelete(tent.id)}
-              className="px-2 py-1 hover:bg-red-500/20 rounded text-red-400 text-sm"
+              className="min-h-10 px-2 py-1 hover:bg-red-500/20 rounded text-red-400 text-sm"
             >
               🗑️ Delete
             </button>
@@ -478,7 +478,7 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
             {usedSensors.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-gray-400 mb-2">Sensors</h4>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {usedSensors.map(([slotType, slotDef]) => (
                     <Slot
                       key={slotType}
@@ -502,7 +502,7 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
             {usedActuators.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-gray-400 mb-2">Actuators</h4>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {usedActuators.map(([slotType, slotDef]) => (
                     <Slot
                       key={slotType}
