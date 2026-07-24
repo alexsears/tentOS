@@ -1,5 +1,9 @@
 fastapi==0.109.0
-uvicorn[standard]==0.27.0
+# NOTE: no [standard] extra — it pulls watchfiles/httptools, which have no
+# 32-bit ARM (armv7/armhf) musllinux wheels and fail to build (Rust target
+# arm-unknown-linux-musleabihf unsupported by rustup). watchfiles is only
+# needed for --reload (dev); websockets below keeps WebSocket support.
+uvicorn==0.27.0
 websockets==12.0
 aiohttp==3.9.1
 sqlalchemy==2.0.25
