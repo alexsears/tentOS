@@ -22,7 +22,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [aarch64, amd64, armhf, armv7]
+        # Only arches declared in tentos/config.yaml `arch:` — 32-bit ARM
+        # (armhf/armv7) dropped: pydantic-core has no musllinux ARM32 wheels
+        # and the HA wheels index no longer carries cp311 builds.
+        arch: [aarch64, amd64]
 
     steps:
       - name: Checkout
