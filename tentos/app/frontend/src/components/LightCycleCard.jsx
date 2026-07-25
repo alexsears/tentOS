@@ -69,6 +69,7 @@ export function LightCycleCard({ tent }) {
   const [enabled, setEnabled] = useState(saved?.enabled ?? false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null) // { type: 'ok'|'error', text }
+  const [warning, setWarning] = useState(null) // backup-automation warning from the API
   const [dragging, setDragging] = useState(null) // 'start' | 'end' | 'move' | null
 
   const trackRef = useRef(null)
@@ -188,6 +189,7 @@ export function LightCycleCard({ tent }) {
   const save = async () => {
     setSaving(true)
     setMessage(null)
+    setWarning(null)
     try {
       const res = await apiFetch(`api/tents/${tent.id}/light-cycle`, {
         method: 'PUT',
@@ -208,6 +210,7 @@ export function LightCycleCard({ tent }) {
         type: 'ok',
         text: data.applied_now ? 'Saved, light state applied' : 'Saved'
       })
+      if (data.warning) setWarning(data.warning)
       setTimeout(() => setMessage(null), 4000)
     } catch (e) {
       setMessage({ type: 'error', text: e.message })
@@ -394,6 +397,11 @@ export function LightCycleCard({ tent }) {
           </span>
         )}
       </div>
+      {warning && (
+        <div className="mt-3 text-xs text-yellow-400/90 bg-yellow-500/10 border border-yellow-500/30 rounded p-2">
+          {warning}
+        </div>
+      )}
     </div>
   )
 }

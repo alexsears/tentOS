@@ -444,12 +444,47 @@ async def update_light_cycle(
             except Exception as e:
                 logger.warning(f"Immediate light cycle apply failed: {e}")
 
+        # Belt-and-suspenders: sync native HA backup automations that flip the
+        # lights at the schedule boundaries even if the add-on is stopped.
+        # The in-app scheduler stays primary; both derive from the same saved
+        # schedule so they cannot disagree. Failure here never blocks the save.
+        from light_scheduler import sync_light_cycle_automations, log_light_event
+
+        warning = None
+        try:
+            fresh_tent = state_manager.get_tent(tent_id)
+            light_entities = [
+                entity_id
+                for slot, entity_id in (fresh_tent.slot_to_entity if fresh_tent else {}).items()
+                if slot == "light" or slot.startswith("light_")
+            ]
+            await sync_light_cycle_automations(
+                request.app.state.ha_client,
+                tent_id,
+                tent.config.name,
+                cycle.enabled,
+                cycle.on_time,
+                off_time,
+                light_entities,
+            )
+        except Exception as e:
+            logger.error(f"Failed to sync backup light automations: {e}")
+            warning = (
+                "Schedule saved, but the backup Home Assistant automations "
+                f"could not be updated: {e}"
+            )
+            try:
+                await log_light_event(tent_id, warning)
+            except Exception:
+                pass
+
         return {
             "success": True,
             "light_cycle": schedules["light_cycle"],
             "photoperiod_on": cycle.on_time,
             "photoperiod_off": off_time,
             "applied_now": applied_now,
+            "warning": warning,
         }
 
     except HTTPException:

@@ -62,6 +62,130 @@ def duration_hours_from_times(on_time: str, off_time: str) -> float:
     return (minutes or 24 * 60) / 60
 
 
+LIGHT_CYCLE_AUTOMATION_DESCRIPTION = (
+    "Managed by TentOS light cycle. Edits will be overwritten."
+)
+
+
+def light_cycle_automation_ids(tent_id: str) -> tuple[str, str]:
+    """Config-entry ids of the backup HA automations for a tent (on, off)."""
+    return (
+        f"tentos_light_cycle_{tent_id}_on",
+        f"tentos_light_cycle_{tent_id}_off",
+    )
+
+
+def build_light_cycle_automations(
+    tent_id: str,
+    tent_name: str,
+    on_time: str,
+    off_time: str,
+    light_entities: list[str],
+) -> list[dict]:
+    """Build the pair of backup HA automation configs for a tent's light cycle.
+
+    Pure function. Returns [on_config, off_config]:
+    - tentos_light_cycle_<tent_id>_on: time trigger at on_time, turns lights on
+    - tentos_light_cycle_<tent_id>_off: time trigger at off_time, turns lights off
+
+    Uses homeassistant.turn_on/turn_off so mixed switch./light. entities work.
+    These are a belt-and-suspenders backup: the in-app scheduler is primary and
+    self-corrects drift; these fire at the boundaries even if the add-on is down.
+    """
+    if not light_entities:
+        raise ValueError("light_entities must not be empty")
+    parse_hhmm(on_time)
+    parse_hhmm(off_time)
+
+    # Single entity as plain string, list otherwise (matches flip-to-flower)
+    target_ids = light_entities[0] if len(light_entities) == 1 else list(light_entities)
+    on_id, off_id = light_cycle_automation_ids(tent_id)
+
+    return [
+        {
+            "id": on_id,
+            "alias": f"{tent_name} Light Cycle On (TentOS)",
+            "description": LIGHT_CYCLE_AUTOMATION_DESCRIPTION,
+            "mode": "single",
+            "trigger": [{"platform": "time", "at": on_time + ":00"}],
+            "action": [
+                {
+                    "service": "homeassistant.turn_on",
+                    "target": {"entity_id": target_ids},
+                }
+            ],
+        },
+        {
+            "id": off_id,
+            "alias": f"{tent_name} Light Cycle Off (TentOS)",
+            "description": LIGHT_CYCLE_AUTOMATION_DESCRIPTION,
+            "mode": "single",
+            "trigger": [{"platform": "time", "at": off_time + ":00"}],
+            "action": [
+                {
+                    "service": "homeassistant.turn_off",
+                    "target": {"entity_id": target_ids},
+                }
+            ],
+        },
+    ]
+
+
+async def sync_light_cycle_automations(
+    ha_client,
+    tent_id: str,
+    tent_name: str,
+    enabled: bool,
+    on_time: str,
+    off_time: str,
+    light_entities: list[str],
+):
+    """Create/update or delete the backup HA automations for a tent.
+
+    enabled + lights configured: upsert both automations to match the schedule.
+    Otherwise: delete both if they exist. Idempotent: existence is checked via
+    the HA automation config API (keyed by config id) before choosing
+    create vs update / delete vs skip. Raises on write failure.
+    """
+    on_id, off_id = light_cycle_automation_ids(tent_id)
+
+    if enabled and light_entities:
+        configs = build_light_cycle_automations(
+            tent_id, tent_name, on_time, off_time, light_entities
+        )
+        for config in configs:
+            existing = await ha_client.get_automation_config(config["id"])
+            if existing:
+                await ha_client.update_automation(config["id"], config)
+                logger.info(f"Updated backup automation {config['id']}")
+            else:
+                await ha_client.create_automation(config)
+                logger.info(f"Created backup automation {config['id']}")
+    else:
+        for auto_id in (on_id, off_id):
+            existing = await ha_client.get_automation_config(auto_id)
+            if existing:
+                await ha_client.delete_automation(auto_id)
+                logger.info(f"Deleted backup automation {auto_id}")
+
+
+async def log_light_event(tent_id: str, notes: str):
+    """Record a light_schedule event in the activity log."""
+    try:
+        from database import async_session, Event
+
+        async with async_session() as session:
+            session.add(Event(
+                tent_id=tent_id,
+                event_type="light_schedule",
+                notes=notes,
+                user="tentos",
+            ))
+            await session.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log light schedule event: {e}")
+
+
 def validate_light_cycle(mode: str, hours: float) -> None:
     """Validate mode + photoperiod hours against per-mode bounds.
 
@@ -217,16 +341,4 @@ class LightScheduler:
 
     async def _log_event(self, tent_id: str, notes: str):
         """Record a light_schedule event in the activity log."""
-        try:
-            from database import async_session, Event
-
-            async with async_session() as session:
-                session.add(Event(
-                    tent_id=tent_id,
-                    event_type="light_schedule",
-                    notes=notes,
-                    user="tentos",
-                ))
-                await session.commit()
-        except Exception as e:
-            logger.warning(f"Failed to log light schedule event: {e}")
+        await log_light_event(tent_id, notes)

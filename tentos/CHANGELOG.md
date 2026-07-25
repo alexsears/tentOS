@@ -6,6 +6,8 @@
 - Lights-off is now a real time input next to lights-on; editing either recomputes the photoperiod (equal times mean 24h)
 - All editors stay in sync: presets, linear slider, time inputs, and bar handles share one state
 - Durations clamp live to the mode's range (veg 12-24h, flower 6-12h) instead of erroring
+- Backup Home Assistant automations: saving with automatic control on also writes tentos_light_cycle_<tent>_on/_off native automations that flip the lights at the boundaries even if the add-on is stopped; every save rewrites them, disabling automatic control deletes them
+- If the backup automations cannot be written the schedule still saves; the UI shows a warning and the failure is logged to the tent's events
 
 ## 1.3.0
 - Per-tent veg/flower light cycle with a visual photoperiod slider (veg 12-24h, flower 6-12h)

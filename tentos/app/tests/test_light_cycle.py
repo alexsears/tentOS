@@ -4,12 +4,15 @@ import sys
 sys.path.insert(0, '../backend')
 
 from light_scheduler import (
+    LIGHT_CYCLE_AUTOMATION_DESCRIPTION,
     PHOTOPERIOD_BOUNDS,
     PHOTOPERIOD_PRESETS,
+    build_light_cycle_automations,
     compute_off_time,
     desired_light_state,
     duration_hours_from_times,
     format_hhmm,
+    light_cycle_automation_ids,
     parse_hhmm,
     validate_light_cycle,
 )
@@ -108,6 +111,60 @@ class TestValidation:
         for mode, hours in PHOTOPERIOD_PRESETS.items():
             lo, hi = PHOTOPERIOD_BOUNDS[mode]
             assert lo <= hours <= hi
+
+
+class TestAutomationBuilder:
+    """Test the backup HA automation payload builder (pure function)."""
+
+    def test_ids(self):
+        assert light_cycle_automation_ids("veg_tent") == (
+            "tentos_light_cycle_veg_tent_on",
+            "tentos_light_cycle_veg_tent_off",
+        )
+
+    def test_pair_structure(self):
+        on_cfg, off_cfg = build_light_cycle_automations(
+            "veg_tent", "Veg Tent", "06:00", "00:00", ["switch.veg_tent_light"]
+        )
+        assert on_cfg["id"] == "tentos_light_cycle_veg_tent_on"
+        assert off_cfg["id"] == "tentos_light_cycle_veg_tent_off"
+        assert on_cfg["trigger"] == [{"platform": "time", "at": "06:00:00"}]
+        assert off_cfg["trigger"] == [{"platform": "time", "at": "00:00:00"}]
+        assert on_cfg["action"][0]["service"] == "homeassistant.turn_on"
+        assert off_cfg["action"][0]["service"] == "homeassistant.turn_off"
+        assert on_cfg["mode"] == "single"
+        assert "Veg Tent" in on_cfg["alias"]
+
+    def test_description_text(self):
+        for cfg in build_light_cycle_automations(
+            "t", "T", "06:00", "18:00", ["light.a"]
+        ):
+            assert cfg["description"] == LIGHT_CYCLE_AUTOMATION_DESCRIPTION
+            assert "—" not in cfg["description"]  # no em-dashes
+
+    def test_single_entity_is_string(self):
+        on_cfg, _ = build_light_cycle_automations(
+            "t", "T", "06:00", "18:00", ["switch.only"]
+        )
+        assert on_cfg["action"][0]["target"]["entity_id"] == "switch.only"
+
+    def test_multiple_entities_is_list(self):
+        entities = ["switch.a", "light.b", "switch.c"]
+        on_cfg, off_cfg = build_light_cycle_automations(
+            "t", "T", "20:00", "14:00", entities
+        )
+        assert on_cfg["action"][0]["target"]["entity_id"] == entities
+        assert off_cfg["action"][0]["target"]["entity_id"] == entities
+
+    def test_no_entities_raises(self):
+        with pytest.raises(ValueError):
+            build_light_cycle_automations("t", "T", "06:00", "18:00", [])
+
+    def test_invalid_times_raise(self):
+        with pytest.raises(ValueError):
+            build_light_cycle_automations("t", "T", "26:00", "18:00", ["light.a"])
+        with pytest.raises(ValueError):
+            build_light_cycle_automations("t", "T", "06:00", "", ["light.a"])
 
 
 class TestDesiredState:
