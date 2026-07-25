@@ -36,6 +36,7 @@ def get_version():
     return "1.0.0"
 from database import init_db, get_db
 from ha_client import HAClient
+from light_scheduler import LightScheduler
 from routes import tents, events, alerts, system, config, automations, reports, updates, camera, chat
 from state_manager import StateManager
 
@@ -48,12 +49,13 @@ logger = logging.getLogger(__name__)
 # Global state
 ha_client: HAClient | None = None
 state_manager: StateManager | None = None
+light_scheduler: LightScheduler | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle."""
-    global ha_client, state_manager
+    global ha_client, state_manager, light_scheduler
 
     logger.info("Initializing Tent Garden Manager...")
 
@@ -68,6 +70,10 @@ async def lifespan(app: FastAPI):
     state_manager = StateManager(ha_client)
     app.state.state_manager = state_manager
 
+    # Initialize light cycle scheduler
+    light_scheduler = LightScheduler(ha_client, state_manager)
+    app.state.light_scheduler = light_scheduler
+
     # Connect to Home Assistant
     try:
         await ha_client.connect()
@@ -75,6 +81,9 @@ async def lifespan(app: FastAPI):
 
         # Start state subscription
         asyncio.create_task(state_manager.start())
+
+        # Start light cycle enforcement
+        await light_scheduler.start()
 
         # Send one-time install ping
         from routes.telemetry import ping_install
@@ -86,6 +95,8 @@ async def lifespan(app: FastAPI):
 
     # Cleanup
     logger.info("Shutting down...")
+    if light_scheduler:
+        await light_scheduler.stop()
     if state_manager:
         await state_manager.stop()
     if ha_client:

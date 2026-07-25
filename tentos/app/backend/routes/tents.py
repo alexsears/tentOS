@@ -45,6 +45,14 @@ class FlipToFlowerRequest(BaseModel):
     light_off_time: str = "18:00"
 
 
+class LightCycleRequest(BaseModel):
+    """Request model for setting a tent's light cycle (photoperiod)."""
+    mode: str  # veg | flower
+    photoperiod_hours: float  # veg: 12-24, flower: 6-12
+    on_time: str = "06:00"  # lights-on time HH:MM
+    enabled: bool = True  # whether TentOS actively switches the light
+
+
 def get_state_manager(request: Request) -> StateManager:
     """Get state manager from app state."""
     return request.app.state.state_manager
@@ -359,6 +367,95 @@ async def update_control_settings(
         raise
     except Exception as e:
         logger.error(f"Failed to update control settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{tent_id}/light-cycle")
+async def update_light_cycle(
+    tent_id: str,
+    cycle: LightCycleRequest,
+    request: Request,
+    state_manager: StateManager = Depends(get_state_manager)
+):
+    """Set a tent's light cycle: veg/flower mode, photoperiod hours, lights-on time.
+
+    Persists photoperiod_on/photoperiod_off (plus the light_cycle block) into the
+    tent's schedules and syncs growth_stage. When enabled, the backend
+    LightScheduler switches the tent's light entities to match.
+    """
+    tent = state_manager.get_tent(tent_id)
+    if not tent:
+        raise HTTPException(status_code=404, detail="Tent not found")
+
+    from light_scheduler import validate_light_cycle, compute_off_time, parse_hhmm
+
+    try:
+        parse_hhmm(cycle.on_time)
+        validate_light_cycle(cycle.mode, cycle.photoperiod_hours)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    off_time = compute_off_time(cycle.on_time, cycle.photoperiod_hours)
+
+    try:
+        from config import load_addon_config, save_addon_config
+        config = load_addon_config()
+
+        # Find the tent in config (config uses name, not id)
+        tent_idx = None
+        for i, t in enumerate(config.get("tents", [])):
+            if t.get("name") == tent.config.name:
+                tent_idx = i
+                break
+
+        if tent_idx is None:
+            raise HTTPException(status_code=404, detail="Tent not found in config")
+
+        tent_cfg = config["tents"][tent_idx]
+        schedules = tent_cfg.setdefault("schedules", {})
+        schedules["photoperiod_on"] = cycle.on_time
+        schedules["photoperiod_off"] = off_time
+        schedules["light_cycle"] = {
+            "mode": cycle.mode,
+            "photoperiod_hours": cycle.photoperiod_hours,
+            "on_time": cycle.on_time,
+            "enabled": cycle.enabled,
+        }
+
+        # Keep growth stage in sync with the selected mode
+        growth_stage = tent_cfg.setdefault("growth_stage", {})
+        previous_stage = growth_stage.get("stage")
+        growth_stage["stage"] = cycle.mode
+        if cycle.mode == "flower" and previous_stage != "flower":
+            growth_stage["flower_start_date"] = datetime.now(timezone.utc).isoformat()
+        elif cycle.mode == "veg":
+            growth_stage["flower_start_date"] = None
+
+        save_addon_config(config)
+        await state_manager.reload_config()
+
+        # Apply immediately so the light snaps to the new schedule
+        applied_now = False
+        light_scheduler = getattr(request.app.state, "light_scheduler", None)
+        if light_scheduler and cycle.enabled:
+            try:
+                await light_scheduler.tick(only_tent_id=tent_id)
+                applied_now = True
+            except Exception as e:
+                logger.warning(f"Immediate light cycle apply failed: {e}")
+
+        return {
+            "success": True,
+            "light_cycle": schedules["light_cycle"],
+            "photoperiod_on": cycle.on_time,
+            "photoperiod_off": off_time,
+            "applied_now": applied_now,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update light cycle: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

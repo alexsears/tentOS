@@ -5,6 +5,7 @@ import { SensorChart } from '../components/SensorChart'
 import { EventLog } from '../components/EventLog'
 import { CameraFeed, CameraGrid } from '../components/CameraFeed'
 import { AutomationEditor } from '../components/AutomationEditor'
+import { LightCycleCard } from '../components/LightCycleCard'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { apiFetch } from '../utils/api'
 
@@ -534,6 +535,8 @@ export default function TentDetail() {
       {/* Settings Tab */}
       {activeTab === 'settings' && (
         <div className="space-y-6">
+          <LightCycleCard tent={tent} />
+
           <div className="card">
             <h3 className="font-semibold mb-4">Targets</h3>
             <div className="grid md:grid-cols-2 gap-4 text-sm">
@@ -577,7 +580,8 @@ export default function TentDetail() {
           </div>
 
           <div className="text-sm text-gray-400">
-            To modify these settings, edit the add-on configuration in Home Assistant.
+            The light cycle is managed above. To modify targets or quiet hours, edit the
+            add-on configuration in Home Assistant or use the Tent Builder.
           </div>
         </div>
       )}

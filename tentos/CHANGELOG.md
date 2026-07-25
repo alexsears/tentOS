@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0
+- Per-tent veg/flower light cycle with a visual photoperiod slider (veg 12-24h, flower 6-12h)
+- 24h day bar shows the on/off split; veg/flower preset buttons snap to 18/6 and 12/12
+- Configurable lights-on start time; lights-off time computed automatically
+- Backend light scheduler switches the tent's HA light entities to match the schedule (checks every minute, respects manual overrides, logs events)
+- New API: PUT /api/tents/{tent_id}/light-cycle; setting flower/veg also syncs the tent growth stage
+
 ## 1.2.59
 - Add a phone-first Entities/Tents workflow to the Tent Builder
 - Make entity filters, tent actions, slots, and Quick Add controls touch-friendly

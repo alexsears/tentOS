@@ -16,6 +16,9 @@
 
 ## Current State
 
+- (2026-07-24) Branch `voz/light-cycles` (v1.3.0, not merged): per-tent veg/flower light cycle. Backend `app/backend/light_scheduler.py` (LightScheduler loop, 60s tick, switches HA light entities, skips active Overrides, logs `light_schedule` Events) + `PUT /api/tents/{id}/light-cycle` in routes/tents.py (bounds: veg 12-24h, flower 6-12h; persists schedules.light_cycle + photoperiod_on/off + syncs growth_stage). Frontend `src/components/LightCycleCard.jsx` (slider + 24h bar + presets) mounted in TentDetail settings tab. Tests in tests/test_light_cycle.py.
+- (2026-07-24) tests/test_vpd.py has 5 pre-existing failures on master (TestVPDRanges — calculate_vpd rounds to 1 decimal, ranges too tight); not caused by light-cycle work.
+
 
 ## Known Issues
 
