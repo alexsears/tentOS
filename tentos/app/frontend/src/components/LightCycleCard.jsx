@@ -133,7 +133,7 @@ export function LightCycleCard({ tent }) {
             ? 'bg-purple-500/20 text-purple-300'
             : 'bg-green-500/20 text-green-400'
         }`}>
-          {mode === 'flower' ? '🌸 Flower' : '🌱 Veg'}
+          {mode === 'flower' ? 'Flower' : 'Veg'}
         </span>
       </div>
 
@@ -147,7 +147,7 @@ export function LightCycleCard({ tent }) {
               : 'border-[#2d3a5c] hover:border-green-500/50'
           }`}
         >
-          <div className="font-medium text-sm">🌱 Veg</div>
+          <div className="font-medium text-sm">Veg</div>
           <div className="text-xs text-gray-400">18/6 · range 12-24h light</div>
         </button>
         <button
@@ -158,7 +158,7 @@ export function LightCycleCard({ tent }) {
               : 'border-[#2d3a5c] hover:border-purple-500/50'
           }`}
         >
-          <div className="font-medium text-sm">🌸 Flower</div>
+          <div className="font-medium text-sm">Flower</div>
           <div className="text-xs text-gray-400">12/12 · range 6-12h light</div>
         </button>
       </div>
