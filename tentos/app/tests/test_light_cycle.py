@@ -8,6 +8,7 @@ from light_scheduler import (
     PHOTOPERIOD_PRESETS,
     compute_off_time,
     desired_light_state,
+    duration_hours_from_times,
     format_hhmm,
     parse_hhmm,
     validate_light_cycle,
@@ -52,6 +53,31 @@ class TestOffTimeComputation:
 
     def test_24h(self):
         assert compute_off_time("06:00", 24) == "06:00"
+
+
+class TestDurationFromTimes:
+    """Test duration = (off - on) mod 24h, equal times = 24h (never 0)."""
+
+    def test_simple(self):
+        assert duration_hours_from_times("06:00", "18:00") == 12
+        assert duration_hours_from_times("06:00", "00:00") == 18
+
+    def test_wraps_midnight(self):
+        assert duration_hours_from_times("20:00", "14:00") == 18
+        assert duration_hours_from_times("18:00", "06:00") == 12
+
+    def test_equal_times_is_24h(self):
+        assert duration_hours_from_times("06:00", "06:00") == 24
+        assert duration_hours_from_times("00:00", "00:00") == 24
+
+    def test_quarter_hours(self):
+        assert duration_hours_from_times("06:00", "18:15") == 12.25
+        assert duration_hours_from_times("06:30", "18:00") == 11.5
+
+    def test_roundtrip_with_compute_off_time(self):
+        for on, hours in [("06:00", 18), ("20:00", 18), ("06:00", 12.25), ("00:00", 24)]:
+            off = compute_off_time(on, hours)
+            assert duration_hours_from_times(on, off) == hours
 
 
 class TestValidation:

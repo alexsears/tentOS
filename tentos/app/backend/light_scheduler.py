@@ -52,6 +52,16 @@ def compute_off_time(on_time: str, hours: float) -> str:
     return format_hhmm(parse_hhmm(on_time) + round(hours * 60))
 
 
+def duration_hours_from_times(on_time: str, off_time: str) -> float:
+    """Photoperiod hours between lights-on and lights-off: (off - on) mod 24h.
+
+    Equal times mean the light is on the full 24 hours, never 0.
+    Mirrors the frontend day-bar editor logic.
+    """
+    minutes = (parse_hhmm(off_time) - parse_hhmm(on_time)) % (24 * 60)
+    return (minutes or 24 * 60) / 60
+
+
 def validate_light_cycle(mode: str, hours: float) -> None:
     """Validate mode + photoperiod hours against per-mode bounds.
 

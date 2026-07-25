@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { apiFetch } from '../utils/api'
 
-// Per-mode photoperiod bounds (hours of light per day) — must match backend
+// Per-mode photoperiod bounds (hours of light per day), must match backend
 const BOUNDS = { veg: [12, 24], flower: [6, 12] }
 const PRESETS = { veg: 18, flower: 12 }
+const DAY_MIN = 24 * 60
+const STEP_MIN = 15 // drag snap step on the day bar
 
 function parseHHMM(str) {
   if (!str || typeof str !== 'string') return null
@@ -13,21 +15,33 @@ function parseHHMM(str) {
 }
 
 function formatHHMM(minutes) {
-  const m = ((Math.round(minutes) % 1440) + 1440) % 1440
+  const m = ((Math.round(minutes) % DAY_MIN) + DAY_MIN) % DAY_MIN
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 }
 
-function clamp(value, [lo, hi]) {
+function clamp(value, lo, hi) {
   return Math.min(hi, Math.max(lo, value))
 }
 
-// Infer initial hours from existing photoperiod_on/off if no light_cycle saved yet
-function inferHours(schedules) {
+// Photoperiod duration in minutes from on/off times: (off - on) mod 24h.
+// Equal times mean the light is on the full 24 hours, never 0.
+function durationFromTimes(onMin, offMin) {
+  const d = (((offMin - onMin) % DAY_MIN) + DAY_MIN) % DAY_MIN
+  return d === 0 ? DAY_MIN : d
+}
+
+function formatDuration(minutes) {
+  const h = Math.floor(minutes / 60)
+  const m = Math.round(minutes % 60)
+  return m ? `${h}h ${m}m` : `${h}h`
+}
+
+// Infer initial duration from existing photoperiod_on/off if no light_cycle saved yet
+function inferDuration(schedules) {
   const on = parseHHMM(schedules?.photoperiod_on)
   const off = parseHHMM(schedules?.photoperiod_off)
   if (on == null || off == null) return null
-  const minutes = off > on ? off - on : (1440 - on) + off
-  return Math.round((minutes / 60) * 2) / 2
+  return durationFromTimes(on, off)
 }
 
 export function LightCycleCard({ tent }) {
@@ -36,48 +50,59 @@ export function LightCycleCard({ tent }) {
 
   const initialMode = saved?.mode
     || (tent?.growth_stage?.stage === 'flower' ? 'flower' : 'veg')
-  const inferredHours = saved?.photoperiod_hours ?? inferHours(schedules)
+  const initialDuration = saved?.photoperiod_hours != null
+    ? Math.round(saved.photoperiod_hours * 60)
+    : (inferDuration(schedules) ?? PRESETS[initialMode] * 60)
+
+  const clampDuration = (minutes, m) => {
+    const [lo, hi] = BOUNDS[m] || BOUNDS.veg
+    return clamp(minutes, lo * 60, hi * 60)
+  }
 
   const [mode, setMode] = useState(initialMode)
-  const [hours, setHours] = useState(
-    inferredHours != null
-      ? clamp(inferredHours, BOUNDS[initialMode])
-      : PRESETS[initialMode]
+  // Shared state: lights-on time + photoperiod duration, both in minutes.
+  // Every editor (presets, slider, time inputs, bar handles) reads/writes these two.
+  const [onMin, setOnMin] = useState(
+    parseHHMM(saved?.on_time || schedules.photoperiod_on || '06:00') ?? 360
   )
-  const [onTime, setOnTime] = useState(saved?.on_time || schedules.photoperiod_on || '06:00')
+  const [duration, setDuration] = useState(clampDuration(initialDuration, initialMode))
   const [enabled, setEnabled] = useState(saved?.enabled ?? false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null) // { type: 'ok'|'error', text }
+  const [dragging, setDragging] = useState(null) // 'start' | 'end' | 'move' | null
 
-  // Re-sync from server state when the tent updates (e.g. WebSocket refresh)
+  const trackRef = useRef(null)
+  const dragRef = useRef(null)
+
+  // Re-sync from server state when the tent changes
   useEffect(() => {
     const lc = tent?.schedules?.light_cycle
     if (lc) {
       setMode(lc.mode)
-      setHours(clamp(lc.photoperiod_hours, BOUNDS[lc.mode] || BOUNDS.veg))
-      setOnTime(lc.on_time || '06:00')
+      setDuration(clampDuration(Math.round(lc.photoperiod_hours * 60), lc.mode))
+      setOnMin(parseHHMM(lc.on_time) ?? 360)
       setEnabled(!!lc.enabled)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tent?.id])
 
   const bounds = BOUNDS[mode]
-  const darkHours = Math.round((24 - hours) * 2) / 2
-  const onMinutes = parseHHMM(onTime) ?? 360
-  const offMinutes = (onMinutes + Math.round(hours * 60)) % 1440
-  const offTime = formatHHMM(offMinutes)
+  const offMin = (onMin + duration) % DAY_MIN
+  const onTime = formatHHMM(onMin)
+  const offTime = formatHHMM(offMin)
+  const darkMinutes = DAY_MIN - duration
 
   const hasLight = Object.keys(tent?.actuators || {}).some(
     k => k === 'light' || k.startsWith('light_')
   )
 
-  // Segments of the 24h bar where the light is ON (as % of the day)
+  // Segments of the 24h bar where the light is ON (as [left%, width%])
   const onSegments = []
-  if (hours >= 24) {
+  if (duration >= DAY_MIN) {
     onSegments.push([0, 100])
-  } else if (hours > 0) {
-    const startPct = (onMinutes / 1440) * 100
-    const widthPct = (hours / 24) * 100
+  } else if (duration > 0) {
+    const startPct = (onMin / DAY_MIN) * 100
+    const widthPct = (duration / DAY_MIN) * 100
     if (startPct + widthPct <= 100) {
       onSegments.push([startPct, widthPct])
     } else {
@@ -88,7 +113,76 @@ export function LightCycleCard({ tent }) {
 
   const selectPreset = (newMode) => {
     setMode(newMode)
-    setHours(PRESETS[newMode])
+    setDuration(PRESETS[newMode] * 60)
+  }
+
+  // Both time inputs are real editors: duration = (off - on) mod 24h, live-clamped
+  const handleOnTimeChange = (value) => {
+    const v = parseHHMM(value)
+    if (v == null) return
+    const d = clampDuration(durationFromTimes(v, offMin), mode)
+    setOnMin(v)
+    setDuration(d)
+  }
+
+  const handleOffTimeChange = (value) => {
+    const v = parseHHMM(value)
+    if (v == null) return
+    setDuration(clampDuration(durationFromTimes(onMin, v), mode))
+  }
+
+  // --- Day-bar drag interactions (pointer events, works for touch + mouse) ---
+
+  const minutesFromPointer = (e) => {
+    const rect = trackRef.current?.getBoundingClientRect()
+    if (!rect || rect.width === 0) return null
+    const pct = clamp((e.clientX - rect.left) / rect.width, 0, 1)
+    return (Math.round((pct * DAY_MIN) / STEP_MIN) * STEP_MIN) % DAY_MIN
+  }
+
+  const handlePointerDown = (e) => {
+    const target = e.target.closest('[data-drag]')
+    if (!target) return
+    const cursor = minutesFromPointer(e)
+    if (cursor == null) return
+    e.preventDefault()
+    dragRef.current = {
+      type: target.dataset.drag,
+      startCursor: cursor,
+      startOn: onMin,
+      startDuration: duration
+    }
+    setDragging(target.dataset.drag)
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* ignore */ }
+  }
+
+  const handlePointerMove = (e) => {
+    const drag = dragRef.current
+    if (!drag) return
+    const cursor = minutesFromPointer(e)
+    if (cursor == null) return
+
+    if (drag.type === 'move') {
+      // Shift the whole lights-on window, duration unchanged
+      const delta = cursor - drag.startCursor
+      setOnMin((((drag.startOn + delta) % DAY_MIN) + DAY_MIN) % DAY_MIN)
+    } else if (drag.type === 'start') {
+      // Left handle: move lights-on, keep lights-off fixed
+      const off = (drag.startOn + drag.startDuration) % DAY_MIN
+      const d = clampDuration(durationFromTimes(cursor, off), mode)
+      setDuration(d)
+      setOnMin((((off - d) % DAY_MIN) + DAY_MIN) % DAY_MIN)
+    } else if (drag.type === 'end') {
+      // Right handle: move lights-off, keep lights-on fixed
+      setDuration(clampDuration(durationFromTimes(drag.startOn, cursor), mode))
+    }
+  }
+
+  const endDrag = (e) => {
+    if (!dragRef.current) return
+    dragRef.current = null
+    setDragging(null)
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* ignore */ }
   }
 
   const save = async () => {
@@ -100,7 +194,7 @@ export function LightCycleCard({ tent }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode,
-          photoperiod_hours: hours,
+          photoperiod_hours: duration / 60,
           on_time: onTime,
           enabled
         })
@@ -112,9 +206,7 @@ export function LightCycleCard({ tent }) {
       const data = await res.json()
       setMessage({
         type: 'ok',
-        text: data.applied_now
-          ? 'Saved — light state applied'
-          : 'Saved'
+        text: data.applied_now ? 'Saved, light state applied' : 'Saved'
       })
       setTimeout(() => setMessage(null), 4000)
     } catch (e) {
@@ -124,10 +216,27 @@ export function LightCycleCard({ tent }) {
     }
   }
 
+  const handlePct = (minutes) => (minutes / DAY_MIN) * 100
+
+  const renderHandle = (type, minutes) => (
+    <div
+      data-drag={type}
+      role="slider"
+      aria-label={type === 'start' ? 'Lights on time' : 'Lights off time'}
+      aria-valuetext={type === 'start' ? onTime : offTime}
+      className="absolute top-1/2 z-10 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center"
+      style={{ left: `${handlePct(minutes)}%` }}
+    >
+      <div className={`h-5 w-5 rounded-full border-2 bg-white shadow ${
+        dragging === type ? 'border-amber-300 scale-110' : 'border-amber-500'
+      }`} />
+    </div>
+  )
+
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold">💡 Light Cycle</h3>
+        <h3 className="font-semibold">Light Cycle</h3>
         <span className={`px-2 py-1 rounded text-xs ${
           mode === 'flower'
             ? 'bg-purple-500/20 text-purple-300'
@@ -148,7 +257,7 @@ export function LightCycleCard({ tent }) {
           }`}
         >
           <div className="font-medium text-sm">Veg</div>
-          <div className="text-xs text-gray-400">18/6 · range 12-24h light</div>
+          <div className="text-xs text-gray-400">18/6 preset, range 12-24h light</div>
         </button>
         <button
           onClick={() => selectPreset('flower')}
@@ -159,27 +268,25 @@ export function LightCycleCard({ tent }) {
           }`}
         >
           <div className="font-medium text-sm">Flower</div>
-          <div className="text-xs text-gray-400">12/12 · range 6-12h light</div>
+          <div className="text-xs text-gray-400">12/12 preset, range 6-12h light</div>
         </button>
       </div>
 
-      {/* Photoperiod slider */}
+      {/* Photoperiod summary + linear slider */}
       <div className="mb-1 flex items-baseline justify-between">
         <span className="text-sm text-gray-400">Photoperiod</span>
         <span className="text-sm font-semibold text-amber-300">
-          {hours % 1 === 0 ? hours : hours.toFixed(1)}h light
-          <span className="text-gray-400 font-normal">
-            {' '}/ {darkHours % 1 === 0 ? darkHours : darkHours.toFixed(1)}h dark
-          </span>
+          {formatDuration(duration)} light
+          <span className="text-gray-400 font-normal"> / {formatDuration(darkMinutes)} dark</span>
         </span>
       </div>
       <input
         type="range"
         min={bounds[0]}
         max={bounds[1]}
-        step={0.5}
-        value={hours}
-        onChange={e => setHours(Number(e.target.value))}
+        step={0.25}
+        value={duration / 60}
+        onChange={e => setDuration(Math.round(Number(e.target.value) * 60))}
         className="w-full accent-amber-400 cursor-pointer"
       />
       <div className="flex justify-between text-xs text-gray-500 mb-4">
@@ -187,47 +294,72 @@ export function LightCycleCard({ tent }) {
         <span>{bounds[1]}h</span>
       </div>
 
-      {/* 24h day bar: amber = lights on, dark = lights off */}
-      <div className="mb-1 relative h-8 rounded-lg overflow-hidden bg-[#0d1430] border border-[#2d3a5c]">
-        {onSegments.map(([left, width], i) => (
-          <div
-            key={i}
-            className="absolute top-0 h-full bg-gradient-to-b from-amber-300 to-amber-500 opacity-90"
-            style={{ left: `${left}%`, width: `${width}%` }}
-          />
-        ))}
-        {/* Hour tick marks */}
-        {[6, 12, 18].map(h => (
-          <div
-            key={h}
-            className="absolute top-0 h-full w-px bg-black/30"
-            style={{ left: `${(h / 24) * 100}%` }}
-          />
-        ))}
+      {/* 24h day bar: the primary editor. Amber = lights on, dark = lights off. */}
+      <div
+        ref={trackRef}
+        className="relative mb-1 h-10 touch-none select-none"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      >
+        <div className="absolute inset-0 overflow-hidden rounded-lg bg-[#0d1430] border border-[#2d3a5c]">
+          {onSegments.map(([left, width], i) => (
+            <div
+              key={i}
+              data-drag="move"
+              className={`absolute top-0 h-full bg-gradient-to-b from-amber-300 to-amber-500 opacity-90 ${
+                dragging === 'move' ? 'cursor-grabbing' : 'cursor-grab'
+              }`}
+              style={{ left: `${left}%`, width: `${width}%` }}
+            />
+          ))}
+          {/* Hour tick marks */}
+          {[6, 12, 18].map(h => (
+            <div
+              key={h}
+              className="absolute top-0 h-full w-px bg-black/30 pointer-events-none"
+              style={{ left: `${(h / 24) * 100}%` }}
+            />
+          ))}
+        </div>
+        {renderHandle('start', onMin)}
+        {renderHandle('end', offMin)}
       </div>
-      <div className="flex justify-between text-xs text-gray-500 mb-4">
+      <div className="flex justify-between text-xs text-gray-500 mb-1">
         <span>00:00</span>
         <span>06:00</span>
         <span>12:00</span>
         <span>18:00</span>
         <span>24:00</span>
       </div>
+      <div className="text-xs text-gray-500 mb-4">
+        Drag the handles to set lights-on and lights-off. Drag the amber span to shift
+        the whole window. Steps of 15 minutes.
+      </div>
 
-      {/* Lights-on time + computed off time */}
+      {/* Lights-on and lights-off time inputs, both editable */}
       <div className="flex flex-wrap items-center gap-4 mb-4">
         <label className="flex items-center gap-2 text-sm">
-          <span className="text-gray-400">Lights on at</span>
+          <span className="text-gray-400">Lights on</span>
           <input
             type="time"
+            step={900}
             value={onTime}
-            onChange={e => setOnTime(e.target.value || '06:00')}
+            onChange={e => handleOnTimeChange(e.target.value)}
             className="bg-[#0d1430] border border-[#2d3a5c] rounded px-2 py-1 text-sm"
           />
         </label>
-        <div className="text-sm">
-          <span className="text-gray-400">Lights off at</span>{' '}
-          <span className="font-medium text-amber-300">{offTime}</span>
-        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-gray-400">Lights off</span>
+          <input
+            type="time"
+            step={900}
+            value={offTime}
+            onChange={e => handleOffTimeChange(e.target.value)}
+            className="bg-[#0d1430] border border-[#2d3a5c] rounded px-2 py-1 text-sm"
+          />
+        </label>
       </div>
 
       {/* Automatic control toggle */}
@@ -238,7 +370,7 @@ export function LightCycleCard({ tent }) {
           onChange={e => setEnabled(e.target.checked)}
           className="rounded accent-green-500"
         />
-        <span>Automatic control — TentOS switches the grow light on this schedule</span>
+        <span>Automatic control. TentOS switches the grow light on this schedule.</span>
       </label>
 
       {!hasLight && (
@@ -258,7 +390,7 @@ export function LightCycleCard({ tent }) {
         </button>
         {message && (
           <span className={`text-sm ${message.type === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
-            {message.type === 'ok' ? '✓ ' : ''}{message.text}
+            {message.text}
           </span>
         )}
       </div>

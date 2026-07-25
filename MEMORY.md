@@ -17,6 +17,7 @@
 ## Current State
 
 - (2026-07-24) Branch `voz/light-cycles` (v1.3.0, not merged): per-tent veg/flower light cycle. Backend `app/backend/light_scheduler.py` (LightScheduler loop, 60s tick, switches HA light entities, skips active Overrides, logs `light_schedule` Events) + `PUT /api/tents/{id}/light-cycle` in routes/tents.py (bounds: veg 12-24h, flower 6-12h; persists schedules.light_cycle + photoperiod_on/off + syncs growth_stage). Frontend `src/components/LightCycleCard.jsx` (slider + 24h bar + presets) mounted in TentDetail settings tab. Tests in tests/test_light_cycle.py.
+- (2026-07-24) Branch `voz/light-cycles-v2` (v1.3.1, not merged/pushed): Light Cycle card reworked per Alex feedback ("lights off is not editable, i want sliders"). Day bar is now the primary editor: pointer-event drag (touch-safe, `touch-none`, 28px handle hit targets, 15-min snap) with start/end circular handles + span-body drag to shift the window; lights-off is a real time input; duration = (off - on) mod 24h, equal times = 24h; live clamp to mode bounds. Shared state is (onMin, duration) in minutes inside LightCycleCard.jsx. Backend unchanged except new `duration_hours_from_times()` helper in light_scheduler.py + tests.
 - (2026-07-24) tests/test_vpd.py has 5 pre-existing failures on master (TestVPDRanges — calculate_vpd rounds to 1 decimal, ranges too tight); not caused by light-cycle work.
 
 

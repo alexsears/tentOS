@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1
+- Light Cycle: the 24h day bar is now the primary editor with draggable on/off handles (touch-friendly, 15-minute steps)
+- Drag the amber lights-on span to shift the whole window without changing the photoperiod
+- Lights-off is now a real time input next to lights-on; editing either recomputes the photoperiod (equal times mean 24h)
+- All editors stay in sync: presets, linear slider, time inputs, and bar handles share one state
+- Durations clamp live to the mode's range (veg 12-24h, flower 6-12h) instead of erroring
+
 ## 1.3.0
 - Per-tent veg/flower light cycle with a visual photoperiod slider (veg 12-24h, flower 6-12h)
 - 24h day bar shows the on/off split; veg/flower preset buttons snap to 18/6 and 12/12
