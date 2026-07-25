@@ -25,3 +25,6 @@
 
 ## Important Patterns
 
+- (2026-07-24) v1.3.0 light cycles: per-tent veg/flower photoperiod slider (LightCycleCard.jsx in TentDetail Settings), backend light_scheduler.py enforces via ha_client every 60s, PUT /api/tents/{id}/light-cycle. Veg 12-24h, flower 6-12h. Manual overrides beat the scheduler.
+- (2026-07-24) Remote access: tentos.alexsears.org -> tunnel (CT 112) -> 192.168.77.50:8109, Cloudflare Access app "tentos" (Alex only reusable allow + Home network bypass). Port 8099 on the HA host is HomeOS, tentOS is host port 8109.
+- (2026-07-24) android-app v1.2.0 (versionCode 3): server.url now https://tentos.alexsears.org (was LAN IP) so the app works remotely; APK published on GitHub release android-v1.1.0 (asset clobbered on rebuilds).
