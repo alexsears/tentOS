@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { apiFetch, requireOk } from '../utils/api'
+import { getTentEntityOptions } from '../utils/automationEntities'
 
 // Templates for common grow tent automations
 const TEMPLATES = [
@@ -90,13 +91,8 @@ export function AutomationEditor({ tent, automation, onClose, onSave }) {
   const [error, setError] = useState(null)
 
   // Get available entities from tent
-  const sensors = Object.entries(tent?.sensors || {})
-    .filter(([_, v]) => v?.entity_id || (typeof v === 'string'))
-    .map(([key, v]) => ({ key, entity_id: v?.entity_id || v }))
-
-  const actuators = Object.entries(tent?.actuators || {})
-    .filter(([_, v]) => v?.entity_id || (typeof v === 'string'))
-    .map(([key, v]) => ({ key, entity_id: v?.entity_id || v }))
+  const sensors = getTentEntityOptions(tent?.sensors)
+  const actuators = getTentEntityOptions(tent?.actuators)
 
   // Load automation config if editing
   useEffect(() => {
@@ -222,6 +218,18 @@ export function AutomationEditor({ tent, automation, onClose, onSave }) {
     }
     if (!actionTarget) {
       setError('Please select a target device')
+      return
+    }
+    if (triggerType !== 'time' && !triggerConfig.entity_id) {
+      setError('Please select a trigger entity')
+      return
+    }
+    if (
+      triggerType === 'numeric_state' &&
+      (triggerConfig.above === undefined || triggerConfig.above === '') &&
+      (triggerConfig.below === undefined || triggerConfig.below === '')
+    ) {
+      setError('Enter an above or below threshold')
       return
     }
 
@@ -371,8 +379,8 @@ export function AutomationEditor({ tent, automation, onClose, onSave }) {
                       >
                         <option value="">Select sensor...</option>
                         {sensors.map(s => (
-                          <option key={s.key} value={s.entity_id}>
-                            {s.key} ({s.entity_id})
+                          <option key={s.entity_id} value={s.entity_id}>
+                            {s.label} ({s.entity_id})
                           </option>
                         ))}
                       </select>
@@ -413,8 +421,8 @@ export function AutomationEditor({ tent, automation, onClose, onSave }) {
                       >
                         <option value="">Select entity...</option>
                         {[...sensors, ...actuators].map(e => (
-                          <option key={e.key} value={e.entity_id}>
-                            {e.key} ({e.entity_id})
+                          <option key={e.entity_id} value={e.entity_id}>
+                            {e.label} ({e.entity_id})
                           </option>
                         ))}
                       </select>
@@ -461,8 +469,8 @@ export function AutomationEditor({ tent, automation, onClose, onSave }) {
                     >
                       <option value="">Select device...</option>
                       {actuators.map(a => (
-                        <option key={a.key} value={a.entity_id}>
-                          {a.key} ({a.entity_id})
+                        <option key={a.entity_id} value={a.entity_id}>
+                          {a.label} ({a.entity_id})
                         </option>
                       ))}
                     </select>

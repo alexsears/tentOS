@@ -288,6 +288,7 @@ class TentState:
     def update_actuator(self, actuator_type: str, state: str, attributes: dict | None = None):
         """Update an actuator state."""
         self.actuators[actuator_type] = {
+            "entity_id": self.slot_to_entity.get(actuator_type),
             "state": state,
             "attributes": attributes or {},
             "updated": datetime.now(timezone.utc).isoformat()

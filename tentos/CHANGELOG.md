@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.3
+- Restore live sensor and actuator entity options in the Automation Editor
+- Show Home Assistant friendly names such as Lab1a in the Device selector
+- Validate trigger entity and numeric threshold before submitting an automation
+
 ## 1.3.2
 - Fix Automation Editor create/load requests using obsolete API paths
 - Show failed Home Assistant automation saves as errors instead of false success
