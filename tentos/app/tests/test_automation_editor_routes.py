@@ -1,9 +1,10 @@
 """Tests for the advanced automation create/update API routes."""
 import asyncio
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
-sys.path.insert(0, '../backend')
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 
 from routes.automations import (  # noqa: E402
     HAAutomationCreate,
