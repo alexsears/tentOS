@@ -34,6 +34,24 @@ export async function apiFetch(endpoint, options = {}) {
 }
 
 /**
+ * Convert an unsuccessful API response into an exception so callers do not
+ * accidentally report success after a rejected request.
+ */
+export async function requireOk(response, fallbackMessage = 'Request failed') {
+  if (response.ok) return response
+
+  let message = fallbackMessage
+  try {
+    const data = await response.json()
+    message = data.detail || data.message || message
+  } catch {
+    // Keep the user-facing fallback when the server does not return JSON.
+  }
+
+  throw new Error(message)
+}
+
+/**
  * Get the WebSocket URL for the API.
  */
 export function getWsUrl(endpoint) {

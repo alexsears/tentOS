@@ -7,7 +7,7 @@ import { CameraFeed, CameraGrid } from '../components/CameraFeed'
 import { AutomationEditor } from '../components/AutomationEditor'
 import { LightCycleCard } from '../components/LightCycleCard'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
-import { apiFetch } from '../utils/api'
+import { apiFetch, requireOk } from '../utils/api'
 
 export default function TentDetail() {
   const { tentId } = useParams()
@@ -29,9 +29,10 @@ export default function TentDetail() {
     setAutomationsLoading(true)
     try {
       const url = showAllAutomations
-        ? `api/automations/ha?show_all=true`
-        : `api/automations/ha?tent_id=${tentId}`
+        ? `api/automations?show_all=true`
+        : `api/automations?show_all=false&tent_id=${tentId}`
       const res = await apiFetch(url)
+      await requireOk(res, 'Failed to load automations')
       const data = await res.json()
       setHaAutomations(data.automations || [])
     } catch (e) {
@@ -439,7 +440,8 @@ export default function TentDetail() {
                           onClick={async () => {
                             setActionLoading(auto.entity_id)
                             try {
-                              await apiFetch(`api/automations/ha/${auto.entity_id}/trigger`, { method: 'POST' })
+                              const response = await apiFetch(`api/automations/${auto.entity_id}/trigger`, { method: 'POST' })
+                              await requireOk(response, 'Failed to trigger automation')
                               fetchAutomations()
                             } catch (e) {
                               console.error('Failed to trigger:', e)
@@ -456,7 +458,8 @@ export default function TentDetail() {
                           onClick={async () => {
                             setActionLoading(`toggle-${auto.entity_id}`)
                             try {
-                              await apiFetch(`api/automations/ha/${auto.entity_id}/toggle`, { method: 'POST' })
+                              const response = await apiFetch(`api/automations/${auto.entity_id}/toggle`, { method: 'POST' })
+                              await requireOk(response, 'Failed to toggle automation')
                               fetchAutomations()
                             } catch (e) {
                               console.error('Failed to toggle:', e)
@@ -479,7 +482,8 @@ export default function TentDetail() {
                           onClick={async () => {
                             if (confirm(`Delete "${friendlyName}"?`)) {
                               try {
-                                await apiFetch(`api/automations/ha/${auto.entity_id}`, { method: 'DELETE' })
+                                const response = await apiFetch(`api/automations/${auto.entity_id}`, { method: 'DELETE' })
+                                await requireOk(response, 'Failed to delete automation')
                                 fetchAutomations()
                               } catch (e) {
                                 console.error('Failed to delete:', e)
