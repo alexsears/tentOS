@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.2
+- Fix Automation Editor create/load requests using obsolete API paths
+- Show failed Home Assistant automation saves as errors instead of false success
+- Restore automation editing and tent-detail automation controls
+
 ## 1.3.1
 - Light Cycle: the 24h day bar is now the primary editor with draggable on/off handles (touch-friendly, 15-minute steps)
 - Drag the amber lights-on span to shift the whole window without changing the photoperiod
