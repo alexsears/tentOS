@@ -1344,3 +1344,30 @@ async def create_automation(automation: HAAutomationCreate, request: Request):
     except Exception as e:
         logger.error(f"Failed to create automation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{entity_id:path}/update")
+async def update_automation(
+    entity_id: str,
+    automation: HAAutomationCreate,
+    request: Request
+):
+    """Update an existing Home Assistant automation (advanced)."""
+    ha_client = request.app.state.ha_client
+    auto_id = entity_id.replace("automation.", "")
+
+    try:
+        config = {
+            "id": auto_id,
+            "alias": automation.alias,
+            "description": automation.description,
+            "mode": automation.mode,
+            "trigger": automation.triggers,
+            "condition": automation.conditions or [],
+            "action": automation.actions
+        }
+        result = await ha_client.update_automation(auto_id, config)
+        return {"success": True, "automation_id": auto_id, "result": result}
+    except Exception as e:
+        logger.error(f"Failed to update automation {auto_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

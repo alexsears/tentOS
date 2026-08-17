@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { apiFetch } from '../utils/api'
+import { apiFetch, requireOk } from '../utils/api'
 
 // Templates for common grow tent automations
 const TEMPLATES = [
@@ -103,7 +103,8 @@ export function AutomationEditor({ tent, automation, onClose, onSave }) {
     if (automation) {
       setName(automation.attributes?.friendly_name || '')
       // Fetch full config
-      apiFetch(`api/automations/ha/${automation.entity_id}/config`)
+      apiFetch(`api/automations/${automation.entity_id}/config`)
+        .then(r => requireOk(r, 'Failed to load automation'))
         .then(r => r.json())
         .then(data => {
           if (data.config) {
@@ -233,18 +234,20 @@ export function AutomationEditor({ tent, automation, onClose, onSave }) {
       if (automation) {
         // Update existing
         const autoId = automation.entity_id.replace('automation.', '')
-        await apiFetch(`api/automations/ha/${autoId}/update`, {
+        const response = await apiFetch(`api/automations/${autoId}/update`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(config)
         })
+        await requireOk(response, 'Failed to update automation')
       } else {
         // Create new
-        await apiFetch('api/automations/ha/create', {
+        const response = await apiFetch('api/automations/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(config)
         })
+        await requireOk(response, 'Failed to create automation')
       }
 
       onSave()
