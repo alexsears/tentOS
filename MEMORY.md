@@ -23,6 +23,7 @@
 
 ## Known Issues
 
+- (2026-08-16) The live `/api/tents/{id}` payload previously omitted actuator entity IDs, leaving the Automation Editor Device selector empty. `TentState.update_actuator()` now includes the slot's `entity_id`, and the editor expands sensor `_entities` maps through `automationEntities.js`.
 - (2026-08-16) Fixed the advanced Automation Editor's silent save failure: `AutomationEditor.jsx` used obsolete `/api/automations/ha/*` URLs while FastAPI exposes `/api/automations/*`, and it treated non-2xx responses as success. The editor now uses the live routes, surfaces API errors, and the backend exposes the previously missing update route.
 
 ## Important Patterns
