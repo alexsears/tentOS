@@ -83,7 +83,25 @@ def test_sensor_stats_groups_each_tent_and_sensor():
     assert stats['veg_tent']['temperature']['max'] == 26.0
     assert stats['veg_tent']['temperature']['average'] == 24.0
     assert stats['veg_tent']['temperature']['latest'] == 26.0
+    assert stats['veg_tent']['temperature']['unit'] == '°C'
+    assert stats['veg_tent']['humidity']['unit'] == '%'
     assert stats['veg_tent']['temperature']['samples'] == 2
+
+
+def test_sensor_stats_normalizes_legacy_fahrenheit_history():
+    start = datetime.now(timezone.utc) - timedelta(hours=1)
+    rows = [
+        SimpleNamespace(tent_id='veg_tent', sensor_type='temperature', value=77.0, timestamp=start),
+        SimpleNamespace(tent_id='veg_tent', sensor_type='temperature', value=26.0, timestamp=start + timedelta(minutes=5)),
+    ]
+
+    stats = assistant._sensor_stats(rows)['veg_tent']['temperature']
+
+    assert stats['min'] == 25.0
+    assert stats['max'] == 26.0
+    assert stats['average'] == 25.5
+    assert stats['latest'] == 26.0
+    assert stats['unit'] == '°C'
 
 
 def test_entity_search_resolves_friendly_name_and_filters_unsupported_domains():
@@ -377,4 +395,6 @@ def test_the_tents_is_explicitly_mapped_to_all_configured_tents():
     assert '"the tents"' in prompt
     assert "['veg_tent', 'flower_tent']" in prompt
     assert 'TentOS only' in prompt
+    assert "user's private grow-tent app" in prompt
+    assert 'give Fahrenheit first and Celsius in parentheses' in prompt
     assert 'Do not use Markdown markers' in prompt

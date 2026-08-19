@@ -246,12 +246,16 @@ The assistant receives only TentOS state: configured tents, current readings,
 stages. It can search Home Assistant entities when you ask to add one to a tent,
 but equipment and configuration writes remain pending until you press Confirm.
 
+Each Home Assistant installation supplies its own OpenAI key and configures its
+own tent/entity mappings. The add-on uses Home Assistant's Supervisor APIs for
+entity discovery and actions, so the assistant is not tied to one household.
+
 ### Android app
 
 The `android-app` directory contains a thin Capacitor shell for the hosted
-TentOS service. The checked-in build targets the LAN-only Home Assistant add-on
-at `http://192.168.77.50:8109`; change `server.url` in
-`android-app/capacitor.config.json` for another HA host. Build it with JDK 17
+TentOS service. The checked-in build targets the maintainer's hosted TentOS
+instance; change `server.url` in `android-app/capacitor.config.json` for another
+HA host and use a unique Android application ID before distributing it. Build it with JDK 17
 and the Android SDK installed:
 
 ```powershell

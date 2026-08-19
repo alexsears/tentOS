@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1
+- Normalize current and legacy temperature history to Celsius before it reaches the AI context
+- Report assistant temperatures as Fahrenheit with Celsius in parentheses to prevent ambiguous or stale source-unit labels
+- Remove installation-owner-specific wording from the assistant prompt
+
 ## 1.4.0
 - Add a TentOS-only AI assistant with a responsive voice orb, text conversation, and spoken replies
 - Start each browser session with an AI summary of the last 24 hours across all configured tents

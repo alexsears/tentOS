@@ -93,11 +93,21 @@ def _sensor_stats(rows: list[SensorHistory]) -> dict[str, dict[str, dict[str, An
         for sensor_type, records in sensors.items():
             records.sort(key=lambda row: row.timestamp)
             values = [float(row.value) for row in records]
+            if sensor_type == "temperature":
+                # History written before TentOS normalized readings may contain
+                # Fahrenheit values. Grow-tent temperatures over 50°C are not
+                # plausible, so use the same migration heuristic as TentState.
+                values = [round((value - 32) * 5 / 9, 2) if value > 50 else value for value in values]
             result[tent_id][sensor_type] = {
                 "min": round(min(values), 2),
                 "max": round(max(values), 2),
                 "average": round(sum(values) / len(values), 2),
                 "latest": round(values[-1], 2),
+                "unit": {
+                    "temperature": "°C",
+                    "humidity": "%",
+                    "vpd": "kPa",
+                }.get(sensor_type),
                 "samples": len(values),
                 "first_sample": records[0].timestamp.isoformat(),
                 "last_sample": records[-1].timestamp.isoformat(),
@@ -226,7 +236,7 @@ async def _build_tentos_context(request: Request, hours: int = CONTEXT_HOURS) ->
 
 def _instructions(context: dict) -> str:
     tent_ids = [tent.get("id") for tent in context.get("tents", [])]
-    return f"""You are the TentOS assistant inside Alex's private grow-tent app.
+    return f"""You are the TentOS assistant inside the user's private grow-tent app.
 
 Scope:
 - Your scope is TentOS only.
@@ -234,6 +244,7 @@ Scope:
 - "the tents", "my tents", and similar phrases mean all configured TentOS tents: {tent_ids}.
 - Resolve informal tent references from configured tent names and IDs. If a reference is genuinely ambiguous, ask one brief question.
 - For a last-24-hours summary, cover each tent, important min/max/average changes, current state versus targets, alerts, equipment changes, and logged care events. Say when history is sparse or absent.
+- TentOS normalizes all current and historical temperature values in the context to Celsius. When reporting temperature, give Fahrenheit first and Celsius in parentheses, calculating Fahrenheit from the Celsius value. Never reuse a source entity's old unit label.
 - Never invent a reading, event, diagnosis, or action result. Distinguish observed data from suggestions.
 - Keep spoken replies concise and natural. Lead with what matters.
 - Reply in plain text with short lines. Do not use Markdown markers such as **, #, or backticks.

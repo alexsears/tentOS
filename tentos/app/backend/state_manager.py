@@ -262,6 +262,9 @@ class TentState:
                     value = round(fahrenheit_to_celsius(temp_val), 1)
                 else:
                     value = round(temp_val, 1)
+                # Values exposed by TentOS and written to history are always Celsius,
+                # regardless of the Home Assistant entity's source unit.
+                unit = "°C"
             except (ValueError, TypeError):
                 pass
 
