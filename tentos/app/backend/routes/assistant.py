@@ -16,6 +16,7 @@ from sqlalchemy import select
 from config import settings
 from database import Alert, Event, SensorHistory, async_session
 from routes.config import SLOT_DEFINITIONS, load_config, save_config
+from state_manager import is_temperature_sensor_type
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -96,7 +97,7 @@ def _sensor_stats(
             records.sort(key=lambda row: row.timestamp)
             value_records = [(float(row.value), row) for row in records]
             ambiguous_samples = 0
-            if sensor_type == "temperature":
+            if is_temperature_sensor_type(sensor_type):
                 normalized = []
                 for value, row in value_records:
                     unit = str(getattr(row, "unit", None) or "").strip().lower()
@@ -104,9 +105,9 @@ def _sensor_stats(
                         normalized.append((value, row))
                     elif unit in {"°f", "f", "fahrenheit"}:
                         normalized.append((round((value - 32) * 5 / 9, 2), row))
-                    elif legacy_temperature_unit == "C":
+                    elif sensor_type == "temperature" and legacy_temperature_unit == "C":
                         normalized.append((value, row))
-                    elif legacy_temperature_unit == "F":
+                    elif sensor_type == "temperature" and legacy_temperature_unit == "F":
                         normalized.append((round((value - 32) * 5 / 9, 2), row))
                     else:
                         ambiguous_samples += 1
@@ -114,7 +115,7 @@ def _sensor_stats(
 
             if not value_records:
                 result[tent_id][sensor_type] = {
-                    "unit": "°C" if sensor_type == "temperature" else None,
+                    "unit": "°C" if is_temperature_sensor_type(sensor_type) else None,
                     "samples": 0,
                     "ambiguous_samples": ambiguous_samples,
                     "status": "unavailable: legacy temperature samples have no configured unit",
@@ -129,10 +130,9 @@ def _sensor_stats(
                 "average": round(sum(values) / len(values), 2),
                 "latest": round(values[-1], 2),
                 "unit": {
-                    "temperature": "°C",
                     "humidity": "%",
                     "vpd": "kPa",
-                }.get(sensor_type),
+                }.get(sensor_type, "°C" if is_temperature_sensor_type(sensor_type) else None),
                 "samples": len(values),
                 "first_sample": included_records[0].timestamp.isoformat(),
                 "last_sample": included_records[-1].timestamp.isoformat(),

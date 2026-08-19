@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.2
+- Normalize numbered temperature slots such as `temperature_2` to Celsius in current state and new history
+- Require explicit unit metadata for old numbered-temperature history instead of applying the canonical slot's legacy policy
+
 ## 1.4.1
 - Store explicit sensor units in new history and use a configured C/F policy for legacy unitless temperature rows
 - Ignore ambiguous legacy temperature history until its installation-wide unit is configured instead of guessing from values
