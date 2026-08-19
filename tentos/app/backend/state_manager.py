@@ -262,6 +262,9 @@ class TentState:
                     value = round(fahrenheit_to_celsius(temp_val), 1)
                 else:
                     value = round(temp_val, 1)
+                # Values exposed by TentOS and written to history are always Celsius,
+                # regardless of the Home Assistant entity's source unit.
+                unit = "°C"
             except (ValueError, TypeError):
                 pass
 
@@ -641,7 +644,8 @@ class StateManager:
                             record = SensorHistory(
                                 tent_id=tent_id,
                                 sensor_type=sensor_type,
-                                value=numeric_value
+                                value=numeric_value,
+                                unit=sensor_data.get("unit"),
                             )
                             session.add(record)
                         except (ValueError, TypeError):
@@ -652,7 +656,8 @@ class StateManager:
                     record = SensorHistory(
                         tent_id=tent_id,
                         sensor_type="vpd",
-                        value=tent.vpd
+                        value=tent.vpd,
+                        unit="kPa",
                     )
                     session.add(record)
 

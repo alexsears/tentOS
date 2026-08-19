@@ -21,3 +21,14 @@ def test_actuator_state_includes_home_assistant_entity_id():
     payload = state.to_dict()
     assert payload["actuators"]["light"]["entity_id"] == "switch.lab1a"
     assert payload["actuators"]["light_2"]["entity_id"] == "switch.lab_diablo"
+
+
+def test_temperature_state_reports_normalized_celsius_unit():
+    config = TentConfig({"name": "Flower", "sensors": {"temperature": ["sensor.flower_temperature"]}})
+    state = TentState(config)
+
+    state.update_sensor("temperature", 77, "°F", "sensor.flower_temperature")
+
+    payload = state.to_dict()
+    assert payload["sensors"]["temperature"]["value"] == 25.0
+    assert payload["sensors"]["temperature"]["unit"] == "°C"

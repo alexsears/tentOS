@@ -2,7 +2,7 @@
 import asyncio
 from datetime import datetime, timezone
 from typing import AsyncGenerator
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey, Index, inspect, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -80,6 +80,7 @@ class SensorHistory(Base):
     tent_id = Column(String(64), nullable=False, index=True)
     sensor_type = Column(String(32), nullable=False)
     value = Column(Float, nullable=False)
+    unit = Column(String(16), nullable=True)
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     __table_args__ = (
@@ -143,6 +144,13 @@ async def init_db():
     """Initialize database tables."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        def add_sensor_history_unit(sync_conn):
+            columns = {column["name"] for column in inspect(sync_conn).get_columns("sensor_history")}
+            if "unit" not in columns:
+                sync_conn.execute(text("ALTER TABLE sensor_history ADD COLUMN unit VARCHAR(16)"))
+
+        await conn.run_sync(add_sensor_history_unit)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

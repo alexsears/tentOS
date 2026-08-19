@@ -82,7 +82,9 @@ def _extract_response_text(response: dict) -> str:
     return "\n".join(piece for piece in pieces if piece).strip()
 
 
-def _sensor_stats(rows: list[SensorHistory]) -> dict[str, dict[str, dict[str, Any]]]:
+def _sensor_stats(
+    rows: list[SensorHistory], legacy_temperature_unit: str = "unknown"
+) -> dict[str, dict[str, dict[str, Any]]]:
     grouped: dict[str, dict[str, list[SensorHistory]]] = defaultdict(lambda: defaultdict(list))
     for row in rows:
         grouped[row.tent_id][row.sensor_type].append(row)
@@ -92,16 +94,52 @@ def _sensor_stats(rows: list[SensorHistory]) -> dict[str, dict[str, dict[str, An
         result[tent_id] = {}
         for sensor_type, records in sensors.items():
             records.sort(key=lambda row: row.timestamp)
-            values = [float(row.value) for row in records]
-            result[tent_id][sensor_type] = {
+            value_records = [(float(row.value), row) for row in records]
+            ambiguous_samples = 0
+            if sensor_type == "temperature":
+                normalized = []
+                for value, row in value_records:
+                    unit = str(getattr(row, "unit", None) or "").strip().lower()
+                    if unit in {"°c", "c", "celsius"}:
+                        normalized.append((value, row))
+                    elif unit in {"°f", "f", "fahrenheit"}:
+                        normalized.append((round((value - 32) * 5 / 9, 2), row))
+                    elif legacy_temperature_unit == "C":
+                        normalized.append((value, row))
+                    elif legacy_temperature_unit == "F":
+                        normalized.append((round((value - 32) * 5 / 9, 2), row))
+                    else:
+                        ambiguous_samples += 1
+                value_records = normalized
+
+            if not value_records:
+                result[tent_id][sensor_type] = {
+                    "unit": "°C" if sensor_type == "temperature" else None,
+                    "samples": 0,
+                    "ambiguous_samples": ambiguous_samples,
+                    "status": "unavailable: legacy temperature samples have no configured unit",
+                }
+                continue
+
+            values = [value for value, _row in value_records]
+            included_records = [row for _value, row in value_records]
+            summary = {
                 "min": round(min(values), 2),
                 "max": round(max(values), 2),
                 "average": round(sum(values) / len(values), 2),
                 "latest": round(values[-1], 2),
+                "unit": {
+                    "temperature": "°C",
+                    "humidity": "%",
+                    "vpd": "kPa",
+                }.get(sensor_type),
                 "samples": len(values),
-                "first_sample": records[0].timestamp.isoformat(),
-                "last_sample": records[-1].timestamp.isoformat(),
+                "first_sample": included_records[0].timestamp.isoformat(),
+                "last_sample": included_records[-1].timestamp.isoformat(),
             }
+            if ambiguous_samples:
+                summary["ambiguous_samples_ignored"] = ambiguous_samples
+            result[tent_id][sensor_type] = summary
     return result
 
 
@@ -197,7 +235,9 @@ async def _build_tentos_context(request: Request, hours: int = CONTEXT_HOURS) ->
         "generated_at": now.isoformat(),
         "window": {"hours": hours, "from": cutoff.isoformat(), "to": now.isoformat()},
         "tents": tents,
-        "sensor_statistics": _sensor_stats(sensor_rows),
+        "sensor_statistics": _sensor_stats(
+            sensor_rows, settings.assistant_legacy_temperature_unit
+        ),
         "equipment_history": actuator_history,
         "events": [
             {
@@ -226,7 +266,7 @@ async def _build_tentos_context(request: Request, hours: int = CONTEXT_HOURS) ->
 
 def _instructions(context: dict) -> str:
     tent_ids = [tent.get("id") for tent in context.get("tents", [])]
-    return f"""You are the TentOS assistant inside Alex's private grow-tent app.
+    return f"""You are the TentOS assistant inside the user's private grow-tent app.
 
 Scope:
 - Your scope is TentOS only.
@@ -234,6 +274,7 @@ Scope:
 - "the tents", "my tents", and similar phrases mean all configured TentOS tents: {tent_ids}.
 - Resolve informal tent references from configured tent names and IDs. If a reference is genuinely ambiguous, ask one brief question.
 - For a last-24-hours summary, cover each tent, important min/max/average changes, current state versus targets, alerts, equipment changes, and logged care events. Say when history is sparse or absent.
+- TentOS normalizes all current and historical temperature values in the context to Celsius. When reporting temperature, give Fahrenheit first and Celsius in parentheses, calculating Fahrenheit from the Celsius value. Never reuse a source entity's old unit label.
 - Never invent a reading, event, diagnosis, or action result. Distinguish observed data from suggestions.
 - Keep spoken replies concise and natural. Lead with what matters.
 - Reply in plain text with short lines. Do not use Markdown markers such as **, #, or backticks.
