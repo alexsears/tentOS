@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0
+- Add a TentOS-only AI assistant with a responsive voice orb, text conversation, and spoken replies
+- Start each browser session with an AI summary of the last 24 hours across all configured tents
+- Ground responses in live readings, sensor statistics, equipment changes, alerts, events, targets, schedules, and growth stages
+- Add confirmed actions for equipment on/off, fan speed, care-event logging, and assigning Home Assistant entities to tents
+- Resolve natural requests such as "add Lab1a to the veg tent" by searching HA friendly names and entity IDs
+- Keep OpenAI credentials server-side; all physical and configuration changes require an explicit confirmation in TentOS
+- Add Android microphone permission handling for the hosted TentOS app
+
 ## 1.3.3
 - Restore live sensor and actuator entity options in the Automation Editor
 - Show Home Assistant friendly names such as Lab1a in the Device selector

@@ -8,6 +8,7 @@ import Automations from './pages/Automations'
 import Reports from './pages/Reports'
 import Chat from './pages/Chat'
 import Climate from './pages/Climate'
+import Assistant from './pages/Assistant'
 import { useWebSocket } from './hooks/useWebSocket'
 import { AlertBanner } from './components/AlertBanner'
 import { apiFetch } from './utils/api'
@@ -86,6 +87,7 @@ function AppContent() {
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: '🌱' },
+    { path: '/assistant', label: 'Assistant', icon: '◉' },
     { path: '/climate', label: 'Climate', icon: '🌡️' },
     { path: '/reports', label: 'Reports', icon: '📊' },
     { path: '/automations', label: 'Automations', icon: '🤖' },
@@ -93,8 +95,9 @@ function AppContent() {
     { path: '/chat', label: 'Chat', icon: '💬' },
     { path: '/settings', label: 'Settings', icon: '⚙️' },
   ]
-  const mobilePrimaryItems = navItems.slice(0, 4)
-  const mobileMoreItems = navItems.slice(4)
+  const mobilePrimaryPaths = new Set(['/', '/assistant', '/climate', '/automations'])
+  const mobilePrimaryItems = navItems.filter(item => mobilePrimaryPaths.has(item.path))
+  const mobileMoreItems = navItems.filter(item => !mobilePrimaryPaths.has(item.path))
 
   useEffect(() => {
     setMobileMenuOpen(false)
@@ -168,6 +171,7 @@ function AppContent() {
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 pb-24 md:pb-4">
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/assistant" element={<Assistant />} />
             <Route path="/climate" element={<Climate />} />
             <Route path="/tent/:tentId" element={<TentDetail />} />
             <Route path="/reports" element={<Reports />} />
