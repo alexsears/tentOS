@@ -120,6 +120,21 @@ def test_sensor_stats_requires_installation_policy_for_unitless_legacy_temperatu
     assert fahrenheit['unit'] == '°C'
 
 
+def test_numbered_temperature_history_requires_its_own_explicit_unit():
+    start = datetime.now(timezone.utc) - timedelta(hours=1)
+    rows = [
+        SimpleNamespace(tent_id='flower', sensor_type='temperature_2', value=77.0, unit='°F', timestamp=start),
+        SimpleNamespace(tent_id='flower', sensor_type='temperature_3', value=24.0, unit=None, timestamp=start),
+    ]
+
+    stats = assistant._sensor_stats(rows, legacy_temperature_unit='C')['flower']
+
+    assert stats['temperature_2']['latest'] == 25.0
+    assert stats['temperature_2']['unit'] == '°C'
+    assert stats['temperature_3']['samples'] == 0
+    assert stats['temperature_3']['ambiguous_samples'] == 1
+
+
 def test_entity_search_resolves_friendly_name_and_filters_unsupported_domains():
     states = [
         entity('sensor.lab1a_temperature', 'Lab1a Temperature', 'temperature', '24.1'),

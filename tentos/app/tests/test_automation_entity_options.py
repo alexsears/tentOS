@@ -32,3 +32,8 @@ def test_temperature_state_reports_normalized_celsius_unit():
     payload = state.to_dict()
     assert payload["sensors"]["temperature"]["value"] == 25.0
     assert payload["sensors"]["temperature"]["unit"] == "°C"
+
+    state.update_sensor("temperature_2", 77, "°F", "sensor.flower_temperature_2")
+    payload = state.to_dict()
+    assert payload["sensors"]["temperature_2"]["value"] == 25.0
+    assert payload["sensors"]["temperature_2"]["unit"] == "°C"

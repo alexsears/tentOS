@@ -22,6 +22,14 @@ def fahrenheit_to_celsius(f: float) -> float:
     return (f - 32) * 5 / 9
 
 
+def is_temperature_sensor_type(sensor_type: str) -> bool:
+    """Return whether a slot is the canonical or a numbered temperature slot."""
+    return sensor_type == "temperature" or (
+        sensor_type.startswith("temperature_")
+        and sensor_type.removeprefix("temperature_").isdigit()
+    )
+
+
 def calculate_vpd(temp: float, humidity: float) -> float:
     """
     Calculate Vapor Pressure Deficit (VPD) in kPa.
@@ -250,7 +258,7 @@ class TentState:
         now = datetime.now(timezone.utc).isoformat()
 
         # Normalize temperature to Celsius
-        if sensor_type == "temperature" and value is not None:
+        if is_temperature_sensor_type(sensor_type) and value is not None:
             try:
                 temp_val = float(value)
                 # Detect Fahrenheit: via unit attribute OR heuristic (grow temps > 50°C are unrealistic)
