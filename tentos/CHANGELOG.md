@@ -1,7 +1,8 @@
 # Changelog
 
 ## 1.4.1
-- Normalize current and legacy temperature history to Celsius before it reaches the AI context
+- Store explicit sensor units in new history and use a configured C/F policy for legacy unitless temperature rows
+- Ignore ambiguous legacy temperature history until its installation-wide unit is configured instead of guessing from values
 - Report assistant temperatures as Fahrenheit with Celsius in parentheses to prevent ambiguous or stale source-unit labels
 - Remove installation-owner-specific wording from the assistant prompt
 

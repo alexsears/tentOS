@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="")
     openai_model: str = Field(default="gpt-5.6-luna")
     openai_transcription_model: str = Field(default="gpt-4o-transcribe")
+    legacy_temperature_unit: str = Field(default="unknown")
 
     class Config:
         env_prefix = ""
@@ -77,6 +78,14 @@ class Settings(BaseSettings):
         """Get the configured assistant model from env or add-on options."""
         configured = self.load_addon_options().get("openai_model")
         return str(configured or self.openai_model).strip()
+
+    @property
+    def assistant_legacy_temperature_unit(self) -> str:
+        """Configured unit for pre-1.4.1 history rows that have no unit metadata."""
+        configured = str(
+            self.load_addon_options().get("legacy_temperature_unit", self.legacy_temperature_unit)
+        ).strip().upper()
+        return configured if configured in {"C", "F"} else "unknown"
 
 
 class TentConfig:

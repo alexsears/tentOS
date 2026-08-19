@@ -82,7 +82,9 @@ def _extract_response_text(response: dict) -> str:
     return "\n".join(piece for piece in pieces if piece).strip()
 
 
-def _sensor_stats(rows: list[SensorHistory]) -> dict[str, dict[str, dict[str, Any]]]:
+def _sensor_stats(
+    rows: list[SensorHistory], legacy_temperature_unit: str = "unknown"
+) -> dict[str, dict[str, dict[str, Any]]]:
     grouped: dict[str, dict[str, list[SensorHistory]]] = defaultdict(lambda: defaultdict(list))
     for row in rows:
         grouped[row.tent_id][row.sensor_type].append(row)
@@ -92,13 +94,36 @@ def _sensor_stats(rows: list[SensorHistory]) -> dict[str, dict[str, dict[str, An
         result[tent_id] = {}
         for sensor_type, records in sensors.items():
             records.sort(key=lambda row: row.timestamp)
-            values = [float(row.value) for row in records]
+            value_records = [(float(row.value), row) for row in records]
+            ambiguous_samples = 0
             if sensor_type == "temperature":
-                # History written before TentOS normalized readings may contain
-                # Fahrenheit values. Grow-tent temperatures over 50°C are not
-                # plausible, so use the same migration heuristic as TentState.
-                values = [round((value - 32) * 5 / 9, 2) if value > 50 else value for value in values]
-            result[tent_id][sensor_type] = {
+                normalized = []
+                for value, row in value_records:
+                    unit = str(getattr(row, "unit", None) or "").strip().lower()
+                    if unit in {"°c", "c", "celsius"}:
+                        normalized.append((value, row))
+                    elif unit in {"°f", "f", "fahrenheit"}:
+                        normalized.append((round((value - 32) * 5 / 9, 2), row))
+                    elif legacy_temperature_unit == "C":
+                        normalized.append((value, row))
+                    elif legacy_temperature_unit == "F":
+                        normalized.append((round((value - 32) * 5 / 9, 2), row))
+                    else:
+                        ambiguous_samples += 1
+                value_records = normalized
+
+            if not value_records:
+                result[tent_id][sensor_type] = {
+                    "unit": "°C" if sensor_type == "temperature" else None,
+                    "samples": 0,
+                    "ambiguous_samples": ambiguous_samples,
+                    "status": "unavailable: legacy temperature samples have no configured unit",
+                }
+                continue
+
+            values = [value for value, _row in value_records]
+            included_records = [row for _value, row in value_records]
+            summary = {
                 "min": round(min(values), 2),
                 "max": round(max(values), 2),
                 "average": round(sum(values) / len(values), 2),
@@ -109,9 +134,12 @@ def _sensor_stats(rows: list[SensorHistory]) -> dict[str, dict[str, dict[str, An
                     "vpd": "kPa",
                 }.get(sensor_type),
                 "samples": len(values),
-                "first_sample": records[0].timestamp.isoformat(),
-                "last_sample": records[-1].timestamp.isoformat(),
+                "first_sample": included_records[0].timestamp.isoformat(),
+                "last_sample": included_records[-1].timestamp.isoformat(),
             }
+            if ambiguous_samples:
+                summary["ambiguous_samples_ignored"] = ambiguous_samples
+            result[tent_id][sensor_type] = summary
     return result
 
 
@@ -207,7 +235,9 @@ async def _build_tentos_context(request: Request, hours: int = CONTEXT_HOURS) ->
         "generated_at": now.isoformat(),
         "window": {"hours": hours, "from": cutoff.isoformat(), "to": now.isoformat()},
         "tents": tents,
-        "sensor_statistics": _sensor_stats(sensor_rows),
+        "sensor_statistics": _sensor_stats(
+            sensor_rows, settings.assistant_legacy_temperature_unit
+        ),
         "equipment_history": actuator_history,
         "events": [
             {

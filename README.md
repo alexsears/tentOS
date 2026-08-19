@@ -239,7 +239,10 @@ The Assistant keeps its model credential on the backend. For the Home Assistant
 add-on, set `openai_api_key` in the TentOS add-on configuration and restart the
 add-on. For standalone development, set the `OPENAI_API_KEY` environment
 variable. `openai_model` defaults to `gpt-5.6-luna` and can be overridden in the
-same configuration.
+same configuration. New history rows carry their unit. Existing installations
+upgrading to 1.4.1 should set `legacy_temperature_unit` to `C` or `F` to declare
+how older, unitless temperature history was stored; the assistant ignores those
+ambiguous rows while this remains `unknown`.
 
 The assistant receives only TentOS state: configured tents, current readings,
 24-hour sensor/equipment history, alerts, events, targets, schedules, and growth
@@ -255,7 +258,9 @@ entity discovery and actions, so the assistant is not tied to one household.
 The `android-app` directory contains a thin Capacitor shell for the hosted
 TentOS service. The checked-in build targets the maintainer's hosted TentOS
 instance; change `server.url` in `android-app/capacitor.config.json` for another
-HA host and use a unique Android application ID before distributing it. Build it with JDK 17
+HA host and use a unique Android application ID before distributing it. The
+microphone origin check reads that same `server.url`; no separate hostname is
+hardcoded. Build it with JDK 17
 and the Android SDK installed:
 
 ```powershell

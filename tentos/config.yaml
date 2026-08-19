@@ -24,12 +24,14 @@ options:
   developer_ha_user: ""
   openai_api_key: ""
   openai_model: "gpt-5.6-luna"
+  legacy_temperature_unit: "unknown"
   tents: []
 schema:
   log_level: "list(debug|info|warning|error)"
   developer_ha_user: "str?"
   openai_api_key: "str?"
   openai_model: "str?"
+  legacy_temperature_unit: "list(unknown|C|F)"
   tents:
     - name: "str"
       description: "str?"

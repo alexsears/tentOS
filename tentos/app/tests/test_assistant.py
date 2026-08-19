@@ -72,8 +72,8 @@ def entity(entity_id, friendly_name, device_class=None, state='on'):
 def test_sensor_stats_groups_each_tent_and_sensor():
     start = datetime.now(timezone.utc) - timedelta(hours=1)
     rows = [
-        SimpleNamespace(tent_id='veg_tent', sensor_type='temperature', value=22.0, timestamp=start),
-        SimpleNamespace(tent_id='veg_tent', sensor_type='temperature', value=26.0, timestamp=start + timedelta(minutes=5)),
+        SimpleNamespace(tent_id='veg_tent', sensor_type='temperature', value=22.0, unit='°C', timestamp=start),
+        SimpleNamespace(tent_id='veg_tent', sensor_type='temperature', value=26.0, unit='°C', timestamp=start + timedelta(minutes=5)),
         SimpleNamespace(tent_id='veg_tent', sensor_type='humidity', value=60.0, timestamp=start),
     ]
 
@@ -88,20 +88,36 @@ def test_sensor_stats_groups_each_tent_and_sensor():
     assert stats['veg_tent']['temperature']['samples'] == 2
 
 
-def test_sensor_stats_normalizes_legacy_fahrenheit_history():
+def test_sensor_stats_uses_explicit_units_without_value_guessing():
     start = datetime.now(timezone.utc) - timedelta(hours=1)
     rows = [
-        SimpleNamespace(tent_id='veg_tent', sensor_type='temperature', value=77.0, timestamp=start),
-        SimpleNamespace(tent_id='veg_tent', sensor_type='temperature', value=26.0, timestamp=start + timedelta(minutes=5)),
+        SimpleNamespace(tent_id='veg_tent', sensor_type='temperature', value=45.0, unit='°F', timestamp=start),
+        SimpleNamespace(tent_id='veg_tent', sensor_type='temperature', value=55.0, unit='°C', timestamp=start + timedelta(minutes=5)),
     ]
 
     stats = assistant._sensor_stats(rows)['veg_tent']['temperature']
 
-    assert stats['min'] == 25.0
-    assert stats['max'] == 26.0
-    assert stats['average'] == 25.5
-    assert stats['latest'] == 26.0
+    assert stats['min'] == 7.22
+    assert stats['max'] == 55.0
+    assert stats['average'] == 31.11
+    assert stats['latest'] == 55.0
     assert stats['unit'] == '°C'
+
+
+def test_sensor_stats_requires_installation_policy_for_unitless_legacy_temperature():
+    start = datetime.now(timezone.utc) - timedelta(hours=1)
+    rows = [SimpleNamespace(
+        tent_id='veg_tent', sensor_type='temperature', value=77.0, unit=None, timestamp=start
+    )]
+
+    unknown = assistant._sensor_stats(rows)['veg_tent']['temperature']
+    fahrenheit = assistant._sensor_stats(rows, legacy_temperature_unit='F')['veg_tent']['temperature']
+
+    assert unknown['samples'] == 0
+    assert unknown['ambiguous_samples'] == 1
+    assert 'unavailable' in unknown['status']
+    assert fahrenheit['latest'] == 25.0
+    assert fahrenheit['unit'] == '°C'
 
 
 def test_entity_search_resolves_friendly_name_and_filters_unsupported_domains():
