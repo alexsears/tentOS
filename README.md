@@ -15,6 +15,7 @@ A Home Assistant add-on for monitoring and automating indoor grow tents and grow
 - **Historical Reports** - Charts and CSV export for any date range
 - **Environment Scoring** - At-a-glance health score (0-100) per tent based on targets
 - **Developer Chat** - Real-time in-app chat for feature requests and support
+- **TentOS AI Orb** - Talk or type naturally for TentOS-only answers, 24-hour summaries, and confirmed actions
 - **One-Click Updates** - Update TentOS directly from the Settings page
 - **Entity Browser** - Browse and assign HA entities to tents from the UI
 - **Drag-and-Drop Tent Builder** - Configure tents visually in Settings
@@ -178,6 +179,15 @@ TentOS automatically adjusts VPD targets based on growth stage and flower week.
 | `/api/chat/user` | GET | Get user profile |
 | `/api/chat/user/nickname` | PUT | Set nickname |
 
+### AI Assistant
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/assistant/status` | GET | AI readiness and privacy/action boundaries |
+| `/api/assistant/chat` | POST | TentOS-scoped conversation and action proposals |
+| `/api/assistant/transcribe` | POST | Server-side voice transcription |
+| `/api/assistant/actions/{token}/confirm` | POST | Confirm one exact pending TentOS action |
+| `/api/assistant/actions/{token}/cancel` | POST | Cancel a pending action |
+
 ### System
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -222,6 +232,19 @@ docker run --rm -p 8080:8080 tentos-standalone
 
 Open `http://localhost:8080`. The standalone container serves the React app and
 API from one origin and is suitable for Cloud Run or another container host.
+
+### AI assistant setup
+
+The Assistant keeps its model credential on the backend. For the Home Assistant
+add-on, set `openai_api_key` in the TentOS add-on configuration and restart the
+add-on. For standalone development, set the `OPENAI_API_KEY` environment
+variable. `openai_model` defaults to `gpt-5.6-luna` and can be overridden in the
+same configuration.
+
+The assistant receives only TentOS state: configured tents, current readings,
+24-hour sensor/equipment history, alerts, events, targets, schedules, and growth
+stages. It can search Home Assistant entities when you ask to add one to a tent,
+but equipment and configuration writes remain pending until you press Confirm.
 
 ### Android app
 

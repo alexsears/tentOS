@@ -37,7 +37,7 @@ def get_version():
 from database import init_db, get_db
 from ha_client import HAClient
 from light_scheduler import LightScheduler
-from routes import tents, events, alerts, system, config, automations, reports, updates, camera, chat
+from routes import tents, events, alerts, system, config, automations, reports, updates, camera, chat, assistant
 from state_manager import StateManager
 
 logging.basicConfig(
@@ -131,6 +131,7 @@ app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(updates.router, prefix="/api/updates", tags=["updates"])
 app.include_router(camera.router, prefix="/api/camera", tags=["camera"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
+app.include_router(assistant.router, prefix="/api/assistant", tags=["assistant"])
 
 
 @app.get("/api/health")

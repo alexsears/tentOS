@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     hassio_token: str = Field(default="")
     ingress_path: str = Field(default="")
     standalone_mode: bool = Field(default=False)
+    openai_api_key: str = Field(default="")
+    openai_model: str = Field(default="gpt-5.6-luna")
+    openai_transcription_model: str = Field(default="gpt-4o-transcribe")
 
     class Config:
         env_prefix = ""
@@ -61,6 +64,19 @@ class Settings(BaseSettings):
             with open(options_path) as f:
                 return json.load(f)
         return {}
+
+    @property
+    def assistant_api_key(self) -> str:
+        """Get the server-side OpenAI key without exposing it to the frontend."""
+        if self.openai_api_key:
+            return self.openai_api_key.strip()
+        return str(self.load_addon_options().get("openai_api_key", "")).strip()
+
+    @property
+    def assistant_model(self) -> str:
+        """Get the configured assistant model from env or add-on options."""
+        configured = self.load_addon_options().get("openai_model")
+        return str(configured or self.openai_model).strip()
 
 
 class TentConfig:

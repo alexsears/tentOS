@@ -8,6 +8,8 @@
 
 ## Architecture Notes
 
+- (2026-08-19) TentOS AI is implemented as `app/backend/routes/assistant.py` plus `frontend/src/pages/Assistant.jsx`. The server sends only TentOS context to OpenAI, uses request-based transcription for microphone audio, and keeps short conversation/action state in memory. All HA equipment changes, care-event writes, and HA-entity-to-tent assignments are proposed first and require an exact confirmation token in the UI.
+- (2026-08-19) Natural entity assignment such as "add Lab1a to the veg tent" uses a read-only HA entity search tool, validates domain/device-class compatibility against `routes/config.py::SLOT_DEFINITIONS`, then saves through the existing atomic Tent Builder config path and reloads StateManager after confirmation.
 - (2026-07-22) `Dockerfile.standalone` builds the React UI and serves it from FastAPI using `FRONTEND_DIR`; this is the standalone website/Cloud Run path and remains separate from the Home Assistant nginx add-on path.
 - (2026-07-22) `android-app` is a Capacitor 7 Android shell for the hosted standalone TentOS site; Capacitor 7 is used for compatibility with this workstation's Node 20 runtime.
 - (2026-07-22) The LAN APK targets the HA host at `http://192.168.77.50:8109`; add-on container port 8099 maps to LAN host port 8109 to avoid a collision with an existing service on 8099. The HA/Supervisor token remains inside the add-on.

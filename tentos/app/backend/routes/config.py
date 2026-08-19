@@ -176,6 +176,8 @@ class TentConfig(BaseModel):
     targets: dict = {}
     schedules: dict = {}
     notifications: dict = {"enabled": True}
+    control_settings: dict = {}
+    growth_stage: dict = {}
 
 
 class AppConfig(BaseModel):
@@ -207,6 +209,8 @@ def _load_tents_from_options() -> list[TentConfig]:
                 targets=t.get("targets", {}),
                 schedules=t.get("schedules", {}),
                 notifications=t.get("notifications", {"enabled": True}),
+                control_settings=t.get("control_settings", {}),
+                growth_stage=t.get("growth_stage", {}),
             ))
         return tents
     except Exception as e:
@@ -262,6 +266,10 @@ def load_config() -> AppConfig:
                     opt_tent.targets = cfg_tent.targets
                 if cfg_tent.schedules:
                     opt_tent.schedules = cfg_tent.schedules
+                if cfg_tent.control_settings:
+                    opt_tent.control_settings = cfg_tent.control_settings
+                if cfg_tent.growth_stage:
+                    opt_tent.growth_stage = cfg_tent.growth_stage
             merged_tents.append(opt_tent)
         app_config.tents = merged_tents
         return app_config
