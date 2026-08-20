@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.3
+- Keep the assistant orb, conversation, shortcuts, microphone, and message composer visible together on phones
+- Add a microphone control beside typed input, shorter installation-neutral quick requests, and a one-tap new conversation
+- Make 24-hour summaries easier to scan and action confirmations clearer without changing TentOS-only safety boundaries
+
 ## 1.4.2
 - Normalize numbered temperature slots such as `temperature_2` to Celsius in current state and new history
 - Require explicit unit metadata for old numbered-temperature history instead of applying the canonical slot's legacy policy
