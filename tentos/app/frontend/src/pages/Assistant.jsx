@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch, requireOk } from '../utils/api'
 
-const STARTER_PROMPT = 'Give me a concise summary of the last 24 hours in the tents.'
+const STARTER_PROMPT = 'Give me a concise, scan-friendly summary of the last 24 hours in the tents. Put each tent name on its own line, keep each detail short, and finish with an Attention needed section.'
+const WELCOME_MESSAGE = 'I know your TentOS setup: configured tents, readings, history, equipment, alerts, and care events. Ask naturally, choose a shortcut, or tap the orb to talk.'
+const SUGGESTIONS = [
+  { label: '24-hour summary', prompt: STARTER_PROMPT },
+  { label: 'Check alerts', prompt: 'Are there any active alerts or readings outside target?' },
+  { label: 'Equipment changes', prompt: 'What changed with the lights and fans?' },
+  { label: 'Add an entity', prompt: 'Help me add a Home Assistant entity to a tent.' },
+]
 
 function makeSessionId() {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID()
@@ -39,16 +46,41 @@ function stripSpeechFormatting(text) {
   return text.replace(/\*\*/g, '').replace(/`/g, '')
 }
 
-function MessageText({ text }) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+function MicrophoneIcon({ className = '' }) {
   return (
-    <p className="whitespace-pre-wrap leading-relaxed">
-      {parts.map((part, index) => (
-        part.startsWith('**') && part.endsWith('**')
-          ? <strong key={`${index}-${part}`}>{part.slice(2, -2)}</strong>
-          : part
-      ))}
-    </p>
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="8" y="3" width="8" height="12" rx="4" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function FormattedLine({ text }) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return parts.map((part, index) => (
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={`${index}-${part}`}>{part.slice(2, -2)}</strong>
+      : part
+  ))
+}
+
+function MessageText({ text }) {
+  const lines = text.split('\n')
+  return (
+    <div className="assistant-message-content">
+      {lines.map((line, index) => {
+        const trimmed = line.trim()
+        if (!trimmed) return <span key={`space-${index}`} className="assistant-message-space" aria-hidden="true" />
+        const next = (lines[index + 1] || '').trim()
+        const isHeading = (trimmed.length <= 52 && trimmed.endsWith(':'))
+          || (trimmed.length <= 42 && next.startsWith('Current:'))
+        return (
+          <p key={`${index}-${line}`} className={isHeading ? 'assistant-message-heading' : 'assistant-message-line'}>
+            <FormattedLine text={line} />
+          </p>
+        )
+      })}
+    </div>
   )
 }
 
@@ -87,7 +119,7 @@ function PendingAction({ action, sessionId, onResolved }) {
                 ? 'Cancelled'
                 : state === 'failed'
                   ? 'Request again'
-                  : 'Confirmation required'}
+                  : 'Review before running'}
           </p>
           <p className="mt-1 text-sm text-gray-100">{action.summary}</p>
         </div>
@@ -95,7 +127,7 @@ function PendingAction({ action, sessionId, onResolved }) {
       {state === 'pending' && (
         <div className="mt-3 flex gap-2">
           <button type="button" onClick={() => decide('confirm')} className="btn btn-sm btn-primary min-h-10">
-            Confirm
+            Confirm action
           </button>
           <button type="button" onClick={() => decide('cancel')} className="btn btn-sm bg-white/5 text-gray-300 hover:bg-white/10 min-h-10">
             Cancel
@@ -114,7 +146,7 @@ export default function Assistant() {
     {
       id: 'welcome',
       role: 'assistant',
-      text: 'I only know TentOS: your configured tents, their readings, history, equipment, alerts, and care events. Ask naturally or tap the orb to talk.',
+      text: WELCOME_MESSAGE,
     },
   ])
   const [input, setInput] = useState('')
@@ -307,12 +339,31 @@ export default function Assistant() {
     }
   }
 
+  const resetConversation = () => {
+    clearTimeout(stopTimerRef.current)
+    streamRef.current?.getTracks().forEach(track => track.stop())
+    window.speechSynthesis?.cancel()
+    const created = makeSessionId()
+    localStorage.setItem('tentos_assistant_session', created)
+    sessionStorage.setItem('tentos_assistant_24h_started', '1')
+    autoStartedRef.current = true
+    setSessionId(created)
+    setMessages([{ id: 'welcome', role: 'assistant', text: WELCOME_MESSAGE }])
+    setInput('')
+    setError('')
+    setMode('idle')
+  }
+
   return (
     <div className="assistant-shell">
       <section className="assistant-stage" aria-label="TentOS AI assistant">
-        <div className="assistant-kicker">
-          <span className={`assistant-live-dot ${status?.configured ? 'ready' : ''}`} />
-          TentOS context only · 24-hour live window
+        <div className="assistant-stage-intro">
+          <div className="assistant-kicker">
+            <span className={`assistant-live-dot ${status?.configured ? 'ready' : ''}`} />
+            {status?.configured ? 'Ready' : 'Setup needed'} · TentOS only
+          </div>
+          <h2 className="assistant-stage-title">Talk to your tents</h2>
+          <p className="assistant-stage-copy">Readings, history, equipment, alerts, and care in one conversation.</p>
         </div>
 
         <button
@@ -324,38 +375,49 @@ export default function Assistant() {
         >
           <span className="assistant-orb-core" />
           <span className="assistant-orb-shine" />
+          <MicrophoneIcon className="assistant-orb-mic" />
         </button>
-        <p className="assistant-orb-label">{orbLabel}</p>
-        <button type="button" onClick={toggleSound} className="assistant-sound-toggle" aria-pressed={soundOn}>
-          {soundOn ? 'Voice replies on' : 'Voice replies off'}
-        </button>
+        <div className="assistant-orb-copy">
+          <p className="assistant-orb-label">{orbLabel}</p>
+          <button type="button" onClick={toggleSound} className="assistant-sound-toggle" aria-pressed={soundOn}>
+            <span aria-hidden="true">{soundOn ? '🔊' : '🔇'}</span>
+            Voice replies {soundOn ? 'on' : 'off'}
+          </button>
+        </div>
+
+      </section>
+
+      <section className="assistant-conversation">
+        <div className="assistant-conversation-header">
+          <div>
+            <h2>Conversation</h2>
+            <p>Ask, speak, or choose a quick request.</p>
+          </div>
+          <button type="button" onClick={resetConversation} className="assistant-new-chat" disabled={mode !== 'idle'}>
+            New chat
+          </button>
+        </div>
 
         {status && !status.configured && (
-          <div className="mt-5 max-w-lg rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-left">
+          <div className="assistant-setup-card">
             <p className="font-semibold text-amber-200">One-time AI setup needed</p>
             <p className="mt-1 text-sm text-gray-300">
               Add <code className="text-amber-100">openai_api_key</code> in the TentOS add-on configuration, save, and restart TentOS. The key stays on the server.
             </p>
           </div>
         )}
-      </section>
 
-      <section className="assistant-conversation">
         <div className="assistant-suggestions scrollbar-none">
-          {[
-            STARTER_PROMPT,
-            'Are there any active alerts or readings outside target?',
-            'What changed with the lights and fans?',
-            'Add Lab1a to the veg tent.',
-          ].map(prompt => (
+          {SUGGESTIONS.map(suggestion => (
             <button
               type="button"
-              key={prompt}
-              onClick={() => sendMessage(prompt)}
+              key={suggestion.label}
+              onClick={() => sendMessage(suggestion.prompt)}
               disabled={busy || !status?.configured}
               className="assistant-suggestion"
+              title={suggestion.prompt}
             >
-              {prompt}
+              {suggestion.label}
             </button>
           ))}
         </div>
@@ -392,11 +454,21 @@ export default function Assistant() {
             sendMessage(input)
           }}
         >
+          <button
+            type="button"
+            onClick={handleOrb}
+            className={`assistant-compose-mic ${mode === 'listening' ? 'listening' : ''}`}
+            disabled={!status?.configured || busy}
+            aria-label={mode === 'listening' ? 'Stop recording' : 'Start voice request'}
+          >
+            <MicrophoneIcon />
+          </button>
           <input
             value={input}
             onChange={event => setInput(event.target.value)}
             className="input min-w-0 flex-1 min-h-12"
             placeholder="Ask about the tents or request an action..."
+            aria-label="Message TentOS assistant"
             maxLength={1500}
             disabled={busy || !status?.configured}
           />
