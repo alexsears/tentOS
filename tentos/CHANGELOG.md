@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.5.1
+- Share the tent list request between the app shell and the dashboard instead of both starting one at the same moment
+
 ## 1.5.0
 - Warm the automation config cache in the background so no page load pays for the cold fill (Home Assistant serves those configs one at a time, so concurrency cannot help)
 - Hold one fill at a time, so a page load arriving during a warm-up joins it instead of starting a second copy of the same 127 requests

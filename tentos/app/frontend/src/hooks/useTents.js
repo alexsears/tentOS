@@ -2,15 +2,37 @@ import { useState, useEffect, useCallback } from 'react'
 import { useWebSocket } from './useWebSocket'
 import { apiFetch } from '../utils/api'
 
-// The app shell preloads tents on boot. Handing that result to the first hook
-// that asks avoids fetching the same list twice on every dashboard load.
+// The app shell and the dashboard both want the tent list on boot, and they ask
+// at the same moment, so seeding one from the other's response still left two
+// requests in flight. Callers now share the request itself: whoever asks first
+// starts it, everyone else awaits the same promise, and the result is reusable
+// for a moment afterwards.
 let preloadedTents = null
 let preloadedAt = 0
+let inFlight = null
 const PRELOAD_MAX_AGE_MS = 5000
 
 export function seedTents(tents) {
   preloadedTents = tents
   preloadedAt = Date.now()
+}
+
+export async function fetchTentsShared() {
+  if (preloadedTents && (Date.now() - preloadedAt) < PRELOAD_MAX_AGE_MS) {
+    return preloadedTents
+  }
+  if (inFlight) return inFlight
+
+  inFlight = apiFetch('api/tents')
+    .then(async response => {
+      if (!response.ok) throw new Error('Failed to fetch tents')
+      const data = await response.json()
+      seedTents(data.tents || [])
+      return preloadedTents
+    })
+    .finally(() => { inFlight = null })
+
+  return inFlight
 }
 
 export function useTents() {
@@ -21,12 +43,14 @@ export function useTents() {
   const [pending, setPending] = useState({}) // Track pending actions
   const { lastMessage, readyState } = useWebSocket('api/ws')
 
-  const fetchTents = useCallback(async () => {
+  const fetchTents = useCallback(async (force = false) => {
     try {
-      const response = await apiFetch('api/tents')
-      if (!response.ok) throw new Error('Failed to fetch tents')
-      const data = await response.json()
-      setTents(data.tents || [])
+      if (force) {
+        preloadedTents = null
+        preloadedAt = 0
+      }
+      const list = await fetchTentsShared()
+      setTents(list || [])
       setError(null)
     } catch (e) {
       setError(e.message)
@@ -36,12 +60,6 @@ export function useTents() {
   }, [])
 
   useEffect(() => {
-    // A fresh preload already provided the list; the socket keeps it current
-    if (preloadedTents && (Date.now() - preloadedAt) < PRELOAD_MAX_AGE_MS) {
-      setTents(preloadedTents)
-      setLoading(false)
-      return
-    }
     fetchTents()
   }, [fetchTents])
 
@@ -138,7 +156,7 @@ export function useTents() {
     loading,
     error,
     connected: readyState === WebSocket.OPEN,
-    refetch: fetchTents,
+    refetch: () => fetchTents(true),
     performAction,
     toggleActuator,
     isPending,

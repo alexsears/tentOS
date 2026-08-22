@@ -12,7 +12,7 @@ import Assistant from './pages/Assistant'
 import { useWebSocket } from './hooks/useWebSocket'
 import { AlertBanner } from './components/AlertBanner'
 import { apiFetch } from './utils/api'
-import { seedTents } from './hooks/useTents'
+import { fetchTentsShared } from './hooks/useTents'
 import { AlertsMenu } from './components/AlertsMenu'
 import { TempUnitProvider, useTemperatureUnit } from './hooks/useTemperatureUnit'
 
@@ -73,13 +73,9 @@ function AppContent() {
     // Preload for instant page loads. Tents come first because the dashboard
     // needs them; the automation and history endpoints are the slow pair, so
     // they are warmed after the first paint rather than racing it.
-    apiFetch('api/tents')
-      .then(r => r.json())
-      .catch(() => ({ tents: [] }))
-      .then(tentsData => {
-        seedTents(tentsData.tents || [])
-        setPreloadedData(prev => ({ ...prev, tents: tentsData.tents || [] }))
-      })
+    fetchTentsShared()
+      .catch(() => [])
+      .then(tents => setPreloadedData(prev => ({ ...prev, tents: tents || [] })))
 
     const warmSlowPages = setTimeout(() => {
       Promise.all([
