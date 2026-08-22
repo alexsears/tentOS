@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.7
+- Stop a non-numeric sensor state from breaking a tent's live updates: a camera reporting "recording", or any sensor reporting "unavailable", raised a TypeError that skipped the update and its broadcast
+
 ## 1.4.6
 - Stop a watering run when its timer is up, and recover a pump left on by a restart
 - Hide the watering action on tents with no pump configured

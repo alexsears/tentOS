@@ -282,9 +282,16 @@ class TentState:
             if "_entities" not in existing:
                 existing["_entities"] = {}
             existing["_entities"][entity_id] = value
-            # Average all entity values
-            values = [v for v in existing["_entities"].values() if v is not None]
-            existing["value"] = round(sum(values) / len(values), 1) if values else None
+            # Average the numeric entities only. Some slots are not numbers at
+            # all (a camera reports "recording") and any sensor can report
+            # "unavailable", and summing those raised a TypeError that killed
+            # the state update and its WebSocket broadcast for the whole tent.
+            numeric = [v for v in existing["_entities"].values() if isinstance(v, (int, float))]
+            if numeric:
+                existing["value"] = round(sum(numeric) / len(numeric), 1)
+            else:
+                # Nothing to average: show the most recent raw state instead
+                existing["value"] = value
             existing["updated"] = now
         else:
             # First entity for this sensor type
