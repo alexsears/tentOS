@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.4
+- Click any reading, device, or entity to open its own history graph on the Reports tab
+- Add an any-entity history API so the graph works for entities that are not mapped to a tent sensor slot
+- Draw switches and binary sensors as on/off step charts with an on-time percentage for the window
+
 ## 1.4.3
 - Keep the assistant orb, conversation, shortcuts, microphone, and message composer visible together on phones
 - Add a microphone control beside typed input, shorter installation-neutral quick requests, and a one-tap new conversation

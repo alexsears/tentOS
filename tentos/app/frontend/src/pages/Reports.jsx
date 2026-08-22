@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
 import { apiFetch } from '../utils/api'
 import { format, subHours, subDays } from 'date-fns'
@@ -19,6 +20,31 @@ const SENSOR_CONFIG = {
   humidity: { label: 'Humidity', unit: '%', color: '#3b82f6', yAxisIndex: 1 },
   vpd: { label: 'VPD', unit: 'kPa', color: '#22c55e', yAxisIndex: 2 },
   co2: { label: 'CO2', unit: 'ppm', color: '#a855f7', yAxisIndex: 0 }
+}
+
+const FOCUS_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7', '#14b8a6']
+
+function StateStatsCard({ label, stats }) {
+  if (!stats) return null
+  return (
+    <div className="bg-[#1a1a2e] rounded-lg p-3">
+      <div className="text-xs text-gray-500 mb-1">{label}</div>
+      <div className="grid grid-cols-3 gap-2 text-sm">
+        <div>
+          <span className="text-gray-400">On:</span>
+          <span className="ml-1 font-medium">{stats.on_percent != null ? `${stats.on_percent}%` : '--'}</span>
+        </div>
+        <div>
+          <span className="text-gray-400">Hours:</span>
+          <span className="ml-1 font-medium">{stats.on_hours != null ? stats.on_hours : '--'}</span>
+        </div>
+        <div>
+          <span className="text-gray-400">Now:</span>
+          <span className="ml-1 font-medium text-green-400">{stats.current ?? '--'}</span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function StatsCard({ label, stats, unit }) {
@@ -49,14 +75,42 @@ function StatsCard({ label, stats, unit }) {
 }
 
 export default function Reports() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [tents, setTents] = useState([])
   const [selectedTent, setSelectedTent] = useState(null)
-  const [timeRange, setTimeRange] = useState('24h')
-  const [sensors, setSensors] = useState(['temperature', 'humidity', 'vpd'])
+  const [timeRange, setTimeRange] = useState(searchParams.get('range') || '24h')
+  const [sensors, setSensors] = useState(
+    searchParams.get('sensors')?.split(',').filter(Boolean) || ['temperature', 'humidity', 'vpd']
+  )
   const [historyData, setHistoryData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [customRange, setCustomRange] = useState({ from: '', to: '' })
   const [showCustom, setShowCustom] = useState(false)
+  // Entity focus: arrives as ?entity=sensor.a,sensor.b when something is clicked elsewhere
+  const [focusData, setFocusData] = useState([])
+  const [focusLoading, setFocusLoading] = useState(false)
+
+  const focusEntities = useMemo(
+    () => (searchParams.get('entity') || '').split(',').map(e => e.trim()).filter(Boolean),
+    [searchParams]
+  )
+  const focusKey = focusEntities.join(',')
+
+  const clearFocus = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('entity')
+    setSearchParams(next, { replace: true })
+  }
+
+  // Keep the range in the URL so a focused chart can be shared or reloaded
+  useEffect(() => {
+    if (!focusKey) return
+    const next = new URLSearchParams(searchParams)
+    if (next.get('range') !== timeRange) {
+      next.set('range', timeRange)
+      setSearchParams(next, { replace: true })
+    }
+  }, [timeRange, focusKey])
 
   // Load tents
   useEffect(() => {
@@ -64,7 +118,11 @@ export default function Reports() {
       .then(r => r.json())
       .then(data => {
         setTents(data.tents || [])
-        if (data.tents?.length > 0) {
+        const wanted = searchParams.get('tent')
+        const match = data.tents?.find(t => t.id === wanted)
+        if (match) {
+          setSelectedTent(match.id)
+        } else if (data.tents?.length > 0) {
           setSelectedTent(data.tents[0].id)
         }
       })
@@ -72,9 +130,38 @@ export default function Reports() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Load history for focused entities (any entity, not just tent slots)
+  useEffect(() => {
+    if (!focusKey) {
+      setFocusData([])
+      return
+    }
+    let cancelled = false
+    setFocusLoading(true)
+    const rangeQuery = showCustom && customRange.from && customRange.to
+      ? `from_time=${customRange.from}&to_time=${customRange.to}`
+      : `range=${timeRange}`
+
+    Promise.all(
+      focusEntities.map(id =>
+        apiFetch(`api/reports/entity-history?entity_id=${encodeURIComponent(id)}&${rangeQuery}`)
+          .then(r => (r.ok ? r.json() : null))
+          .catch(() => null)
+      )
+    )
+      .then(results => {
+        if (!cancelled) setFocusData(results.filter(Boolean))
+      })
+      .finally(() => {
+        if (!cancelled) setFocusLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [focusKey, timeRange, showCustom, customRange])
+
   // Load history when tent or range changes
   useEffect(() => {
-    if (!selectedTent) return
+    if (!selectedTent || focusKey) return
 
     setLoading(true)
     const sensorParam = sensors.join(',')
@@ -89,7 +176,7 @@ export default function Reports() {
       .then(setHistoryData)
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [selectedTent, timeRange, sensors, showCustom, customRange])
+  }, [selectedTent, timeRange, sensors, showCustom, customRange, focusKey])
 
   // Toggle sensor visibility
   const toggleSensor = (sensor) => {
@@ -270,6 +357,130 @@ export default function Reports() {
     }
   }, [historyData])
 
+  // Chart for the focused entities. Numeric readings draw as lines; switches and
+  // binary sensors draw as a 0/1 step so on/off runs are readable at a glance.
+  const focusChartOptions = useMemo(() => {
+    if (!focusData.length) return null
+
+    const series = []
+    const legend = []
+    const hasNumeric = focusData.some(d => d.kind === 'numeric')
+    const hasState = focusData.some(d => d.kind === 'state')
+
+    focusData.forEach((entity, index) => {
+      const color = FOCUS_COLORS[index % FOCUS_COLORS.length]
+      const name = entity.friendly_name || entity.entity_id
+      legend.push(name)
+
+      if (entity.kind === 'numeric') {
+        series.push({
+          name,
+          type: 'line',
+          smooth: true,
+          symbol: 'none',
+          lineStyle: { width: 2, color },
+          itemStyle: { color },
+          yAxisIndex: 0,
+          data: (entity.data || []).map(d => [new Date(d.timestamp).getTime(), d.value])
+        })
+      } else if (entity.kind === 'state') {
+        const points = (entity.states || [])
+          .filter(s => s.on !== null && s.on !== undefined)
+          .map(s => [new Date(s.timestamp).getTime(), s.on ? 1 : 0])
+        // Carry the last known state to the end of the window
+        if (points.length) {
+          points.push([new Date(entity.to).getTime(), points[points.length - 1][1]])
+        }
+        series.push({
+          name,
+          type: 'line',
+          step: 'end',
+          symbol: 'none',
+          lineStyle: { width: 2, color },
+          itemStyle: { color },
+          areaStyle: { color, opacity: 0.15 },
+          yAxisIndex: hasNumeric ? 1 : 0,
+          data: points
+        })
+      }
+    })
+
+    const stateAxis = {
+      type: 'value',
+      name: 'On/Off',
+      min: 0,
+      max: 1,
+      interval: 1,
+      position: 'right',
+      nameTextStyle: { color: '#9ca3af' },
+      axisLine: { lineStyle: { color: '#2d3a5c' } },
+      axisLabel: { color: '#9ca3af', formatter: v => (v === 1 ? 'On' : 'Off') },
+      splitLine: { show: false }
+    }
+    const valueAxis = {
+      type: 'value',
+      name: focusData.find(d => d.kind === 'numeric')?.unit || '',
+      nameTextStyle: { color: '#9ca3af' },
+      axisLine: { lineStyle: { color: '#2d3a5c' } },
+      axisLabel: { color: '#9ca3af' },
+      splitLine: { lineStyle: { color: '#2d3a5c', opacity: 0.3 } },
+      scale: true
+    }
+
+    const yAxis = hasNumeric ? (hasState ? [valueAxis, stateAxis] : [valueAxis]) : [stateAxis]
+
+    return {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: '#1a1a2e',
+        borderColor: '#2d3a5c',
+        textStyle: { color: '#fff' },
+        formatter: (params) => {
+          if (!params.length) return ''
+          const time = format(new Date(params[0].value[0]), 'MMM d, HH:mm')
+          let html = `<div style="font-weight:600;margin-bottom:4px">${time}</div>`
+          params.forEach(pt => {
+            const entity = focusData[pt.seriesIndex]
+            const value = entity?.kind === 'state'
+              ? (pt.value[1] === 1 ? 'On' : 'Off')
+              : `${pt.value[1]}${entity?.unit ? ' ' + entity.unit : ''}`
+            html += `<div style="display:flex;justify-content:space-between;gap:16px">
+              <span style="color:${pt.color}">${pt.seriesName}</span>
+              <span style="font-weight:600">${value}</span>
+            </div>`
+          })
+          return html
+        }
+      },
+      legend: { data: legend, textStyle: { color: '#9ca3af' }, top: 10, type: 'scroll' },
+      grid: { left: 60, right: 70, top: 50, bottom: 80 },
+      xAxis: {
+        type: 'time',
+        axisLine: { lineStyle: { color: '#2d3a5c' } },
+        axisLabel: { color: '#9ca3af' },
+        splitLine: { show: false }
+      },
+      yAxis,
+      dataZoom: [
+        { type: 'inside', start: 0, end: 100 },
+        {
+          type: 'slider',
+          start: 0,
+          end: 100,
+          height: 30,
+          bottom: 10,
+          borderColor: '#2d3a5c',
+          backgroundColor: '#1a1a2e',
+          fillerColor: 'rgba(34, 197, 94, 0.2)',
+          handleStyle: { color: '#22c55e' },
+          textStyle: { color: '#9ca3af' }
+        }
+      ],
+      series
+    }
+  }, [focusData])
+
   // Export data
   const handleExport = async (format) => {
     if (!selectedTent) return
@@ -306,18 +517,34 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Reports & History</h2>
-          <p className="text-gray-400">Analyze historical sensor data with interactive charts</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-2xl font-bold truncate">
+            {focusKey
+              ? (focusData[0]?.friendly_name || focusEntities[0])
+              : 'Reports & History'}
+          </h2>
+          <p className="text-gray-400 truncate">
+            {focusKey
+              ? focusEntities.join(', ')
+              : 'Analyze historical sensor data with interactive charts'}
+          </p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => handleExport('csv')} className="btn btn-sm">
-            Export CSV
-          </button>
-          <button onClick={() => handleExport('json')} className="btn btn-sm">
-            Export JSON
-          </button>
+        <div className="flex gap-2 shrink-0">
+          {focusKey ? (
+            <button onClick={clearFocus} className="btn btn-sm">
+              &larr; All tent sensors
+            </button>
+          ) : (
+            <>
+              <button onClick={() => handleExport('csv')} className="btn btn-sm">
+                Export CSV
+              </button>
+              <button onClick={() => handleExport('json')} className="btn btn-sm">
+                Export JSON
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -325,7 +552,7 @@ export default function Reports() {
       <div className="card">
         <div className="flex flex-wrap gap-4 items-end">
           {/* Tent selector */}
-          <div>
+          <div className={focusKey ? 'hidden' : ''}>
             <label className="text-sm text-gray-400 block mb-1">Tent</label>
             <select
               value={selectedTent || ''}
@@ -367,7 +594,7 @@ export default function Reports() {
           </div>
 
           {/* Sensor toggles */}
-          <div>
+          <div className={focusKey ? 'hidden' : ''}>
             <label className="text-sm text-gray-400 block mb-1">Sensors</label>
             <div className="flex gap-1">
               {Object.entries(SENSOR_CONFIG).map(([key, config]) => (
@@ -415,8 +642,30 @@ export default function Reports() {
         )}
       </div>
 
+      {/* Focused entity statistics */}
+      {focusKey && focusData.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {focusData.map(entity => (
+            entity.kind === 'state' ? (
+              <StateStatsCard
+                key={entity.entity_id}
+                label={entity.friendly_name || entity.entity_id}
+                stats={entity.stats}
+              />
+            ) : (
+              <StatsCard
+                key={entity.entity_id}
+                label={entity.friendly_name || entity.entity_id}
+                stats={entity.stats}
+                unit={entity.unit ? ` ${entity.unit}` : ''}
+              />
+            )
+          ))}
+        </div>
+      )}
+
       {/* Statistics */}
-      {historyData?.stats && (
+      {!focusKey && historyData?.stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {Object.entries(historyData.stats).map(([sensor, stats]) => {
             const config = SENSOR_CONFIG[sensor]
@@ -434,7 +683,25 @@ export default function Reports() {
 
       {/* Main Chart */}
       <div className="card">
-        {loading ? (
+        {focusKey ? (
+          focusLoading ? (
+            <div className="h-96 flex items-center justify-center text-gray-400">
+              Loading chart data...
+            </div>
+          ) : focusChartOptions ? (
+            <ReactECharts
+              option={focusChartOptions}
+              style={{ height: '500px' }}
+              theme="dark"
+              opts={{ renderer: 'canvas' }}
+              notMerge
+            />
+          ) : (
+            <div className="h-96 flex items-center justify-center text-gray-400 text-center px-4">
+              Home Assistant has no recorded history for {focusEntities.join(', ')} in this range.
+            </div>
+          )
+        ) : loading ? (
           <div className="h-96 flex items-center justify-center text-gray-400">
             Loading chart data...
           </div>
@@ -453,7 +720,15 @@ export default function Reports() {
       </div>
 
       {/* Data info */}
-      {historyData && (
+      {focusKey && focusData.length > 0 && (
+        <div className="text-sm text-gray-500 text-center">
+          Showing data from {format(new Date(focusData[0].from), 'MMM d, yyyy HH:mm')} to{' '}
+          {format(new Date(focusData[0].to), 'MMM d, yyyy HH:mm')}
+          {' '}&bull;{' '}
+          {focusData.reduce((sum, e) => sum + (e.stats?.points || 0), 0)} data points
+        </div>
+      )}
+      {!focusKey && historyData && (
         <div className="text-sm text-gray-500 text-center space-y-1">
           <div>
             Showing data from {format(new Date(historyData.from), 'MMM d, yyyy HH:mm')} to{' '}

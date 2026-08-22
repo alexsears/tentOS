@@ -8,6 +8,7 @@ import { AutomationEditor } from '../components/AutomationEditor'
 import { LightCycleCard } from '../components/LightCycleCard'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { apiFetch, requireOk } from '../utils/api'
+import { sensorEntities, entityHistoryPath, tentHistoryPath } from '../utils/history'
 
 export default function TentDetail() {
   const { tentId } = useParams()
@@ -72,17 +73,32 @@ export default function TentDetail() {
     )
   }
 
+  // Any reading is a link to its own graph on the Reports tab.
+  const goToHistory = (path) => {
+    if (path) navigate(path)
+  }
+
   const getSensorDisplay = (type, label, unit = '', isTemp = false) => {
     const sensor = tent.sensors?.[type]
     const value = sensor?.value
     const displayValue = isTemp && value != null ? formatTemp(value, 1) : (value != null ? Number(value).toFixed(1) : null)
     const displayUnit = isTemp ? getTempUnit() : unit
+    const historyPath = type === 'vpd'
+      ? tentHistoryPath(tentId, 'vpd')
+      : entityHistoryPath(sensorEntities(sensor))
     return (
-      <div className="card text-center">
+      <div
+        className={`card text-center ${historyPath ? 'cursor-pointer hover:border-green-600/50 transition-colors' : ''}`}
+        onClick={() => goToHistory(historyPath)}
+        title={historyPath ? `${label} history` : undefined}
+      >
         <div className="text-3xl font-bold mb-1">
           {displayValue != null ? `${displayValue}${displayUnit}` : '--'}
         </div>
-        <div className="text-sm text-gray-400">{label}</div>
+        <div className="text-sm text-gray-400">
+          {label}
+          {historyPath && <span className="ml-1 opacity-50">📈</span>}
+        </div>
       </div>
     )
   }
@@ -106,13 +122,21 @@ export default function TentDetail() {
   const getActuatorControl = (type, label, icon) => {
     const state = tent.actuators?.[type]?.state || 'unknown'
     const isOn = state === 'on'
+    const historyPath = entityHistoryPath(tent.actuators?.[type]?.entity_id)
     return (
       <div className="card">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div
+            className={`flex items-center gap-3 ${historyPath ? 'cursor-pointer' : ''}`}
+            onClick={() => goToHistory(historyPath)}
+            title={historyPath ? `${label} history` : undefined}
+          >
             <span className={`text-2xl ${isOn ? '' : 'opacity-50'}`}>{icon}</span>
             <div>
-              <div className="font-medium">{label}</div>
+              <div className="font-medium">
+                {label}
+                {historyPath && <span className="ml-1 opacity-50 text-xs">📈</span>}
+              </div>
               <div className={`text-sm ${isOn ? 'text-green-400' : 'text-gray-400'}`}>
                 {state}
               </div>
@@ -224,11 +248,15 @@ export default function TentDetail() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {getSensorDisplay('temperature', 'Temperature', '', true)}
               {getSensorDisplay('humidity', 'Humidity', '%')}
-              <div className="card text-center">
+              <div
+                className="card text-center cursor-pointer hover:border-green-600/50 transition-colors"
+                onClick={() => goToHistory(tentHistoryPath(tentId, 'vpd'))}
+                title="VPD history"
+              >
                 <div className="text-3xl font-bold mb-1">
                   {tent.vpd != null ? Number(tent.vpd).toFixed(1) : '--'}
                 </div>
-                <div className="text-sm text-gray-400">VPD (kPa)</div>
+                <div className="text-sm text-gray-400">VPD (kPa)<span className="ml-1 opacity-50">📈</span></div>
               </div>
               <div className="card text-center">
                 <div className={`text-3xl font-bold mb-1 ${

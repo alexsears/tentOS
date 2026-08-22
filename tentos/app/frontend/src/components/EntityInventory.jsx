@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
+import { entityHistoryPath } from '../utils/history'
 
 // Domains relevant for grow tent management
 const ALLOWED_DOMAINS = new Set([
@@ -89,6 +91,7 @@ function detectGroups(entities) {
 }
 
 function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
+  const navigate = useNavigate()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: entity.entity_id,
     data: { entity, slotType }
@@ -144,6 +147,14 @@ function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
           </div>
         </div>
 
+        {/* Jump to this entity's graph on the Reports tab */}
+        <button
+          onClick={(e) => { e.stopPropagation(); navigate(entityHistoryPath(entity.entity_id)) }}
+          title={`${entity.friendly_name || entity.entity_id} history`}
+          className="flex-shrink-0 px-1.5 py-1 rounded text-gray-500 hover:text-white hover:bg-[#2d3a5c]"
+        >
+          📈
+        </button>
       </div>
     </div>
   )

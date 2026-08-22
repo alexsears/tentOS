@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { getApiBase, apiFetch } from '../utils/api'
+import { sensorEntities, entityHistoryPath, tentHistoryPath } from '../utils/history'
 
 // Actuator icon definitions with states
 const ACTUATOR_ICONS = {
@@ -55,6 +56,20 @@ function groupActuatorsByType(slots) {
     }
   }
   return groups
+}
+
+function HistoryButton({ path, label, className = '' }) {
+  const navigate = useNavigate()
+  if (!path) return null
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); navigate(path) }}
+      title={label ? `${label} history` : 'History'}
+      className={`shrink-0 px-2 py-1 rounded text-gray-400 hover:text-white hover:bg-[#2d3a5c] ${className}`}
+    >
+      📈
+    </button>
+  )
 }
 
 function ActuatorButton({ slot, state, pending, onToggle, onClick, customLabel, customIcon, friendlyName }) {
@@ -140,7 +155,7 @@ function ActuatorGroupButton({ group, getState, onClick }) {
   )
 }
 
-function GroupPopup({ group, getState, checkPending, onToggle, getDisplayLabel, getCustomIcon, getActuatorName, onClose }) {
+function GroupPopup({ group, getState, checkPending, onToggle, getDisplayLabel, getCustomIcon, getActuatorName, getActuatorEntity, onClose }) {
   const def = group.def
   const label = GROUP_LABELS[group.baseType] || `${def.label}s`
 
@@ -169,6 +184,10 @@ function GroupPopup({ group, getState, checkPending, onToggle, getDisplayLabel, 
                   friendlyName={getActuatorName(slot)}
                 />
               </div>
+              <HistoryButton
+                path={entityHistoryPath(getActuatorEntity?.(slot))}
+                label={getDisplayLabel(slot) || getActuatorName(slot) || slot}
+              />
             </div>
           ))}
         </div>
@@ -177,9 +196,16 @@ function GroupPopup({ group, getState, checkPending, onToggle, getDisplayLabel, 
   )
 }
 
-function SensorDisplay({ value, unit, label, icon, color = 'text-white' }) {
+function SensorDisplay({ value, unit, label, icon, color = 'text-white', historyPath }) {
+  const navigate = useNavigate()
+  const clickable = Boolean(historyPath)
   return (
-    <div className="text-center">
+    <div
+      className={`text-center rounded ${clickable ? 'cursor-pointer hover:bg-[#2d3a5c]/60 transition-colors' : ''}`}
+      onClick={clickable ? (e) => { e.stopPropagation(); navigate(historyPath) } : undefined}
+      title={clickable ? `${label} history` : undefined}
+      role={clickable ? 'button' : undefined}
+    >
       <div className="text-[10px] text-gray-500">{icon}</div>
       <div className={`text-lg font-bold leading-tight ${color}`}>
         {value != null ? value : '--'}
@@ -521,6 +547,10 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
     return tent.actuators?.[type]?.attributes?.friendly_name || null
   }
 
+  const getActuatorEntity = (type) => {
+    return tent.actuators?.[type]?.entity_id || null
+  }
+
   // Use averaged values if available, fallback to single sensor
   const temp = tent.avg_temperature ?? getSensorValue('temperature')
   const humidity = tent.avg_humidity ?? getSensorValue('humidity')
@@ -753,6 +783,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           label="Temp"
           icon="🌡️"
           color={getTempColor()}
+          historyPath={entityHistoryPath(sensorEntities(tent.sensors?.temperature))}
         />
         <SensorDisplay
           value={humidity != null ? Number(humidity).toFixed(1) : null}
@@ -760,6 +791,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           label="Humidity"
           icon="💧"
           color={getHumidityColor()}
+          historyPath={entityHistoryPath(sensorEntities(tent.sensors?.humidity))}
         />
         <SensorDisplay
           value={tent.vpd != null ? Number(tent.vpd).toFixed(1) : null}
@@ -767,6 +799,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           label="VPD"
           icon="🫧"
           color={getVpdColor(tent.vpd)}
+          historyPath={tentHistoryPath(tent.id, 'vpd')}
         />
         {co2 != null ? (
           <SensorDisplay
@@ -775,6 +808,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
             label="CO2"
             icon="💨"
             color="text-white"
+            historyPath={entityHistoryPath(sensorEntities(tent.sensors?.co2))}
           />
         ) : (
           <SensorDisplay
@@ -1014,6 +1048,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           getDisplayLabel={getDisplayLabel}
           getCustomIcon={getCustomIcon}
           getActuatorName={getActuatorName}
+          getActuatorEntity={getActuatorEntity}
           onClose={() => setOpenGroup(null)}
         />
       )}
