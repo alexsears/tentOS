@@ -82,7 +82,7 @@ function StatsCard({ label, stats, unit }) {
   return (
     <div className="bg-[#1a1a2e] rounded-lg p-3">
       <div className="text-xs text-gray-500 mb-1">{label}</div>
-      <div className="grid grid-cols-4 gap-2 text-sm">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-sm whitespace-nowrap">
         <div>
           <span className="text-gray-400">Min:</span>
           <span className="ml-1 font-medium">{stats.min}{unit}</span>
@@ -438,6 +438,7 @@ export default function Reports() {
         {
           type: 'value',
           name: 'Humidity %',
+          nameGap: 26,
           nameTextStyle: { color: '#3b82f6' },
           axisLine: { lineStyle: { color: '#3b82f6' } },
           axisLabel: { color: '#9ca3af' },
@@ -448,6 +449,7 @@ export default function Reports() {
         {
           type: 'value',
           name: 'VPD (kPa)',
+          nameGap: 8,
           nameTextStyle: { color: '#22c55e' },
           position: 'right',
           offset: 50,

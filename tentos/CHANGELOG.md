@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.5.2
+- Stop the report statistics running into each other, and separate the humidity and VPD axis titles
+
 ## 1.5.1
 - Share the tent list request between the app shell and the dashboard instead of both starting one at the same moment
 
