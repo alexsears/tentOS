@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.8
+- Keep report charts live: a relative range now re-queries every 30 seconds so the graph keeps moving as time passes, instead of freezing at whatever it loaded. A fixed custom window is left alone, since it cannot gain new points
+- Let the page scroll on a phone: the chart's inside dataZoom swallowed the one-finger drag, so touching a graph stopped the page scrolling. On touch devices zooming now happens through the slider under the chart, which is a deliberate grab rather than an accidental one
+- Keep your zoom across a refresh, so looking closely at something no longer gets undone every thirty seconds
+- Say whether the chart is live and when it last updated, because a graph that silently stopped refreshing looks exactly like a graph where nothing is happening
+- Refresh without flashing a loading spinner; only changing what is charted shows one
+
 ## 1.4.7
 - Stop a non-numeric sensor state from breaking a tent's live updates: a camera reporting "recording", or any sensor reporting "unavailable", raised a TypeError that skipped the update and its broadcast
 

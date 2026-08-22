@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
 import { apiFetch } from '../utils/api'
@@ -96,6 +96,64 @@ export default function Reports() {
   )
   const focusKey = focusEntities.join(',')
 
+  // How often a live range re-queries history. The underlying HA recorder updates these
+  // sensors about once a minute, so polling faster than this just burns requests for
+  // points that do not exist yet.
+  const LIVE_REFRESH_MS = 30000
+
+  const [refreshTick, setRefreshTick] = useState(0)
+  const [lastUpdated, setLastUpdated] = useState(null)
+
+  // A custom from/to window is a fixed slice of the past. It cannot gain new points, so
+  // polling it would be pure waste - only relative ranges ("last 24h") actually move.
+  const isLiveRange = !(showCustom && customRange.from && customRange.to)
+
+  // What the user is looking at, as opposed to the data underneath it. A change here means
+  // a genuinely different chart and earns a spinner; a refresh tick must not flash one.
+  const focusSelection = `${focusKey}|${timeRange}|${showCustom}|${customRange.from}|${customRange.to}`
+  const tentSelection = `${selectedTent}|${sensors.join(',')}|${timeRange}|${showCustom}|${customRange.from}|${customRange.to}`
+  const lastFocusSelection = useRef(null)
+  const lastTentSelection = useRef(null)
+
+  // Touch devices cannot have both a pannable chart and a scrollable page: ECharts' inside
+  // dataZoom swallows the one-finger drag, so the page stops scrolling wherever the chart
+  // happens to be. On coarse pointers the inside zoom is dropped and the slider below the
+  // chart becomes the way to zoom - a deliberate grab rather than an accidental one.
+  const coarsePointer = useMemo(
+    () => (typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(pointer: coarse)').matches
+      : false),
+    []
+  )
+
+  // The user's zoom, preserved across live refreshes. Without this a 30-second refresh
+  // would yank the view back to the full range every time, which makes the chart unusable
+  // exactly when someone is trying to look at something closely.
+  const zoomRef = useRef({ start: 0, end: 100 })
+  const onChartEvents = useMemo(() => ({
+    dataZoom: (event) => {
+      const range = (event.batch && event.batch[0]) || event
+      if (typeof range.start === 'number' && typeof range.end === 'number') {
+        zoomRef.current = { start: range.start, end: range.end }
+      }
+    }
+  }), [])
+
+  useEffect(() => {
+    if (!isLiveRange) return undefined
+    const bump = () => {
+      if (document.visibilityState === 'visible') setRefreshTick(t => t + 1)
+    }
+    const interval = setInterval(bump, LIVE_REFRESH_MS)
+    // Coming back to the tab should show current data immediately rather than whatever was
+    // on screen when it was hidden, so catch up now instead of waiting out the interval.
+    document.addEventListener('visibilitychange', bump)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', bump)
+    }
+  }, [isLiveRange])
+
   const clearFocus = () => {
     const next = new URLSearchParams(searchParams)
     next.delete('entity')
@@ -152,7 +210,14 @@ export default function Reports() {
       return
     }
     let cancelled = false
-    setFocusLoading(true)
+    // Only a real change of subject gets a spinner. A live refresh replacing the data
+    // underneath an identical chart should be invisible.
+    const isNewSelection = lastFocusSelection.current !== focusSelection
+    lastFocusSelection.current = focusSelection
+    if (isNewSelection) {
+      zoomRef.current = { start: 0, end: 100 }
+      setFocusLoading(true)
+    }
     const rangeQuery = showCustom && customRange.from && customRange.to
       ? `from_time=${customRange.from}&to_time=${customRange.to}`
       : `range=${timeRange}`
@@ -165,20 +230,28 @@ export default function Reports() {
       )
     )
       .then(results => {
-        if (!cancelled) setFocusData(results.filter(Boolean))
+        if (!cancelled) {
+          setFocusData(results.filter(Boolean))
+          setLastUpdated(new Date())
+        }
       })
       .finally(() => {
         if (!cancelled) setFocusLoading(false)
       })
 
     return () => { cancelled = true }
-  }, [focusKey, timeRange, showCustom, customRange])
+  }, [focusKey, timeRange, showCustom, customRange, refreshTick])
 
   // Load history when tent or range changes
   useEffect(() => {
     if (!selectedTent || focusKey) return
 
-    setLoading(true)
+    const isNewSelection = lastTentSelection.current !== tentSelection
+    lastTentSelection.current = tentSelection
+    if (isNewSelection) {
+      zoomRef.current = { start: 0, end: 100 }
+      setLoading(true)
+    }
     const sensorParam = sensors.join(',')
     let url = `api/reports/history/${selectedTent}?sensors=${sensorParam}&range=${timeRange}`
 
@@ -188,10 +261,13 @@ export default function Reports() {
 
     apiFetch(url)
       .then(r => r.json())
-      .then(setHistoryData)
+      .then(data => {
+        setHistoryData(data)
+        setLastUpdated(new Date())
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [selectedTent, timeRange, sensors, showCustom, customRange, focusKey])
+  }, [selectedTent, timeRange, sensors, showCustom, customRange, focusKey, refreshTick])
 
   // Toggle sensor visibility
   const toggleSensor = (sensor) => {
@@ -350,15 +426,17 @@ export default function Reports() {
         }
       ],
       dataZoom: [
-        {
+        // Dropped entirely on touch: this is what eats the one-finger drag and stops the
+        // page scrolling. The slider below stays, so zooming is still available.
+        ...(coarsePointer ? [] : [{
           type: 'inside',
-          start: 0,
-          end: 100
-        },
+          start: zoomRef.current.start,
+          end: zoomRef.current.end
+        }]),
         {
           type: 'slider',
-          start: 0,
-          end: 100,
+          start: zoomRef.current.start,
+          end: zoomRef.current.end,
           height: 30,
           bottom: 10,
           borderColor: '#2d3a5c',
@@ -370,7 +448,7 @@ export default function Reports() {
       ],
       series
     }
-  }, [historyData])
+  }, [historyData, coarsePointer])
 
   // Chart for the focused entities. Numeric readings draw as lines; switches and
   // binary sensors draw as a 0/1 step so on/off runs are readable at a glance.
@@ -480,11 +558,13 @@ export default function Reports() {
       },
       yAxis,
       dataZoom: [
-        { type: 'inside', start: 0, end: 100 },
+        ...(coarsePointer
+          ? []
+          : [{ type: 'inside', start: zoomRef.current.start, end: zoomRef.current.end }]),
         {
           type: 'slider',
-          start: 0,
-          end: 100,
+          start: zoomRef.current.start,
+          end: zoomRef.current.end,
           height: 30,
           bottom: 10,
           borderColor: '#2d3a5c',
@@ -496,7 +576,7 @@ export default function Reports() {
       ],
       series
     }
-  }, [focusData])
+  }, [focusData, coarsePointer])
 
   // Export data
   const handleExport = async (format) => {
@@ -545,6 +625,23 @@ export default function Reports() {
             {focusKey
               ? focusEntities.join(', ')
               : 'Analyze historical sensor data with interactive charts'}
+          </p>
+          {/* Says outright whether the chart is still moving. A graph that silently stopped
+              updating looks exactly like a graph where nothing is happening. */}
+          <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
+            {isLiveRange ? (
+              <>
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                <span>
+                  Live
+                  {lastUpdated
+                    ? ` - updated ${lastUpdated.toLocaleTimeString()}`
+                    : ' - waiting for first reading'}
+                </span>
+              </>
+            ) : (
+              <span>Fixed window - not updating</span>
+            )}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -707,11 +804,15 @@ export default function Reports() {
             </div>
           ) : focusChartOptions ? (
             <ReactECharts
+              // Keyed on the selection, not the data. Changing what is charted remounts
+              // for a clean slate; a live refresh keeps the same instance so the view does
+              // not jump underneath whoever is reading it.
+              key={`focus:${focusSelection}`}
               option={focusChartOptions}
-              style={{ height: '500px' }}
+              style={{ height: '500px', touchAction: 'pan-y' }}
               theme="dark"
               opts={{ renderer: 'canvas' }}
-              notMerge
+              onEvents={onChartEvents}
             />
           ) : (
             <div className="h-96 flex items-center justify-center text-gray-400 text-center px-4">
@@ -724,10 +825,12 @@ export default function Reports() {
           </div>
         ) : chartOptions ? (
           <ReactECharts
+            key={`tent:${tentSelection}`}
             option={chartOptions}
-            style={{ height: '500px' }}
+            style={{ height: '500px', touchAction: 'pan-y' }}
             theme="dark"
             opts={{ renderer: 'canvas' }}
+            onEvents={onChartEvents}
           />
         ) : (
           <div className="h-96 flex items-center justify-center text-gray-400">
