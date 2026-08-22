@@ -9,6 +9,7 @@ from sqlalchemy import select, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db, Event
+from routes.automations import get_automation_configs
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -199,31 +200,29 @@ async def get_ha_entity_history(
             for tent in state_manager.tents.values():
                 entity_ids.extend(get_tent_entity_ids(tent))
 
-        # Build a map of entity -> automations that control it
+        # Build a map of entity -> automations that control it. The configs come
+        # from the shared cache, which fetches them concurrently; walking them
+        # one at a time here cost this endpoint about ten seconds per request.
         entity_automations = {}
         try:
             all_automations = await ha_client.get_automations()
-            for auto in all_automations:
-                auto_entity_id = auto.get("entity_id", "")
-                if auto_entity_id.startswith("automation."):
-                    auto_id = auto_entity_id.replace("automation.", "")
-                    try:
-                        config = await ha_client.get_automation_config(auto_id)
-                        if config:
-                            config_str = str(config).lower()
-                            for eid in entity_ids:
-                                if eid.lower() in config_str:
-                                    if eid not in entity_automations:
-                                        entity_automations[eid] = []
-                                    entity_automations[eid].append({
-                                        "entity_id": auto_entity_id,
-                                        "name": auto.get("attributes", {}).get("friendly_name", auto_id),
-                                        "id": auto_id
-                                    })
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+            configs = await get_automation_configs(ha_client, all_automations)
+            names = {
+                a.get("entity_id"): a.get("attributes", {}).get("friendly_name")
+                for a in all_automations
+            }
+            for auto_entity_id, config in configs.items():
+                config_str = str(config).lower()
+                auto_id = auto_entity_id.replace("automation.", "")
+                for eid in entity_ids:
+                    if eid.lower() in config_str:
+                        entity_automations.setdefault(eid, []).append({
+                            "entity_id": auto_entity_id,
+                            "name": names.get(auto_entity_id) or auto_id,
+                            "id": auto_id
+                        })
+        except Exception as e:
+            logger.warning(f"Failed to map automations to entities: {e}")
 
         if not entity_ids:
             return {"events": [], "count": 0, "message": "No tent entities configured"}
@@ -231,6 +230,18 @@ async def get_ha_entity_history(
         # Calculate time range
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=hours)
+
+        # Historical records carry the friendly name the entity had at the time,
+        # so a renamed device shows up in the log under its old name. Resolve
+        # current names once and prefer them.
+        current_names = {}
+        try:
+            for state in await ha_client.get_states():
+                name = (state.get("attributes") or {}).get("friendly_name")
+                if name:
+                    current_names[state.get("entity_id")] = name
+        except Exception as e:
+            logger.warning(f"Failed to resolve current entity names: {e}")
 
         # Fetch history from HA
         history_data = await ha_client.get_history(
@@ -258,7 +269,11 @@ async def get_ha_entity_history(
 
                 # Determine event type based on entity domain
                 domain = entity.split(".")[0] if "." in entity else ""
-                friendly_name = state_entry.get("attributes", {}).get("friendly_name", entity)
+                friendly_name = (
+                    current_names.get(entity)
+                    or state_entry.get("attributes", {}).get("friendly_name")
+                    or entity
+                )
 
                 # Skip sensor readings - we only want device state changes
                 if domain == "sensor":

@@ -1,5 +1,5 @@
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
-import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useEffect, useCallback, createContext, useContext } from 'react'
 import Home from './pages/Home'
 import TentDetail from './pages/TentDetail'
 import Events from './pages/Events'
@@ -12,6 +12,8 @@ import Assistant from './pages/Assistant'
 import { useWebSocket } from './hooks/useWebSocket'
 import { AlertBanner } from './components/AlertBanner'
 import { apiFetch } from './utils/api'
+import { seedTents } from './hooks/useTents'
+import { AlertsMenu } from './components/AlertsMenu'
 import { TempUnitProvider, useTemperatureUnit } from './hooks/useTemperatureUnit'
 
 // Preloaded data context - fetches automations and events on app load
@@ -42,12 +44,16 @@ function AppContent() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { lastMessage } = useWebSocket('api/ws')
 
-  useEffect(() => {
-    // Fetch initial alerts
+  const refreshAlertSummary = useCallback(() => {
     apiFetch('api/alerts/summary')
       .then(r => r.json())
       .then(data => setAlerts(data))
       .catch(console.error)
+  }, [])
+
+  useEffect(() => {
+    // Fetch initial alerts
+    refreshAlertSummary()
 
     // Fetch version
     apiFetch('api/health')
@@ -64,19 +70,27 @@ function AppContent() {
       })
       .catch(console.error)
 
-    // Preload automations, events, and tents data for instant page loads
-    Promise.all([
-      apiFetch('api/tents').then(r => r.json()).catch(() => ({ tents: [] })),
-      apiFetch('api/automations?show_all=false').then(r => r.json()).catch(() => ({ automations: [] })),
-      apiFetch('api/events/ha-history?hours=24').then(r => r.json()).catch(() => ({ events: [] })),
-    ]).then(([tentsData, autoData, eventsData]) => {
-      setPreloadedData(prev => ({
-        ...prev,
-        tents: tentsData.tents || [],
-        automations: autoData,
-        events: eventsData
-      }))
-    })
+    // Preload for instant page loads. Tents come first because the dashboard
+    // needs them; the automation and history endpoints are the slow pair, so
+    // they are warmed after the first paint rather than racing it.
+    apiFetch('api/tents')
+      .then(r => r.json())
+      .catch(() => ({ tents: [] }))
+      .then(tentsData => {
+        seedTents(tentsData.tents || [])
+        setPreloadedData(prev => ({ ...prev, tents: tentsData.tents || [] }))
+      })
+
+    const warmSlowPages = setTimeout(() => {
+      Promise.all([
+        apiFetch('api/automations?show_all=false').then(r => r.json()).catch(() => ({ automations: [] })),
+        apiFetch('api/events/ha-history?hours=24').then(r => r.json()).catch(() => ({ events: [] })),
+      ]).then(([autoData, eventsData]) => {
+        setPreloadedData(prev => ({ ...prev, automations: autoData, events: eventsData }))
+      })
+    }, 1500)
+
+    return () => clearTimeout(warmSlowPages)
   }, [])
 
   useEffect(() => {
@@ -145,20 +159,9 @@ function AppContent() {
             </nav>
 
             {/* Alert indicator */}
-            {alerts.total > 0 && (
-              <div className="hidden sm:flex items-center gap-2">
-                {alerts.critical > 0 && (
-                  <span className="badge badge-danger">
-                    {alerts.critical} Critical
-                  </span>
-                )}
-                {alerts.warning > 0 && (
-                  <span className="badge badge-warning">
-                    {alerts.warning} Warning
-                  </span>
-                )}
-              </div>
-            )}
+            <div className="hidden sm:flex items-center gap-2">
+              <AlertsMenu summary={alerts} onChanged={refreshAlertSummary} />
+            </div>
           </div>
         </div>
       </header>

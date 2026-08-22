@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.9
+- Cache and parallelise automation config lookups: the automations and entity-history endpoints went from about ten seconds each to under one
+- Share one WebSocket per page instead of opening one per hook, and stop refetching the tent list the app shell already loaded
+- Add a targets editor so alerts and the environment score stop running on built-in defaults
+- Make the header alert count a real menu: see each alert, jump to its tent, or mute one for eight hours
+- Show temperatures in the unit chosen in the header on Reports and the tent charts, correctly labelled
+- Clear Overrides now clears every override for the tent, not only the light
+- Show current entity names in the event log rather than whatever they were called at the time
+- Let the Automations page switch between tents
+- Back off when a light keeps reverting instead of fighting it once a minute
+- Round entity values in the browser, un-clip the Climate axis title, and replace the chart glyph with a real icon
+
 ## 1.4.8
 - Keep report charts live: a relative range now re-queries every 30 seconds so the graph keeps moving as time passes, instead of freezing at whatever it loaded. A fixed custom window is left alone, since it cannot gain new points
 - Let the page scroll on a phone: the chart's inside dataZoom swallowed the one-finger drag, so touching a graph stopped the page scrolling. On touch devices zooming now happens through the slider under the chart, which is a deliberate grab rather than an accidental one

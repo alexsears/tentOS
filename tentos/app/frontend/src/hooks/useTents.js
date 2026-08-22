@@ -2,9 +2,21 @@ import { useState, useEffect, useCallback } from 'react'
 import { useWebSocket } from './useWebSocket'
 import { apiFetch } from '../utils/api'
 
+// The app shell preloads tents on boot. Handing that result to the first hook
+// that asks avoids fetching the same list twice on every dashboard load.
+let preloadedTents = null
+let preloadedAt = 0
+const PRELOAD_MAX_AGE_MS = 5000
+
+export function seedTents(tents) {
+  preloadedTents = tents
+  preloadedAt = Date.now()
+}
+
 export function useTents() {
-  const [tents, setTents] = useState([])
-  const [loading, setLoading] = useState(true)
+  const fresh = preloadedTents && (Date.now() - preloadedAt) < PRELOAD_MAX_AGE_MS
+  const [tents, setTents] = useState(fresh ? preloadedTents : [])
+  const [loading, setLoading] = useState(!fresh)
   const [error, setError] = useState(null)
   const [pending, setPending] = useState({}) // Track pending actions
   const { lastMessage, readyState } = useWebSocket('api/ws')
@@ -24,6 +36,12 @@ export function useTents() {
   }, [])
 
   useEffect(() => {
+    // A fresh preload already provided the list; the socket keeps it current
+    if (preloadedTents && (Date.now() - preloadedAt) < PRELOAD_MAX_AGE_MS) {
+      setTents(preloadedTents)
+      setLoading(false)
+      return
+    }
     fetchTents()
   }, [fetchTents])
 

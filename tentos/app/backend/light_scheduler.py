@@ -8,6 +8,7 @@ Pure helpers (parse/format/compute/validate/desired state) live at module
 level with no heavy imports so tests can import them directly.
 """
 import asyncio
+import time
 import logging
 from datetime import datetime, timezone
 
@@ -218,11 +219,32 @@ def desired_light_state(now_minutes: int, on_time: str, hours: float) -> bool:
 class LightScheduler:
     """Background loop that keeps tent lights in sync with their light cycle."""
 
+    # If a light is switched this many times inside the window below, something
+    # else is switching it back and the two are fighting. On Aug 21 that filled
+    # the event log with one entry a minute for nineteen minutes. Back off and
+    # say so once instead.
+    FIGHT_LIMIT = 3
+    FIGHT_WINDOW_SECONDS = 900
+
     def __init__(self, ha_client, state_manager):
         self.ha_client = ha_client
         self.state_manager = state_manager
         self._running = False
         self._task: asyncio.Task | None = None
+        self._recent_switches: dict[str, list[float]] = {}
+        self._backed_off: set[str] = set()
+
+    def _should_back_off(self, entity_id: str) -> bool:
+        """Record a switch and report whether this entity is in a fight."""
+        now = time.monotonic()
+        recent = [t for t in self._recent_switches.get(entity_id, []) if now - t < self.FIGHT_WINDOW_SECONDS]
+        if len(recent) >= self.FIGHT_LIMIT:
+            self._recent_switches[entity_id] = recent
+            return True
+        recent.append(now)
+        self._recent_switches[entity_id] = recent
+        self._backed_off.discard(entity_id)
+        return False
 
     async def start(self):
         """Start the scheduler loop."""
@@ -295,6 +317,19 @@ class LightScheduler:
                 actual = (tent.actuators.get(slot) or {}).get("state")
                 if actual not in ("on", "off"):
                     continue  # unknown/unavailable — don't fight it
+                if desired != (actual == "on") and self._should_back_off(entity_id):
+                    if entity_id not in self._backed_off:
+                        self._backed_off.add(entity_id)
+                        logger.warning(
+                            f"Tent {tent_id}: {entity_id} keeps reverting; something else is "
+                            f"switching it. Backing off."
+                        )
+                        await self._log_event(
+                            tent_id,
+                            f"Light schedule: stopped switching {entity_id}, it keeps reverting "
+                            f"({self.FIGHT_LIMIT} times in {self.FIGHT_WINDOW_SECONDS // 60} min)"
+                        )
+                    continue
                 try:
                     if desired and actual == "off":
                         await self.ha_client.turn_on(entity_id)

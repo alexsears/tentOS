@@ -101,6 +101,48 @@ async def alerts_summary(state_manager: StateManager = Depends(get_state_manager
     }
 
 
+class MuteRequest(BaseModel):
+    """Silence a live alert for a while."""
+    key: str
+    hours: float = 8
+
+
+@router.post("/mute")
+async def mute_alert(
+    body: MuteRequest,
+    state_manager: StateManager = Depends(get_state_manager)
+):
+    """Mute a live alert.
+
+    Live alerts are recomputed from current readings and have no database id, so
+    the existing acknowledge route could never touch them. Muting lapses on its
+    own, and is dropped early if the condition clears.
+    """
+    until = state_manager.mute_alert(body.key, body.hours)
+    return {"success": True, "key": body.key, "muted_until": until.isoformat()}
+
+
+@router.post("/unmute")
+async def unmute_alert(
+    body: MuteRequest,
+    state_manager: StateManager = Depends(get_state_manager)
+):
+    """Bring a muted alert back."""
+    state_manager.unmute_alert(body.key)
+    return {"success": True, "key": body.key}
+
+
+@router.get("/muted")
+async def list_muted(state_manager: StateManager = Depends(get_state_manager)):
+    """Show what is currently silenced and until when."""
+    return {
+        "muted": [
+            {"key": key, "until": until.isoformat()}
+            for key, until in state_manager.muted_alerts.items()
+        ]
+    }
+
+
 @router.post("/{alert_id}/acknowledge")
 async def acknowledge_alert(alert_id: int, request_data: AcknowledgeRequest):
     """Acknowledge an alert."""

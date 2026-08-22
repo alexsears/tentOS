@@ -5,6 +5,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Query
 from fastapi.responses import Response
 
+from state_manager import fahrenheit_to_celsius, is_temperature_sensor_type
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -325,12 +327,20 @@ async def get_history(
                 sensor_type = entity_map[entity_id]
 
                 # Convert to our format
+                is_temp = is_temperature_sensor_type(sensor_type)
                 data = []
                 for state in entity_history:
                     try:
                         value = float(state.get("state", 0))
                         timestamp = state.get("last_changed") or state.get("last_updated")
                         if timestamp and value is not None:
+                            if is_temp:
+                                unit = (state.get("attributes") or {}).get("unit_of_measurement")
+                                # Same rule the state manager uses: trust the unit
+                                # attribute, and fall back to the fact that a grow
+                                # tent is never above 50 C
+                                if (unit and "f" in unit.lower()) or (not unit and value > 50):
+                                    value = fahrenheit_to_celsius(value)
                             data.append({
                                 "timestamp": timestamp,
                                 "value": round(value, 2)
@@ -422,10 +432,22 @@ async def get_history(
         except Exception as e:
             logger.error(f"Failed to get light history: {e}")
 
+    units = {}
+    for sensor_type in result_data:
+        if is_temperature_sensor_type(sensor_type):
+            units[sensor_type] = "°C"
+        elif sensor_type == "humidity":
+            units[sensor_type] = "%"
+        elif sensor_type == "vpd":
+            units[sensor_type] = "kPa"
+        elif sensor_type == "co2":
+            units[sensor_type] = "ppm"
+
     return {
         "tent_id": tent_id,
         "tent_name": tent.config.name,
         "range": range,
+        "units": units,
         "from": start_time.isoformat(),
         "to": end_time.isoformat(),
         "data": result_data,

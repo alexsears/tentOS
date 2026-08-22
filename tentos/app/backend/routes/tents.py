@@ -30,7 +30,7 @@ def iso_utc(value: datetime) -> str:
 
 class ActionRequest(BaseModel):
     """Request model for tent actions."""
-    action: str  # toggle_light, set_fan, run_watering, set_override, acknowledge_alert
+    action: str  # toggle_light, set_fan, run_watering, set_override, clear_overrides, acknowledge_alert
     entity_type: Optional[str] = None  # light, exhaust_fan, etc.
     value: Optional[str | int | bool] = None
     duration_minutes: Optional[int] = None
@@ -212,6 +212,26 @@ async def tent_action(
                 await session.commit()
 
             return {"success": True, "message": f"Override set to {override_state} for {duration} min"}
+
+        elif action == "clear_overrides":
+            # The UI offers this as "Clear Overrides", plural, but the old call
+            # site only ever cleared the light slot.
+            async for session in get_db():
+                result = await session.execute(
+                    select(Override).where(Override.tent_id == tent_id)
+                )
+                overrides = result.scalars().all()
+                cleared = [o.entity_id for o in overrides]
+                for override in overrides:
+                    await session.delete(override)
+                await session.commit()
+                break
+
+            return {
+                "success": True,
+                "message": f"Cleared {len(cleared)} override(s)" if cleared else "No overrides to clear",
+                "cleared": cleared,
+            }
 
         elif action == "turn_on":
             entity_type = action_request.entity_type

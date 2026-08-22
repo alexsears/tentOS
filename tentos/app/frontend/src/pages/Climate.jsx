@@ -217,9 +217,10 @@ function VpdChart({ historyData, target, lightPeriods }) {
         }
       },
       grid: {
+        // The y-axis name is drawn above the grid, so a 20px top clipped it
         left: 50,
         right: 20,
-        top: 20,
+        top: 34,
         bottom: 70
       },
       xAxis: {

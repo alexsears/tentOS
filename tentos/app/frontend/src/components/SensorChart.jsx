@@ -11,6 +11,7 @@ import {
 } from 'recharts'
 import { format } from 'date-fns'
 import { apiFetch } from '../utils/api'
+import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 
 const COLORS = {
   temperature: '#ef4444',
@@ -33,6 +34,21 @@ const LABELS = {
 export function SensorChart({ tentId, sensors = ['temperature', 'humidity'], range = '24h' }) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
+  // History is stored in Celsius; the chart showed it raw and unlabelled while
+  // the rest of the app followed the header's unit toggle.
+  const { unit: tempUnit, getTempUnit } = useTemperatureUnit()
+  const isTemp = (sensor) => sensor === 'temperature' || /^temperature_\d+$/.test(sensor)
+  const toDisplay = (sensor, value) =>
+    isTemp(sensor) && tempUnit === 'F' && value != null
+      ? Math.round(((value * 9) / 5 + 32) * 10) / 10
+      : value
+  const unitFor = (sensor) => {
+    if (isTemp(sensor)) return getTempUnit()
+    if (sensor === 'humidity') return '%'
+    if (sensor === 'vpd') return ' kPa'
+    if (sensor === 'co2') return ' ppm'
+    return ''
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -52,7 +68,7 @@ export function SensorChart({ tentId, sensors = ['temperature', 'humidity'], ran
             if (!timeMap.has(time)) {
               timeMap.set(time, { time })
             }
-            timeMap.get(time)[sensorType] = reading.value
+            timeMap.get(time)[sensorType] = toDisplay(sensorType, reading.value)
           }
         }
 
@@ -64,7 +80,7 @@ export function SensorChart({ tentId, sensors = ['temperature', 'humidity'], ran
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [tentId, range, sensors.join(',')])
+  }, [tentId, range, sensors.join(','), tempUnit])
 
   const formatTime = (time) => {
     const date = new Date(time)
@@ -113,7 +129,7 @@ export function SensorChart({ tentId, sensors = ['temperature', 'humidity'], ran
             key={sensor}
             type="monotone"
             dataKey={sensor}
-            name={LABELS[sensor] || sensor}
+            name={`${LABELS[sensor] || sensor} (${unitFor(sensor).trim()})`}
             stroke={COLORS[sensor] || '#888'}
             strokeWidth={2}
             dot={false}

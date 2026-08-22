@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
 import { apiFetch } from '../utils/api'
+import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { format, subHours, subDays } from 'date-fns'
 
 const TIME_RANGES = [
@@ -16,7 +17,7 @@ const TIME_RANGES = [
 ]
 
 const SENSOR_CONFIG = {
-  temperature: { label: 'Temperature', unit: '°C', color: '#ef4444', yAxisIndex: 0 },
+  temperature: { label: 'Temperature', unit: null, color: '#ef4444', yAxisIndex: 0 },
   humidity: { label: 'Humidity', unit: '%', color: '#3b82f6', yAxisIndex: 1 },
   vpd: { label: 'VPD', unit: 'kPa', color: '#22c55e', yAxisIndex: 2 },
   co2: { label: 'CO2', unit: 'ppm', color: '#a855f7', yAxisIndex: 0 }
@@ -45,6 +46,35 @@ function StateStatsCard({ label, stats }) {
       </div>
     </div>
   )
+}
+
+const isTempSeries = (key) => key === 'temperature' || /^temperature_\d+$/.test(key)
+const toFahrenheit = (v) => (v == null ? v : Math.round(((v * 9) / 5 + 32) * 100) / 100)
+
+// SENSOR_CONFIG used to hardcode the degree symbol, so Fahrenheit readings were
+// labelled Celsius. Convert once here and let the label follow the same choice.
+function toDisplayUnits(data, unit) {
+  if (!data?.data || unit !== 'F') return data
+  const converted = { ...data, data: { ...data.data }, stats: { ...(data.stats || {}) } }
+  Object.keys(converted.data).forEach(key => {
+    if (!isTempSeries(key)) return
+    converted.data[key] = converted.data[key].map(p => ({
+      ...p,
+      value: toFahrenheit(p.value),
+      ...(p.min !== undefined ? { min: toFahrenheit(p.min), max: toFahrenheit(p.max) } : {})
+    }))
+    const s = converted.stats[key]
+    if (s) {
+      converted.stats[key] = {
+        ...s,
+        min: toFahrenheit(s.min),
+        max: toFahrenheit(s.max),
+        avg: toFahrenheit(s.avg),
+        current: toFahrenheit(s.current)
+      }
+    }
+  })
+  return converted
 }
 
 function StatsCard({ label, stats, unit }) {
@@ -76,6 +106,7 @@ function StatsCard({ label, stats, unit }) {
 
 export default function Reports() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const { unit: tempUnit, getTempUnit } = useTemperatureUnit()
   const [tents, setTents] = useState([])
   const [selectedTent, setSelectedTent] = useState(null)
   const timeRange = searchParams.get('range') || '24h'
@@ -262,12 +293,12 @@ export default function Reports() {
     apiFetch(url)
       .then(r => r.json())
       .then(data => {
-        setHistoryData(data)
+        setHistoryData(toDisplayUnits(data, tempUnit))
         setLastUpdated(new Date())
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [selectedTent, timeRange, sensors, showCustom, customRange, focusKey, refreshTick])
+  }, [selectedTent, timeRange, sensors, showCustom, customRange, focusKey, refreshTick, tempUnit])
 
   // Toggle sensor visibility
   const toggleSensor = (sensor) => {
@@ -279,6 +310,8 @@ export default function Reports() {
   }
 
   // Build ECharts options
+  const tempUnitLabel = getTempUnit()
+
   const chartOptions = useMemo(() => {
     if (!historyData?.data) return null
 
@@ -370,7 +403,7 @@ export default function Reports() {
             const config = Object.values(SENSOR_CONFIG).find(c => c.label === p.seriesName)
             html += `<div style="display:flex;justify-content:space-between;gap:16px">
               <span style="color:${p.color}">${p.seriesName}</span>
-              <span style="font-weight:600">${p.value[1].toFixed(1)}${config?.unit || ''}</span>
+              <span style="font-weight:600">${p.value[1].toFixed(1)}${config?.unit ?? tempUnitLabel}</span>
             </div>`
           })
           return html
@@ -396,7 +429,7 @@ export default function Reports() {
       yAxis: [
         {
           type: 'value',
-          name: 'Temp',
+          name: `Temp (${tempUnitLabel})`,
           nameTextStyle: { color: '#ef4444' },
           axisLine: { lineStyle: { color: '#ef4444' } },
           axisLabel: { color: '#9ca3af' },
@@ -448,7 +481,7 @@ export default function Reports() {
       ],
       series
     }
-  }, [historyData, coarsePointer])
+  }, [historyData, coarsePointer, tempUnitLabel])
 
   // Chart for the focused entities. Numeric readings draw as lines; switches and
   // binary sensors draw as a 0/1 step so on/off runs are readable at a glance.
@@ -788,7 +821,7 @@ export default function Reports() {
                 key={sensor}
                 label={config?.label || sensor}
                 stats={stats}
-                unit={config?.unit || ''}
+                unit={config?.unit ?? getTempUnit()}
               />
             )
           })}

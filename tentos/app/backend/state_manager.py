@@ -391,6 +391,10 @@ class StateManager:
         self._running = False
         self._alert_check_task: asyncio.Task | None = None
         self._history_task: asyncio.Task | None = None
+        # Muted alert keys ("<tent_id>:<type>") and when the mute lapses. Alerts
+        # are recomputed from live readings, so they carry no database id and
+        # could not be acknowledged at all before this.
+        self.muted_alerts: dict[str, datetime] = {}
 
     def _load_config(self):
         """Load tent configurations and build entity mappings."""
@@ -633,7 +637,36 @@ class StateManager:
                     except (ValueError, TypeError):
                         pass
 
-                tent.alerts = alerts
+                tent.alerts = self._apply_mutes(tent_id, alerts)
+
+    def mute_alert(self, key: str, hours: float = 8) -> datetime:
+        """Silence one alert until it lapses or the condition clears."""
+        until = datetime.now(timezone.utc) + timedelta(hours=max(0.25, min(72, hours)))
+        self.muted_alerts[key] = until
+        for tent_id, tent in self.tents.items():
+            tent.alerts = [a for a in tent.alerts if f"{tent_id}:{a.get('type')}" != key]
+        return until
+
+    def unmute_alert(self, key: str):
+        self.muted_alerts.pop(key, None)
+
+    def _apply_mutes(self, tent_id: str, alerts: list) -> list:
+        """Drop muted alerts, and forget mutes whose condition has cleared."""
+        now = datetime.now(timezone.utc)
+        firing = {f"{tent_id}:{a.get('type')}" for a in alerts}
+
+        for key, until in list(self.muted_alerts.items()):
+            if until <= now:
+                del self.muted_alerts[key]
+            elif key.startswith(f"{tent_id}:") and key not in firing:
+                # Condition resolved on its own; a later recurrence is news again
+                del self.muted_alerts[key]
+
+        return [
+            {**a, "key": f"{tent_id}:{a.get('type')}"}
+            for a in alerts
+            if f"{tent_id}:{a.get('type')}" not in self.muted_alerts
+        ]
 
     async def _history_record_loop(self):
         """Periodically record sensor history."""

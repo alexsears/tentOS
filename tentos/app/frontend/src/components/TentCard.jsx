@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { getApiBase, apiFetch } from '../utils/api'
 import { sensorEntities, entityHistoryPath, tentHistoryPath } from '../utils/history'
+import { HistoryIcon } from './HistoryIcon'
 
 // Actuator icon definitions with states
 const ACTUATOR_ICONS = {
@@ -67,7 +68,7 @@ function HistoryButton({ path, label, className = '' }) {
       title={label ? `${label} history` : 'History'}
       className={`shrink-0 px-2 py-1 rounded text-gray-400 hover:text-white hover:bg-[#2d3a5c] ${className}`}
     >
-      📈
+      <HistoryIcon size={14} />
     </button>
   )
 }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { entityHistoryPath } from '../utils/history'
+import { HistoryIcon } from './HistoryIcon'
 
 // Domains relevant for grow tent management
 const ALLOWED_DOMAINS = new Set([
@@ -90,6 +91,13 @@ function detectGroups(entities) {
   return groups.sort((a, b) => b.count - a.count)
 }
 
+function formatState(state) {
+  const num = Number(state)
+  if (state === '' || state === null || state === undefined || Number.isNaN(num)) return state
+  if (Number.isInteger(num)) return String(num)
+  return String(Math.round(num * 100) / 100)
+}
+
 function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
   const navigate = useNavigate()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -143,7 +151,7 @@ function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
             </div>
           </div>
           <div className="text-xs text-gray-400 flex-shrink-0">
-            {entity.state}{entity.unit ? ` ${entity.unit}` : ''}
+            {formatState(entity.state)}{entity.unit ? ` ${entity.unit}` : ''}
           </div>
         </div>
 
@@ -153,7 +161,7 @@ function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
           title={`${entity.friendly_name || entity.entity_id} history`}
           className="flex-shrink-0 px-1.5 py-1 rounded text-gray-500 hover:text-white hover:bg-[#2d3a5c]"
         >
-          📈
+          <HistoryIcon size={14} />
         </button>
       </div>
     </div>

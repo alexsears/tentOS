@@ -579,10 +579,13 @@ export default function Automations() {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [showAllAutomations, setShowAllAutomations] = useState(false) // Default to tent-only
+  // The page was hardwired to the first tent, so the others' automations were
+  // only reachable from their own detail page.
+  const [selectedTentId, setSelectedTentId] = useState(null)
 
   // Use preloaded data immediately if available
   useEffect(() => {
-    if (preloaded.automations && !showAllAutomations) {
+    if (preloaded.automations && !showAllAutomations && !selectedTentId) {
       setAutomations(preloaded.automations.automations || [])
       setByCategory(preloaded.automations.by_category || {})
       setCategories(preloaded.automations.categories || {})
@@ -593,6 +596,8 @@ export default function Automations() {
       setTents(preloaded.tents)
     }
   }, [preloaded])
+
+  const activeTentId = tents.find(t => t.id === selectedTentId)?.id || tents[0]?.id || null
 
   // Filter automations by search (must be before early returns)
   const filteredByCategory = useMemo(() => {
@@ -628,7 +633,7 @@ export default function Automations() {
 
   useEffect(() => {
     loadData()
-  }, [showAllAutomations])
+  }, [showAllAutomations, selectedTentId])
 
   const loadData = async (forceRefresh = false) => {
     try {
@@ -645,12 +650,14 @@ export default function Automations() {
       autoParams.set('show_all', showAllAutomations.toString())
       // If we have tents and not showing all, the backend will filter to tent entities
       if (tentsList.length > 0 && !showAllAutomations) {
-        // Use first tent's ID for filtering (could extend to multi-tent later)
-        autoParams.set('tent_id', tentsList[0].id)
+        const chosen = tentsList.find(t => t.id === selectedTentId) || tentsList[0]
+        autoParams.set('tent_id', chosen.id)
       }
 
       // Use preloaded automations if available and not forcing refresh
-      const usePreloadedAuto = preloaded.automations && !showAllAutomations && !forceRefresh
+      const isDefaultTent = !selectedTentId || selectedTentId === tentsList[0]?.id
+      const usePreloadedAuto =
+        preloaded.automations && !showAllAutomations && !forceRefresh && isDefaultTent
 
       const [autoRes, templatesRes, bundlesRes, suggestionsRes, conflictsRes, entitySuggestionsRes] = await Promise.all([
         usePreloadedAuto
@@ -830,10 +837,21 @@ export default function Automations() {
           <h2 className="text-2xl font-bold">Automations</h2>
           <p className="text-gray-400">
             {totalCount} {showAllAutomations ? 'Home Assistant' : 'tent-related'} automations
-            {!showAllAutomations && tents.length > 0 && ` for ${tents[0]?.name || 'your tent'}`}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {!showAllAutomations && tents.length > 1 && (
+            <select
+              className="input"
+              value={activeTentId || ''}
+              onChange={e => setSelectedTentId(e.target.value)}
+              aria-label="Tent"
+            >
+              {tents.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          )}
           <button
             onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()) }}
             className={`btn ${selectMode ? 'bg-blue-600' : ''}`}

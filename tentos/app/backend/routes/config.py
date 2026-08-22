@@ -360,6 +360,68 @@ async def create_tent(tent: TentConfig, request: Request):
     raise HTTPException(status_code=500, detail="Failed to save tent")
 
 
+TARGET_FIELDS = (
+    "temp_day_min", "temp_day_max",
+    "temp_night_min", "temp_night_max",
+    "humidity_day_min", "humidity_day_max",
+    "humidity_night_min", "humidity_night_max",
+)
+
+
+class TargetsUpdate(BaseModel):
+    """Target ranges for a tent, in Celsius and percent."""
+    temp_day_min: Optional[float] = None
+    temp_day_max: Optional[float] = None
+    temp_night_min: Optional[float] = None
+    temp_night_max: Optional[float] = None
+    humidity_day_min: Optional[float] = None
+    humidity_day_max: Optional[float] = None
+    humidity_night_min: Optional[float] = None
+    humidity_night_max: Optional[float] = None
+
+
+@router.put("/tents/{tent_id}/targets")
+async def update_tent_targets(tent_id: str, targets: TargetsUpdate, request: Request):
+    """Set the alert and score targets for one tent.
+
+    Alerts and the environment score already read these; until now nothing in
+    the UI could write them, so every installation ran on the built-in defaults.
+    """
+    values = {k: v for k, v in targets.model_dump().items() if v is not None}
+
+    for kind in ("temp_day", "temp_night", "humidity_day", "humidity_night"):
+        low, high = values.get(f"{kind}_min"), values.get(f"{kind}_max")
+        if low is not None and high is not None and low >= high:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{kind.replace('_', ' ')} minimum must be below its maximum",
+            )
+
+    for key in ("humidity_day_min", "humidity_day_max", "humidity_night_min", "humidity_night_max"):
+        if key in values and not (0 <= values[key] <= 100):
+            raise HTTPException(status_code=400, detail=f"{key} must be between 0 and 100")
+
+    config = load_config()
+    for tent in config.tents:
+        # The builder writes ids like tent_1770268610132 while the running state
+        # manager keys tents by a slug of the name, and the UI knows the latter.
+        slug = (tent.name or "").lower().replace(" ", "_")
+        if tent.id == tent_id or slug == tent_id:
+            tent.targets = values
+            if not save_config(config):
+                raise HTTPException(status_code=500, detail="Failed to save targets")
+
+            state_manager = getattr(request.app.state, "state_manager", None)
+            if state_manager:
+                try:
+                    await state_manager.reload_config()
+                except Exception as e:
+                    logger.warning(f"Failed to reload state manager: {e}")
+            return {"success": True, "targets": values}
+
+    raise HTTPException(status_code=404, detail="Tent not found")
+
+
 @router.put("/tents/{tent_id}")
 async def update_tent(tent_id: str, tent: TentConfig, request: Request):
     """Update an existing tent."""

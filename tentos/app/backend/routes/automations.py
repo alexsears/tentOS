@@ -1,4 +1,5 @@
 """Home Assistant Automation API routes."""
+import asyncio
 import logging
 import time
 from typing import Optional
@@ -371,19 +372,59 @@ def automation_references_entities(automation: dict, entity_ids: set[str], confi
     return False
 
 
-async def get_automation_configs(ha_client, automations: list) -> dict:
+# Automation configs are fetched one HTTP call per automation. With ~130
+# automations, doing that sequentially on every request made the automations and
+# entity-history endpoints take ten seconds each, and the dashboard asks for both
+# on load. They are cached for a few minutes and fetched concurrently, and the
+# cache is dropped whenever TentOS itself changes an automation.
+_config_cache: dict[str, tuple[float, dict | None]] = {}
+CONFIG_TTL_SECONDS = 300
+CONFIG_CONCURRENCY = 8
+
+
+def invalidate_automation_configs(entity_id: str | None = None):
+    """Drop cached configs after a write so the next read sees the change."""
+    if entity_id:
+        _config_cache.pop(entity_id, None)
+    else:
+        _config_cache.clear()
+
+
+async def get_automation_configs(ha_client, automations: list, ttl: float = CONFIG_TTL_SECONDS) -> dict:
     """Fetch configs for automations to check entity references."""
-    configs = {}
+    now = time.monotonic()
+    configs: dict[str, dict] = {}
+    missing: list[str] = []
+
     for auto in automations:
         entity_id = auto.get("entity_id", "")
-        if entity_id.startswith("automation."):
-            auto_id = entity_id.replace("automation.", "")
+        if not entity_id.startswith("automation."):
+            continue
+        cached = _config_cache.get(entity_id)
+        if cached and (now - cached[0]) < ttl:
+            if cached[1] is not None:
+                configs[entity_id] = cached[1]
+        else:
+            missing.append(entity_id)
+
+    if not missing:
+        return configs
+
+    semaphore = asyncio.Semaphore(CONFIG_CONCURRENCY)
+
+    async def fetch(entity_id: str):
+        auto_id = entity_id.split(".", 1)[1]
+        async with semaphore:
             try:
-                config = await ha_client.get_automation_config(auto_id)
-                if config:
-                    configs[entity_id] = config
+                return entity_id, await ha_client.get_automation_config(auto_id)
             except Exception:
-                pass
+                return entity_id, None
+
+    for entity_id, config in await asyncio.gather(*(fetch(e) for e in missing)):
+        _config_cache[entity_id] = (time.monotonic(), config)
+        if config is not None:
+            configs[entity_id] = config
+
     return configs
 
 
@@ -1307,6 +1348,7 @@ async def delete_automation(entity_id: str, request: Request):
 
     try:
         result = await ha_client.delete_automation(auto_id)
+        invalidate_automation_configs(entity_id)
         return {"success": True, "result": result}
     except Exception as e:
         logger.error(f"Failed to delete automation {entity_id}: {e}")
@@ -1340,6 +1382,7 @@ async def create_automation(automation: HAAutomationCreate, request: Request):
             "action": automation.actions
         }
         result = await ha_client.create_automation(config)
+        invalidate_automation_configs()
         return {"success": True, "automation_id": auto_id, "result": result}
     except Exception as e:
         logger.error(f"Failed to create automation: {e}")
@@ -1367,6 +1410,7 @@ async def update_automation(
             "action": automation.actions
         }
         result = await ha_client.update_automation(auto_id, config)
+        invalidate_automation_configs(entity_id)
         return {"success": True, "automation_id": auto_id, "result": result}
     except Exception as e:
         logger.error(f"Failed to update automation {auto_id}: {e}")

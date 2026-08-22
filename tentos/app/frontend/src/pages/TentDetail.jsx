@@ -6,6 +6,8 @@ import { EventLog } from '../components/EventLog'
 import { CameraFeed, CameraGrid } from '../components/CameraFeed'
 import { AutomationEditor } from '../components/AutomationEditor'
 import { LightCycleCard } from '../components/LightCycleCard'
+import { TargetsEditor } from '../components/TargetsEditor'
+import { HistoryIcon } from '../components/HistoryIcon'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { apiFetch, requireOk } from '../utils/api'
 import { sensorEntities, entityHistoryPath, tentHistoryPath } from '../utils/history'
@@ -97,7 +99,7 @@ export default function TentDetail() {
         </div>
         <div className="text-sm text-gray-400">
           {label}
-          {historyPath && <span className="ml-1 opacity-50">📈</span>}
+          {historyPath && <HistoryIcon className="ml-1 opacity-50" />}
         </div>
       </div>
     )
@@ -135,7 +137,7 @@ export default function TentDetail() {
             <div>
               <div className="font-medium">
                 {label}
-                {historyPath && <span className="ml-1 opacity-50 text-xs">📈</span>}
+                {historyPath && <HistoryIcon className="ml-1 opacity-50" />}
               </div>
               <div className={`text-sm ${isOn ? 'text-green-400' : 'text-gray-400'}`}>
                 {state}
@@ -256,7 +258,7 @@ export default function TentDetail() {
                 <div className="text-3xl font-bold mb-1">
                   {tent.vpd != null ? Number(tent.vpd).toFixed(1) : '--'}
                 </div>
-                <div className="text-sm text-gray-400">VPD (kPa)<span className="ml-1 opacity-50">📈</span></div>
+                <div className="text-sm text-gray-400">VPD (kPa)<HistoryIcon className="ml-1 opacity-50" /></div>
               </div>
               <div className="card text-center">
                 <div className={`text-3xl font-bold mb-1 ${
@@ -336,11 +338,7 @@ export default function TentDetail() {
                 </button>
               )}
               <button
-                onClick={() => handleAction('set_override', {
-                  entity_type: 'light',
-                  value: 'auto',
-                  duration_minutes: 0
-                })}
+                onClick={() => handleAction('clear_overrides')}
                 disabled={actionLoading}
                 className="btn btn-secondary"
               >
@@ -572,27 +570,7 @@ export default function TentDetail() {
         <div className="space-y-6">
           <LightCycleCard tent={tent} />
 
-          <div className="card">
-            <h3 className="font-semibold mb-4">Targets</h3>
-            <div className="grid md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-400">Day Temp:</span>{' '}
-                {tent.targets?.temp_day_min || '?'} - {tent.targets?.temp_day_max || '?'}°C
-              </div>
-              <div>
-                <span className="text-gray-400">Night Temp:</span>{' '}
-                {tent.targets?.temp_night_min || '?'} - {tent.targets?.temp_night_max || '?'}°C
-              </div>
-              <div>
-                <span className="text-gray-400">Day Humidity:</span>{' '}
-                {tent.targets?.humidity_day_min || '?'} - {tent.targets?.humidity_day_max || '?'}%
-              </div>
-              <div>
-                <span className="text-gray-400">Night Humidity:</span>{' '}
-                {tent.targets?.humidity_night_min || '?'} - {tent.targets?.humidity_night_max || '?'}%
-              </div>
-            </div>
-          </div>
+          <TargetsEditor tentId={tentId} targets={tent.targets} />
 
           <div className="card">
             <h3 className="font-semibold mb-4">Schedules</h3>
