@@ -19,10 +19,10 @@ export function EventLog({ tentId, limit = 10 }) {
 
   const fetchEvents = () => {
     const url = tentId
-      ? `/api/events?tent_id=${tentId}&limit=${limit}`
-      : `/api/events?limit=${limit}`
+      ? `api/events?tent_id=${tentId}&limit=${limit}`
+      : `api/events?limit=${limit}`
 
-    fetch(url)
+    apiFetch(url)
       .then(r => r.json())
       .then(data => setEvents(data.events || []))
       .catch(console.error)

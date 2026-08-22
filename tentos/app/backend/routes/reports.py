@@ -358,10 +358,16 @@ async def get_history(
     if "vpd" in sensor_list and "temperature" in result_data and "humidity" in result_data:
         import math
         vpd_data = []
-        temp_data = {d["timestamp"][:16]: d["value"] for d in result_data.get("temperature", [])}
+        # Temperature and humidity are sampled independently, so they are paired
+        # on the minute. The full timestamp is carried through: emitting the
+        # truncated key dropped the UTC offset and every viewer's browser then
+        # read the VPD series as local time, shifting it by their offset.
+        temp_data = {}
+        for d in result_data.get("temperature", []):
+            temp_data[d["timestamp"][:16]] = (d["value"], d["timestamp"])
         hum_data = {d["timestamp"][:16]: d["value"] for d in result_data.get("humidity", [])}
 
-        for ts, temp in temp_data.items():
+        for ts, (temp, full_ts) in temp_data.items():
             if ts in hum_data:
                 humidity = hum_data[ts]
                 # VPD calculation (temp in Celsius)
@@ -369,9 +375,11 @@ async def get_history(
                 svp = 0.6108 * math.exp((17.27 * temp_c) / (temp_c + 237.3))
                 vpd = svp * (1 - humidity / 100)
                 vpd_data.append({
-                    "timestamp": ts,
+                    "timestamp": full_ts,
                     "value": round(vpd, 2)
                 })
+
+        vpd_data.sort(key=lambda p: p["timestamp"])
 
         if vpd_data:
             result_data["vpd"] = vpd_data
@@ -442,6 +450,8 @@ async def export_data(
         request=request,
         sensors=sensors,
         range=range,
+        from_time=None,   # calling the handler directly means the Query()
+        to_time=None,     # defaults are objects, not None
         max_points=10000  # Higher limit for export
     )
 

@@ -10,6 +10,7 @@ import {
   Legend
 } from 'recharts'
 import { format } from 'date-fns'
+import { apiFetch } from '../utils/api'
 
 const COLORS = {
   temperature: '#ef4444',
@@ -35,7 +36,7 @@ export function SensorChart({ tentId, sensors = ['temperature', 'humidity'], ran
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/tents/${tentId}/history?range=${range}`)
+    apiFetch(`api/tents/${tentId}/history?range=${range}`)
       .then(r => r.json())
       .then(response => {
         const history = response.history || {}

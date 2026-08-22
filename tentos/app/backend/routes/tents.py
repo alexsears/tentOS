@@ -10,9 +10,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db, SensorHistory, Override, Event
 from state_manager import StateManager
+import watering
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def iso_utc(value: datetime) -> str:
+    """Serialise a stored timestamp as explicit UTC.
+
+    Rows are written with datetime.now(timezone.utc) but SQLite drops the
+    offset, so a bare isoformat() comes back naive and every browser reads it
+    as local time. Charts were an offset out because of it.
+    """
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.isoformat()
 
 
 class ActionRequest(BaseModel):
@@ -132,21 +145,27 @@ async def tent_action(
             if not entity_id:
                 raise HTTPException(status_code=400, detail="No water pump configured")
 
-            # Turn on briefly (default 30 seconds)
-            duration = action_request.duration_minutes or 1
-            await ha_client.turn_on(entity_id)
+            # The controller owns the timer that turns the pump back off, and
+            # records the run so a restart mid-run cannot strand it on.
+            duration = await watering.start(
+                ha_client, tent_id, entity_id, action_request.duration_minutes or 1
+            )
 
-            # Log the event
-            async with get_db().__anext__() as session:
-                event = Event(
-                    tent_id=tent_id,
-                    event_type="watering",
-                    notes=action_request.notes or f"Manual watering for {duration} min"
-                )
-                session.add(event)
-                await session.commit()
+            if action_request.notes:
+                async with get_db().__anext__() as session:
+                    session.add(Event(
+                        tent_id=tent_id,
+                        event_type="watering",
+                        notes=action_request.notes,
+                    ))
+                    await session.commit()
 
-            return {"success": True, "message": "Watering started", "duration_minutes": duration}
+            return {
+                "success": True,
+                "message": f"Watering started, stopping in {duration} min",
+                "duration_minutes": duration,
+                "entity_id": entity_id,
+            }
 
         elif action == "set_override":
             if not action_request.entity_type:
@@ -307,7 +326,7 @@ async def get_tent_history(
             if record.sensor_type not in history:
                 history[record.sensor_type] = []
             history[record.sensor_type].append({
-                "timestamp": record.timestamp.isoformat(),
+                "timestamp": iso_utc(record.timestamp),
                 "value": record.value
             })
 

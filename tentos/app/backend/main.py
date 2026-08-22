@@ -37,6 +37,7 @@ def get_version():
 from database import init_db, get_db
 from ha_client import HAClient
 from light_scheduler import LightScheduler
+import watering
 from routes import tents, events, alerts, system, config, automations, reports, updates, camera, chat, assistant
 from state_manager import StateManager
 
@@ -85,6 +86,10 @@ async def lifespan(app: FastAPI):
         # Start light cycle enforcement
         await light_scheduler.start()
 
+        # A watering run that was in flight when the add-on stopped has lost its
+        # timer, so stop those pumps before anything else runs.
+        await watering.recover_stranded(ha_client)
+
         # Send one-time install ping
         from routes.telemetry import ping_install
         asyncio.create_task(ping_install())
@@ -95,6 +100,7 @@ async def lifespan(app: FastAPI):
 
     # Cleanup
     logger.info("Shutting down...")
+    await watering.stop_all()
     if light_scheduler:
         await light_scheduler.stop()
     if state_manager:

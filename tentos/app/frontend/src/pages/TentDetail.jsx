@@ -325,13 +325,16 @@ export default function TentDetail() {
           <div>
             <h3 className="font-semibold mb-3">Quick Actions</h3>
             <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => handleAction('run_watering', { duration_minutes: 1 })}
-                disabled={actionLoading}
-                className="btn btn-primary"
-              >
-                💧 Run Watering (1 min)
-              </button>
+              {/* Only offered when a pump is mapped; without one the action 400s */}
+              {tent.actuators?.water_pump && (
+                <button
+                  onClick={() => handleAction('run_watering', { duration_minutes: 1 })}
+                  disabled={actionLoading}
+                  className="btn btn-primary"
+                >
+                  💧 Run Watering (1 min)
+                </button>
+              )}
               <button
                 onClick={() => handleAction('set_override', {
                   entity_type: 'light',

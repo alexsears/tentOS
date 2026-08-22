@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.6
+- Stop a watering run when its timer is up, and recover a pump left on by a restart
+- Hide the watering action on tents with no pump configured
+- Keep the UTC offset on VPD points so the series is no longer drawn hours out of place
+- Send stored history timestamps as explicit UTC so tent charts read in local time
+- Fix Export CSV and Export JSON, which returned 500 on every request
+- Load tent charts and the event log through the ingress-aware fetch so they work inside Home Assistant
+
 ## 1.4.5
 - Drive the report time range from the URL so a second click through to Reports applies its own range
 - Pin focused charts to the requested window instead of shrinking to the extent of the data
