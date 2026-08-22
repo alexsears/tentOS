@@ -78,7 +78,7 @@ export default function Reports() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [tents, setTents] = useState([])
   const [selectedTent, setSelectedTent] = useState(null)
-  const [timeRange, setTimeRange] = useState(searchParams.get('range') || '24h')
+  const timeRange = searchParams.get('range') || '24h'
   const [sensors, setSensors] = useState(
     searchParams.get('sensors')?.split(',').filter(Boolean) || ['temperature', 'humidity', 'vpd']
   )
@@ -102,15 +102,11 @@ export default function Reports() {
     setSearchParams(next, { replace: true })
   }
 
-  // Keep the range in the URL so a focused chart can be shared or reloaded
-  useEffect(() => {
-    if (!focusKey) return
+  const setTimeRange = (value) => {
     const next = new URLSearchParams(searchParams)
-    if (next.get('range') !== timeRange) {
-      next.set('range', timeRange)
-      setSearchParams(next, { replace: true })
-    }
-  }, [timeRange, focusKey])
+    next.set('range', value)
+    setSearchParams(next, { replace: true })
+  }
 
   // Load tents
   useEffect(() => {
@@ -129,6 +125,25 @@ export default function Reports() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
+
+  // Arriving from a click elsewhere while Reports is already open: adopt the
+  // tent and series named in the URL instead of keeping the previous view.
+  const urlTent = searchParams.get('tent')
+  const urlSensors = searchParams.get('sensors')
+
+  useEffect(() => {
+    if (urlTent && urlTent !== selectedTent && tents.some(t => t.id === urlTent)) {
+      setSelectedTent(urlTent)
+    }
+  }, [urlTent, tents])
+
+  useEffect(() => {
+    if (!urlSensors) return
+    const wanted = urlSensors.split(',').filter(Boolean)
+    if (wanted.length && wanted.join(',') !== sensors.join(',')) {
+      setSensors(wanted)
+    }
+  }, [urlSensors])
 
   // Load history for focused entities (any entity, not just tent slots)
   useEffect(() => {
@@ -457,6 +472,8 @@ export default function Reports() {
       grid: { left: 60, right: 70, top: 50, bottom: 80 },
       xAxis: {
         type: 'time',
+        min: new Date(focusData[0].from).getTime(),
+        max: new Date(focusData[0].to).getTime(),
         axisLine: { lineStyle: { color: '#2d3a5c' } },
         axisLabel: { color: '#9ca3af' },
         splitLine: { show: false }

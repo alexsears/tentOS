@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.5
+- Drive the report time range from the URL so a second click through to Reports applies its own range
+- Pin focused charts to the requested window instead of shrinking to the extent of the data
+- Follow the tent and series named in the URL when Reports is already open
+
 ## 1.4.4
 - Click any reading, device, or entity to open its own history graph on the Reports tab
 - Add an any-entity history API so the graph works for entities that are not mapped to a tent sensor slot
