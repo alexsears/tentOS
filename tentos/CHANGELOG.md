@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.0
+- Warm the automation config cache in the background so no page load pays for the cold fill (Home Assistant serves those configs one at a time, so concurrency cannot help)
+- Hold one fill at a time, so a page load arriving during a warm-up joins it instead of starting a second copy of the same 127 requests
+
 ## 1.4.9
 - Cache and parallelise automation config lookups: the automations and entity-history endpoints went from about ten seconds each to under one
 - Share one WebSocket per page instead of opening one per hook, and stop refetching the tent list the app shell already loaded

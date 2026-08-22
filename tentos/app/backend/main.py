@@ -38,6 +38,7 @@ from database import init_db, get_db
 from ha_client import HAClient
 from light_scheduler import LightScheduler
 import watering
+from routes.automations import start_config_warmer, stop_config_warmer
 from routes import tents, events, alerts, system, config, automations, reports, updates, camera, chat, assistant
 from state_manager import StateManager
 
@@ -90,6 +91,11 @@ async def lifespan(app: FastAPI):
         # timer, so stop those pumps before anything else runs.
         await watering.recover_stranded(ha_client)
 
+        # Home Assistant serves automation configs one at a time and there are
+        # well over a hundred of them, so fill that cache in the background
+        # rather than making the first page load wait for it.
+        start_config_warmer(ha_client)
+
         # Send one-time install ping
         from routes.telemetry import ping_install
         asyncio.create_task(ping_install())
@@ -100,6 +106,7 @@ async def lifespan(app: FastAPI):
 
     # Cleanup
     logger.info("Shutting down...")
+    await stop_config_warmer()
     await watering.stop_all()
     if light_scheduler:
         await light_scheduler.stop()

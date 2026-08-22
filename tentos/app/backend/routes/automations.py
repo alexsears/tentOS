@@ -377,8 +377,15 @@ def automation_references_entities(automation: dict, entity_ids: set[str], confi
 # entity-history endpoints take ten seconds each, and the dashboard asks for both
 # on load. They are cached for a few minutes and fetched concurrently, and the
 # cache is dropped whenever TentOS itself changes an automation.
+# Home Assistant serves these one at a time: 48 configs take 4.1 s sequentially
+# and 4.2 s with eight-way concurrency, so the fetch itself cannot be made
+# faster from this side. The cache is the fix, and a background warmer keeps it
+# from ever being cold in front of a person.
 _config_cache: dict[str, tuple[float, dict | None]] = {}
-CONFIG_TTL_SECONDS = 300
+_fill_lock: asyncio.Lock | None = None
+_warm_task: asyncio.Task | None = None
+CONFIG_TTL_SECONDS = 900
+CONFIG_REFRESH_SECONDS = 600
 CONFIG_CONCURRENCY = 8
 
 
@@ -410,22 +417,75 @@ async def get_automation_configs(ha_client, automations: list, ttl: float = CONF
     if not missing:
         return configs
 
-    semaphore = asyncio.Semaphore(CONFIG_CONCURRENCY)
+    global _fill_lock
+    if _fill_lock is None:
+        _fill_lock = asyncio.Lock()
 
-    async def fetch(entity_id: str):
-        auto_id = entity_id.split(".", 1)[1]
-        async with semaphore:
-            try:
-                return entity_id, await ha_client.get_automation_config(auto_id)
-            except Exception:
-                return entity_id, None
+    # One filler at a time. Without this, a page load arriving while the warmer
+    # is running would start its own copy of the same 127 requests.
+    async with _fill_lock:
+        now = time.monotonic()
+        still_missing = []
+        for entity_id in missing:
+            cached = _config_cache.get(entity_id)
+            if cached and (now - cached[0]) < ttl:
+                if cached[1] is not None:
+                    configs[entity_id] = cached[1]
+            else:
+                still_missing.append(entity_id)
 
-    for entity_id, config in await asyncio.gather(*(fetch(e) for e in missing)):
-        _config_cache[entity_id] = (time.monotonic(), config)
-        if config is not None:
-            configs[entity_id] = config
+        semaphore = asyncio.Semaphore(CONFIG_CONCURRENCY)
+
+        async def fetch(entity_id: str):
+            auto_id = entity_id.split(".", 1)[1]
+            async with semaphore:
+                try:
+                    return entity_id, await ha_client.get_automation_config(auto_id)
+                except Exception:
+                    return entity_id, None
+
+        for entity_id, config in await asyncio.gather(*(fetch(e) for e in still_missing)):
+            _config_cache[entity_id] = (time.monotonic(), config)
+            if config is not None:
+                configs[entity_id] = config
 
     return configs
+
+
+async def warm_automation_configs(ha_client):
+    """Fill the cache once, off the request path."""
+    try:
+        automations = await ha_client.get_automations()
+        await get_automation_configs(ha_client, automations)
+        logger.info(f"Automation config cache warmed ({len(_config_cache)} entries)")
+    except Exception as e:
+        logger.warning(f"Failed to warm automation config cache: {e}")
+
+
+async def _warm_loop(ha_client):
+    while True:
+        await warm_automation_configs(ha_client)
+        await asyncio.sleep(CONFIG_REFRESH_SECONDS)
+
+
+def start_config_warmer(ha_client):
+    """Keep the cache warm so no page load ever pays for the cold fill."""
+    global _warm_task
+    if _warm_task and not _warm_task.done():
+        return _warm_task
+    _warm_task = asyncio.create_task(_warm_loop(ha_client))
+    return _warm_task
+
+
+async def stop_config_warmer():
+    global _warm_task
+    if _warm_task and not _warm_task.done():
+        _warm_task.cancel()
+        try:
+            await _warm_task
+        except asyncio.CancelledError:
+            pass
+    _warm_task = None
 
 
 # ==================== Templates ====================

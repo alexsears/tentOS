@@ -77,6 +77,36 @@ def test_a_write_drops_the_cache():
     assert client.calls == 10
 
 
+def test_two_callers_do_not_duplicate_the_same_fill():
+    """A page load arriving while the warmer runs must not start its own copy."""
+    client = CountingHAClient()
+    autos = automation_list(10)
+
+    async def both_at_once():
+        await asyncio.gather(
+            automations_route.get_automation_configs(client, autos),
+            automations_route.get_automation_configs(client, autos),
+        )
+
+    asyncio.run(both_at_once())
+
+    assert client.calls == 10, f"expected one fetch per automation, got {client.calls}"
+
+
+def test_warmer_fills_the_cache_off_the_request_path():
+    class ClientWithList(CountingHAClient):
+        async def get_automations(self):
+            return automation_list(6)
+
+    client = ClientWithList()
+    asyncio.run(automations_route.warm_automation_configs(client))
+
+    # A request afterwards should not need Home Assistant at all
+    before = client.calls
+    asyncio.run(automations_route.get_automation_configs(client, automation_list(6)))
+    assert client.calls == before
+
+
 def test_expired_entries_are_refetched():
     client = CountingHAClient()
     autos = automation_list(3)
