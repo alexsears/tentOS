@@ -30,6 +30,8 @@ class HAClient:
         self._reconnect_task: asyncio.Task | None = None
         self._stopping = False
         self._connected_event = asyncio.Event()
+        self._subscription_active = False
+        self._subscription_lock = asyncio.Lock()
         self._dev_mode = settings.is_dev_mode
         self._mock_states: dict[str, dict] = {}
 
@@ -99,6 +101,7 @@ class HAClient:
     async def _real_connect(self):
         """Connect to Home Assistant WebSocket API."""
         try:
+            self._subscription_active = False
             headers = {"Authorization": f"Bearer {self.token}"}
             self.ws = await websockets.connect(
                 self.ws_url,
@@ -144,6 +147,7 @@ class HAClient:
         self._stopping = True
         self.connected = False
         self._connected_event.clear()
+        self._subscription_active = False
         if self._reconnect_task:
             self._reconnect_task.cancel()
         if self._receive_task:
@@ -162,12 +166,14 @@ class HAClient:
             logger.warning("WebSocket connection closed")
             self.connected = False
             self._connected_event.clear()
+            self._subscription_active = False
         except asyncio.CancelledError:
             pass
         except Exception as e:
             logger.error(f"Receive loop error: {e}")
             self.connected = False
             self._connected_event.clear()
+            self._subscription_active = False
         finally:
             if not self._stopping and not self._dev_mode:
                 self._schedule_reconnect()
@@ -263,19 +269,25 @@ class HAClient:
             logger.info("Dev mode: registered state callback")
             return
 
+        if self._subscription_active:
+            return
         await self._subscribe_state_changes()
 
     async def _subscribe_state_changes(self):
         """Send the HA subscription command without registering callbacks twice."""
-        result = await self._send_command({
-            "type": "subscribe_events",
-            "event_type": "state_changed"
-        })
+        async with self._subscription_lock:
+            if self._subscription_active:
+                return
+            result = await self._send_command({
+                "type": "subscribe_events",
+                "event_type": "state_changed"
+            })
 
-        if not result.get("success"):
-            raise Exception(f"Failed to subscribe: {result}")
+            if not result.get("success"):
+                raise Exception(f"Failed to subscribe: {result}")
 
-        logger.info("Subscribed to state changes")
+            self._subscription_active = True
+            logger.info("Subscribed to state changes")
 
     async def get_states(self) -> list[dict]:
         """Get all current states."""

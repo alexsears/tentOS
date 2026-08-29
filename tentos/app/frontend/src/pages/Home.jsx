@@ -84,18 +84,18 @@ export default function Home() {
     }
   }, [])
 
-  const newestReadingAt = Math.max(
-    0,
-    ...tents.map(tent => Date.parse(tent.last_updated)).filter(Number.isFinite)
-  )
-  const dataIsFresh = newestReadingAt > 0 && now - newestReadingAt <= FRESH_READING_MS
-  const isLive = connected && haConnected === true && dataIsFresh
+  const readingTimes = tents.map(tent => Date.parse(tent.last_updated))
+  const staleTentCount = readingTimes.filter(
+    readingAt => !Number.isFinite(readingAt) || now - readingAt > FRESH_READING_MS
+  ).length
+  const allTentsFresh = tents.length > 0 && staleTentCount === 0
+  const isLive = connected && haConnected === true && allTentsFresh
   const connectionLabel = isLive
     ? 'Live'
     : haConnected === false
       ? 'HA disconnected'
-      : !dataIsFresh
-        ? formatDataAge(newestReadingAt)
+      : staleTentCount > 0
+        ? `${staleTentCount} tent${staleTentCount === 1 ? '' : 's'} stale`
         : connected
           ? 'Checking HA'
           : 'Reconnecting'
