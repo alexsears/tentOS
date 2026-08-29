@@ -135,7 +135,7 @@ export default function Home() {
 
       <AttentionSummary tents={tents} />
 
-      <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 min-[1380px]:grid-cols-4 min-[1380px]:gap-3">
+      <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-3">
         {tents.map(tent => (
           <TentCard
             key={tent.id}
