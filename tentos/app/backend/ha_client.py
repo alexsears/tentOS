@@ -27,11 +27,14 @@ class HAClient:
         self.state_callbacks: list[Callable] = []
         self._pending_responses: dict[int, asyncio.Future] = {}
         self._receive_task: asyncio.Task | None = None
+        self._reconnect_task: asyncio.Task | None = None
+        self._stopping = False
         self._dev_mode = settings.is_dev_mode
         self._mock_states: dict[str, dict] = {}
 
     async def connect(self):
         """Connect to Home Assistant WebSocket API."""
+        self._stopping = False
         if self._dev_mode:
             logger.info("Running in dev mode - using mock data")
             self.connected = True
@@ -123,7 +126,10 @@ class HAClient:
 
     async def disconnect(self):
         """Disconnect from Home Assistant."""
+        self._stopping = True
         self.connected = False
+        if self._reconnect_task:
+            self._reconnect_task.cancel()
         if self._receive_task:
             self._receive_task.cancel()
         if self.ws:
@@ -144,6 +150,49 @@ class HAClient:
         except Exception as e:
             logger.error(f"Receive loop error: {e}")
             self.connected = False
+        finally:
+            if not self._stopping and not self._dev_mode:
+                self._schedule_reconnect()
+
+    def _schedule_reconnect(self):
+        """Start one reconnect supervisor after an unexpected disconnect."""
+        if self._reconnect_task and not self._reconnect_task.done():
+            return
+        self._reconnect_task = asyncio.create_task(self._reconnect_loop())
+
+    async def _reconnect_loop(self):
+        """Reconnect with bounded backoff, then restore subscription and state."""
+        delay = 1
+        while not self._stopping and not self.connected:
+            logger.warning("Reconnecting to Home Assistant in %s seconds", delay)
+            await asyncio.sleep(delay)
+            try:
+                await self._real_connect()
+                if self.state_callbacks:
+                    await self._subscribe_state_changes()
+                    await self._replay_current_states()
+                logger.info("Reconnected to Home Assistant")
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error("Home Assistant reconnect failed: %s", e)
+                self.connected = False
+                if self.ws:
+                    await self.ws.close()
+                delay = min(delay * 2, 60)
+
+    async def _replay_current_states(self):
+        """Catch subscribers up on changes that happened during the outage."""
+        states = await self.get_states()
+        for state in states:
+            event_data = {
+                "entity_id": state.get("entity_id"),
+                "new_state": state,
+                "old_state": None,
+            }
+            for callback in self.state_callbacks:
+                await callback(event_data)
 
     async def _handle_message(self, data: dict):
         """Handle incoming WebSocket message."""
@@ -185,13 +234,17 @@ class HAClient:
 
     async def subscribe_state_changes(self, callback: Callable):
         """Subscribe to state change events."""
-        self.state_callbacks.append(callback)
+        if callback not in self.state_callbacks:
+            self.state_callbacks.append(callback)
 
         if self._dev_mode:
             logger.info("Dev mode: registered state callback")
             return
 
-        # Send subscription request
+        await self._subscribe_state_changes()
+
+    async def _subscribe_state_changes(self):
+        """Send the HA subscription command without registering callbacks twice."""
         result = await self._send_command({
             "type": "subscribe_events",
             "event_type": "state_changed"

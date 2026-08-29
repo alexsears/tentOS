@@ -487,7 +487,7 @@ function GrowTentIcon({ color = '#22c55e', size = 40 }) {
   )
 }
 
-export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlSettings, onRefresh }) {
+export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlSettings, onRefresh, isLive = false }) {
   const navigate = useNavigate()
   const { unit, formatTemp, getTempUnit } = useTemperatureUnit()
   const [editMode, setEditMode] = useState(false)
@@ -813,11 +813,11 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           />
         ) : (
           <SensorDisplay
-            value={tent.last_updated ? 'Live' : null}
+            value={tent.last_updated ? (isLive ? 'Live' : 'Stale') : null}
             unit=""
             label="Status"
             icon="📡"
-            color="text-green-400"
+            color={isLive ? 'text-green-400' : 'text-red-300'}
           />
         )}
       </div>
@@ -1032,7 +1032,15 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
       {/* Footer */}
       <div className="flex items-center justify-between pt-2 border-t border-[#2d3a5c]">
         <div className="text-xs text-gray-500">
-          {tent.last_updated && `Updated: ${new Date(tent.last_updated).toLocaleTimeString()}`}
+          {tent.last_updated && (() => {
+            const updated = new Date(tent.last_updated)
+            const today = new Date()
+            const sameDay = updated.toDateString() === today.toDateString()
+            const formatted = sameDay
+              ? updated.toLocaleTimeString()
+              : updated.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+            return `Updated: ${formatted}`
+          })()}
         </div>
         <Link to={`/tent/${tent.id}`} className="btn btn-primary btn-sm">
           Details →

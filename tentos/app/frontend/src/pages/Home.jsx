@@ -2,6 +2,19 @@ import { Link } from 'react-router-dom'
 import { useTents } from '../hooks/useTents'
 import { TentCard } from '../components/TentCard'
 
+const FRESH_READING_MS = 15 * 60 * 1000
+
+function formatDataAge(timestamp) {
+  if (!timestamp) return 'No recent readings'
+  const ageMs = Math.max(0, Date.now() - timestamp)
+  const minutes = Math.floor(ageMs / 60000)
+  if (minutes < 1) return 'Updated just now'
+  if (minutes < 60) return `Data ${minutes}m old`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 48) return `Data ${hours}h old`
+  return `Data ${Math.floor(hours / 24)}d old`
+}
+
 function AttentionSummary({ tents }) {
   const affectedTents = tents
     .map(tent => ({ tent, alerts: Array.isArray(tent.alerts) ? tent.alerts : [] }))
@@ -55,7 +68,22 @@ function AttentionSummary({ tents }) {
 }
 
 export default function Home() {
-  const { tents, loading, error, connected, performAction, toggleActuator, isPending, updateControlSettings, refetch } = useTents()
+  const { tents, loading, error, connected, haConnected, performAction, toggleActuator, isPending, updateControlSettings, refetch } = useTents()
+  const newestReadingAt = Math.max(
+    0,
+    ...tents.map(tent => Date.parse(tent.last_updated)).filter(Number.isFinite)
+  )
+  const dataIsFresh = newestReadingAt > 0 && Date.now() - newestReadingAt <= FRESH_READING_MS
+  const isLive = connected && haConnected === true && dataIsFresh
+  const connectionLabel = isLive
+    ? 'Live'
+    : haConnected === false
+      ? 'HA disconnected'
+      : !dataIsFresh
+        ? formatDataAge(newestReadingAt)
+        : connected
+          ? 'Checking HA'
+          : 'Reconnecting'
 
   if (loading) {
     return (
@@ -98,20 +126,24 @@ export default function Home() {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
-          <span className="text-sm text-gray-400">
-            {connected ? 'Live' : 'Disconnected'}
+          <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-green-500' : haConnected === null ? 'bg-yellow-500' : 'bg-red-500'}`} />
+          <span className={`text-sm ${isLive ? 'text-gray-400' : 'text-red-300'}`}>
+            {connectionLabel}
           </span>
         </div>
       </div>
 
       <AttentionSummary tents={tents} />
 
-      <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 min-[1380px]:grid-cols-4 min-[1380px]:gap-3">
         {tents.map(tent => (
           <TentCard
             key={tent.id}
             tent={tent}
+            isLive={connected && haConnected === true && (
+              Number.isFinite(Date.parse(tent.last_updated))
+              && Date.now() - Date.parse(tent.last_updated) <= FRESH_READING_MS
+            )}
             onAction={performAction}
             onToggle={toggleActuator}
             isPending={isPending}
