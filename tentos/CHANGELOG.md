@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.4
+- Treat unavailable, unknown, and non-finite sensor states as unavailable rather than fresh live data
+- Render unavailable sensor values cleanly instead of displaying NaN
+- Clear derived VPD when its temperature or humidity input is unavailable
+
 ## 1.5.3
 - Recover the Home Assistant connection after startup outages and later WebSocket drops
 - Label dashboard and tent data Live only while Home Assistant is connected and every tent reading is fresh

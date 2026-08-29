@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { getApiBase, apiFetch } from '../utils/api'
 import { sensorEntities, entityHistoryPath, tentHistoryPath } from '../utils/history'
+import { finiteNumberOrNull } from '../utils/numbers'
 import { HistoryIcon } from './HistoryIcon'
 
 // Actuator icon definitions with states
@@ -487,7 +488,7 @@ function GrowTentIcon({ color = '#22c55e', size = 40 }) {
   )
 }
 
-export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlSettings, onRefresh, isLive = false }) {
+export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlSettings, onRefresh, isLive = false, hasUsableData = false }) {
   const navigate = useNavigate()
   const { unit, formatTemp, getTempUnit } = useTemperatureUnit()
   const [editMode, setEditMode] = useState(false)
@@ -537,7 +538,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
   const getSensorValue = (type) => {
     const sensor = tent.sensors?.[type]
     if (!sensor) return null
-    return sensor.value
+    return finiteNumberOrNull(sensor.value)
   }
 
   const getActuatorState = (type) => {
@@ -553,9 +554,10 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
   }
 
   // Use averaged values if available, fallback to single sensor
-  const temp = tent.avg_temperature ?? getSensorValue('temperature')
-  const humidity = tent.avg_humidity ?? getSensorValue('humidity')
+  const temp = finiteNumberOrNull(tent.avg_temperature) ?? getSensorValue('temperature')
+  const humidity = finiteNumberOrNull(tent.avg_humidity) ?? getSensorValue('humidity')
   const co2 = getSensorValue('co2')
+  const vpd = finiteNumberOrNull(tent.vpd)
 
   // Determine VPD color
   const getVpdColor = (vpd) => {
@@ -750,7 +752,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
             <div className="flex items-center gap-2">
               <span className={`inline-flex items-center gap-1 text-xs ${isLive ? 'text-green-400' : 'text-red-300'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-green-400' : 'bg-red-400'}`} />
-                {tent.last_updated ? (isLive ? 'Live' : 'Stale') : 'No data'}
+                {isLive ? 'Live' : hasUsableData ? 'Stale' : Object.keys(tent.sensors || {}).length > 0 ? 'Unavailable' : 'No data'}
               </span>
               {tent.alerts?.length > 0 && (
                 <span className="badge badge-danger animate-pulse text-xs">
@@ -799,11 +801,11 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           historyPath={entityHistoryPath(sensorEntities(tent.sensors?.humidity))}
         />
         <SensorDisplay
-          value={tent.vpd != null ? Number(tent.vpd).toFixed(1) : null}
+          value={vpd != null ? vpd.toFixed(1) : null}
           unit=""
           label="VPD"
           icon="🫧"
-          color={getVpdColor(tent.vpd)}
+          color={getVpdColor(vpd)}
           historyPath={tentHistoryPath(tent.id, 'vpd')}
         />
         {co2 != null && (

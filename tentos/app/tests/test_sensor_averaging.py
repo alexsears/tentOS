@@ -5,8 +5,12 @@ Averaging those raised TypeError: unsupported operand type(s) for +: 'int' and
 'str', which escaped update_sensor, skipped the WebSocket broadcast, and left
 the tent frozen until the entity reported a number again.
 """
+import json
+import math
 import sys
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 
@@ -36,6 +40,7 @@ def test_camera_state_does_not_raise():
     tent.update_sensor("camera", "recording", None, "camera.nursery")
 
     assert tent.sensors["camera"]["value"] == "recording"
+    assert tent.last_updated is None
 
 
 def test_unavailable_reading_is_left_out_of_the_average():
@@ -58,6 +63,22 @@ def test_all_readings_unavailable_falls_back_to_the_raw_state():
     tent.update_sensor("humidity", "unknown", "%", "sensor.b")
 
     assert tent.sensors["humidity"]["value"] == "unknown"
+    assert tent.last_updated is None
+
+
+def test_unavailable_reading_does_not_refresh_tent_or_leave_stale_vpd():
+    tent = make_tent()
+
+    tent.update_sensor("temperature", 25.0, "Â°C", "sensor.temperature")
+    tent.update_sensor("humidity", 60.0, "%", "sensor.humidity")
+    last_valid_update = tent.last_updated
+    assert tent.vpd is not None
+
+    tent.update_sensor("temperature", "unavailable", "Â°C", "sensor.temperature")
+
+    assert tent.last_updated == last_valid_update
+    assert tent.avg_temperature is None
+    assert tent.vpd is None
 
 
 def test_numeric_readings_still_average():
@@ -67,3 +88,18 @@ def test_numeric_readings_still_average():
     tent.update_sensor("temperature", 24.0, "°C", "sensor.b")
 
     assert tent.sensors["temperature"]["value"] == 22.0
+
+
+@pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), float("-inf"), "NaN", "Infinity"])
+def test_non_finite_readings_never_escape_or_refresh_the_tent(bad_value):
+    tent = make_tent()
+
+    tent.update_sensor("temperature", bad_value, "°C", "sensor.temperature")
+    payload = tent.to_dict()
+
+    assert tent.last_updated is None
+    assert tent.avg_temperature is None
+    assert tent.vpd is None
+    stored_value = payload["sensors"]["temperature"]["value"]
+    assert not isinstance(stored_value, float) or math.isfinite(stored_value)
+    json.dumps(payload, allow_nan=False)

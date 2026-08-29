@@ -2,18 +2,26 @@ import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useTents } from '../hooks/useTents'
 import { TentCard } from '../components/TentCard'
+import { finiteNumberOrNull } from '../utils/numbers'
 
 const FRESH_READING_MS = 15 * 60 * 1000
 
-function formatDataAge(timestamp) {
-  if (!timestamp) return 'No recent readings'
-  const ageMs = Math.max(0, Date.now() - timestamp)
-  const minutes = Math.floor(ageMs / 60000)
-  if (minutes < 1) return 'Updated just now'
-  if (minutes < 60) return `Data ${minutes}m old`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 48) return `Data ${hours}h old`
-  return `Data ${Math.floor(hours / 24)}d old`
+function isUsableSensorValue(value) {
+  return finiteNumberOrNull(value) !== null
+}
+
+function tentHasUsableData(tent) {
+  if ([tent.avg_temperature, tent.avg_humidity, tent.vpd].some(isUsableSensorValue)) {
+    return true
+  }
+  return Object.values(tent.sensors || {}).some(sensor => isUsableSensorValue(sensor?.value))
+}
+
+function tentReadingIsFresh(tent, now) {
+  const readingAt = Date.parse(tent.last_updated)
+  return tentHasUsableData(tent)
+    && Number.isFinite(readingAt)
+    && now - readingAt <= FRESH_READING_MS
 }
 
 function AttentionSummary({ tents }) {
@@ -84,17 +92,19 @@ export default function Home() {
     }
   }, [])
 
-  const readingTimes = tents.map(tent => Date.parse(tent.last_updated))
-  const staleTentCount = readingTimes.filter(
-    readingAt => !Number.isFinite(readingAt) || now - readingAt > FRESH_READING_MS
+  const unavailableTentCount = tents.filter(tent => !tentHasUsableData(tent)).length
+  const staleTentCount = tents.filter(
+    tent => tentHasUsableData(tent) && !tentReadingIsFresh(tent, now)
   ).length
-  const allTentsFresh = tents.length > 0 && staleTentCount === 0
+  const allTentsFresh = tents.length > 0 && unavailableTentCount === 0 && staleTentCount === 0
   const isLive = connected && haConnected === true && allTentsFresh
   const connectionLabel = isLive
     ? 'Live'
     : haConnected === false
       ? 'HA disconnected'
-      : staleTentCount > 0
+      : unavailableTentCount > 0
+        ? `${unavailableTentCount} tent${unavailableTentCount === 1 ? '' : 's'} unavailable`
+        : staleTentCount > 0
         ? `${staleTentCount} tent${staleTentCount === 1 ? '' : 's'} stale`
         : connected
           ? 'Checking HA'
@@ -155,10 +165,8 @@ export default function Home() {
           <TentCard
             key={tent.id}
             tent={tent}
-            isLive={connected && haConnected === true && (
-              Number.isFinite(Date.parse(tent.last_updated))
-              && now - Date.parse(tent.last_updated) <= FRESH_READING_MS
-            )}
+            hasUsableData={tentHasUsableData(tent)}
+            isLive={connected && haConnected === true && tentReadingIsFresh(tent, now)}
             onAction={performAction}
             onToggle={toggleActuator}
             isPending={isPending}

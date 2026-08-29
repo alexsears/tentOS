@@ -255,12 +255,16 @@ class TentState:
 
         Temperature values are normalized to Celsius for consistent storage and VPD calculation.
         """
-        now = datetime.now(timezone.utc).isoformat()
+        observed_at = datetime.now(timezone.utc)
+        now = observed_at.isoformat()
 
         # Normalize temperature to Celsius
         if is_temperature_sensor_type(sensor_type) and value is not None:
             try:
                 temp_val = float(value)
+                if not math.isfinite(temp_val):
+                    value = None
+                    raise ValueError("non-finite temperature")
                 # Detect Fahrenheit: via unit attribute OR heuristic (grow temps > 50°C are unrealistic)
                 is_fahrenheit = (
                     (unit and "f" in unit.lower()) or
@@ -276,6 +280,12 @@ class TentState:
             except (ValueError, TypeError):
                 pass
 
+        # HA integrations occasionally expose IEEE non-finite values. Keep
+        # those out of API payloads and derived calculations just like
+        # unavailable/unknown states.
+        if isinstance(value, (int, float)) and not math.isfinite(value):
+            value = None
+
         if sensor_type in self.sensors and entity_id:
             # Multi-entity: store per-entity values and average
             existing = self.sensors[sensor_type]
@@ -286,7 +296,10 @@ class TentState:
             # all (a camera reports "recording") and any sensor can report
             # "unavailable", and summing those raised a TypeError that killed
             # the state update and its WebSocket broadcast for the whole tent.
-            numeric = [v for v in existing["_entities"].values() if isinstance(v, (int, float))]
+            numeric = [
+                v for v in existing["_entities"].values()
+                if isinstance(v, (int, float)) and math.isfinite(v)
+            ]
             if numeric:
                 existing["value"] = round(sum(numeric) / len(numeric), 1)
             else:
@@ -302,6 +315,11 @@ class TentState:
                 "_entities": {entity_id: value} if entity_id else {}
             }
         self._recalculate()
+        if isinstance(value, (int, float)) and math.isfinite(value):
+            # Freshness is about usable measurements, not merely a recent HA
+            # state transition. "unavailable", "unknown", camera states, NaN,
+            # and infinity must not make a tent look live.
+            self.last_updated = observed_at
 
     def update_actuator(self, actuator_type: str, state: str, attributes: dict | None = None):
         """Update an actuator state."""
@@ -320,7 +338,9 @@ class TentState:
         data = self.sensors.get(sensor_type, {})
         if isinstance(data, dict) and data.get("value") is not None:
             try:
-                values.append(float(data["value"]))
+                numeric_value = float(data["value"])
+                if math.isfinite(numeric_value):
+                    values.append(numeric_value)
             except (ValueError, TypeError):
                 pass
         # Also check for _values array (multiple sensors)
@@ -328,7 +348,9 @@ class TentState:
             for v in data["values"]:
                 if v is not None:
                     try:
-                        values.append(float(v))
+                        numeric_value = float(v)
+                        if math.isfinite(numeric_value):
+                            values.append(numeric_value)
                     except (ValueError, TypeError):
                         pass
         if values:
@@ -337,8 +359,6 @@ class TentState:
 
     def _recalculate(self):
         """Recalculate derived values."""
-        self.last_updated = datetime.now(timezone.utc)
-
         # Get averaged temp and humidity from multiple sensors
         avg_temp = self._get_averaged_value("temperature")
         avg_humidity = self._get_averaged_value("humidity")
@@ -350,6 +370,8 @@ class TentState:
         # Calculate VPD using averaged values
         if avg_temp is not None and avg_humidity is not None:
             self.vpd = calculate_vpd(avg_temp, avg_humidity)
+        else:
+            self.vpd = None
 
         # Calculate environment score using averaged values
         sensor_values = {k: v.get("value") for k, v in self.sensors.items()}
