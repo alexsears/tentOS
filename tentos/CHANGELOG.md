@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.3
+- Recover the Home Assistant connection after startup outages and later WebSocket drops
+- Label dashboard and tent data Live only while Home Assistant is connected and every tent reading is fresh
+- Keep report history refreshing every 30 seconds with clearer source wording
+- Show all four current tents in one row on standard desktop screens
+- Keep active alerts visible and updating across the hosted app and Android shell
+
 ## 1.5.2
 - Stop the report statistics running into each other, and separate the humidity and VPD axis titles
 
