@@ -79,26 +79,7 @@ async def list_alerts(
 @router.get("/summary")
 async def alerts_summary(state_manager: StateManager = Depends(get_state_manager)):
     """Get alert summary counts."""
-    critical = 0
-    warning = 0
-    info = 0
-
-    for tent in state_manager.tents.values():
-        for alert in tent.alerts:
-            severity = alert.get("severity", "warning")
-            if severity == "critical":
-                critical += 1
-            elif severity == "warning":
-                warning += 1
-            else:
-                info += 1
-
-    return {
-        "critical": critical,
-        "warning": warning,
-        "info": info,
-        "total": critical + warning + info
-    }
+    return state_manager.get_alert_summary()
 
 
 class MuteRequest(BaseModel):
@@ -119,6 +100,8 @@ async def mute_alert(
     own, and is dropped early if the condition clears.
     """
     until = state_manager.mute_alert(body.key, body.hours)
+    tent_id = body.key.partition(":")[0]
+    await state_manager.broadcast_alert_state([tent_id])
     return {"success": True, "key": body.key, "muted_until": until.isoformat()}
 
 
@@ -129,6 +112,7 @@ async def unmute_alert(
 ):
     """Bring a muted alert back."""
     state_manager.unmute_alert(body.key)
+    await state_manager.refresh_alerts()
     return {"success": True, "key": body.key}
 
 

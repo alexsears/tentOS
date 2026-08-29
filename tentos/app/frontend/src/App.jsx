@@ -90,8 +90,8 @@ function AppContent() {
   }, [])
 
   useEffect(() => {
-    if (lastMessage?.type === 'alert') {
-      setAlerts(prev => ({ ...prev, ...lastMessage.data }))
+    if (lastMessage?.type === 'alert_summary') {
+      setAlerts(lastMessage.data)
     }
   }, [lastMessage])
 
