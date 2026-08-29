@@ -255,7 +255,8 @@ class TentState:
 
         Temperature values are normalized to Celsius for consistent storage and VPD calculation.
         """
-        now = datetime.now(timezone.utc).isoformat()
+        observed_at = datetime.now(timezone.utc)
+        now = observed_at.isoformat()
 
         # Normalize temperature to Celsius
         if is_temperature_sensor_type(sensor_type) and value is not None:
@@ -286,7 +287,10 @@ class TentState:
             # all (a camera reports "recording") and any sensor can report
             # "unavailable", and summing those raised a TypeError that killed
             # the state update and its WebSocket broadcast for the whole tent.
-            numeric = [v for v in existing["_entities"].values() if isinstance(v, (int, float))]
+            numeric = [
+                v for v in existing["_entities"].values()
+                if isinstance(v, (int, float)) and math.isfinite(v)
+            ]
             if numeric:
                 existing["value"] = round(sum(numeric) / len(numeric), 1)
             else:
@@ -302,6 +306,11 @@ class TentState:
                 "_entities": {entity_id: value} if entity_id else {}
             }
         self._recalculate()
+        if isinstance(value, (int, float)) and math.isfinite(value):
+            # Freshness is about usable measurements, not merely a recent HA
+            # state transition. "unavailable", "unknown", camera states, NaN,
+            # and infinity must not make a tent look live.
+            self.last_updated = observed_at
 
     def update_actuator(self, actuator_type: str, state: str, attributes: dict | None = None):
         """Update an actuator state."""
@@ -337,8 +346,6 @@ class TentState:
 
     def _recalculate(self):
         """Recalculate derived values."""
-        self.last_updated = datetime.now(timezone.utc)
-
         # Get averaged temp and humidity from multiple sensors
         avg_temp = self._get_averaged_value("temperature")
         avg_humidity = self._get_averaged_value("humidity")
@@ -350,6 +357,8 @@ class TentState:
         # Calculate VPD using averaged values
         if avg_temp is not None and avg_humidity is not None:
             self.vpd = calculate_vpd(avg_temp, avg_humidity)
+        else:
+            self.vpd = None
 
         # Calculate environment score using averaged values
         sensor_values = {k: v.get("value") for k, v in self.sensors.items()}

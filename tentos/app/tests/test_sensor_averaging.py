@@ -36,6 +36,7 @@ def test_camera_state_does_not_raise():
     tent.update_sensor("camera", "recording", None, "camera.nursery")
 
     assert tent.sensors["camera"]["value"] == "recording"
+    assert tent.last_updated is None
 
 
 def test_unavailable_reading_is_left_out_of_the_average():
@@ -58,6 +59,22 @@ def test_all_readings_unavailable_falls_back_to_the_raw_state():
     tent.update_sensor("humidity", "unknown", "%", "sensor.b")
 
     assert tent.sensors["humidity"]["value"] == "unknown"
+    assert tent.last_updated is None
+
+
+def test_unavailable_reading_does_not_refresh_tent_or_leave_stale_vpd():
+    tent = make_tent()
+
+    tent.update_sensor("temperature", 25.0, "Â°C", "sensor.temperature")
+    tent.update_sensor("humidity", 60.0, "%", "sensor.humidity")
+    last_valid_update = tent.last_updated
+    assert tent.vpd is not None
+
+    tent.update_sensor("temperature", "unavailable", "Â°C", "sensor.temperature")
+
+    assert tent.last_updated == last_valid_update
+    assert tent.avg_temperature is None
+    assert tent.vpd is None
 
 
 def test_numeric_readings_still_average():
