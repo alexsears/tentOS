@@ -90,8 +90,8 @@ function AppContent() {
   }, [])
 
   useEffect(() => {
-    if (lastMessage?.type === 'alert') {
-      setAlerts(prev => ({ ...prev, ...lastMessage.data }))
+    if (lastMessage?.type === 'alert_summary') {
+      setAlerts(lastMessage.data)
     }
   }, [lastMessage])
 
@@ -154,8 +154,8 @@ function AppContent() {
               ))}
             </nav>
 
-            {/* Alert indicator */}
-            <div className="hidden sm:flex items-center gap-2">
+            {/* Keep active alerts reachable in both the website and Android shell. */}
+            <div className="flex items-center gap-2 shrink-0">
               <AlertsMenu summary={alerts} onChanged={refreshAlertSummary} />
             </div>
           </div>

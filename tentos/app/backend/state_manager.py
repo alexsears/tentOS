@@ -441,7 +441,8 @@ class StateManager:
 
     async def start(self):
         """Start the state manager."""
-        self._running = True
+        if self._running:
+            return
         self._load_config()
 
         # Subscribe to HA state changes
@@ -451,6 +452,7 @@ class StateManager:
         await self._load_initial_states()
 
         # Start background tasks
+        self._running = True
         self._alert_check_task = asyncio.create_task(self._alert_check_loop())
         self._history_task = asyncio.create_task(self._history_record_loop())
 
@@ -528,12 +530,15 @@ class StateManager:
         if not tent:
             return
 
-        message = json.dumps({
+        await self._broadcast_message({
             "type": "tent_update",
             "tent_id": tent_id,
             "data": tent.to_dict()
         })
 
+    async def _broadcast_message(self, payload: dict):
+        """Broadcast one JSON payload and discard disconnected clients."""
+        message = json.dumps(payload)
         disconnected = []
         for ws in self.ws_clients:
             try:
@@ -543,6 +548,26 @@ class StateManager:
 
         for ws in disconnected:
             self.ws_clients.remove(ws)
+
+    def get_alert_summary(self) -> dict:
+        """Return the live alert counts used by the header and API."""
+        summary = {"critical": 0, "warning": 0, "info": 0, "total": 0}
+        for tent in self.tents.values():
+            for alert in tent.alerts:
+                severity = alert.get("severity", "warning")
+                bucket = severity if severity in summary and severity != "total" else "info"
+                summary[bucket] += 1
+                summary["total"] += 1
+        return summary
+
+    async def broadcast_alert_state(self, tent_ids: list[str]):
+        """Push changed tent alerts and the installation-wide count together."""
+        for tent_id in dict.fromkeys(tent_ids):
+            await self._broadcast_update(tent_id)
+        await self._broadcast_message({
+            "type": "alert_summary",
+            "data": self.get_alert_summary(),
+        })
 
     def add_websocket_client(self, ws: WebSocket):
         """Add a WebSocket client."""
@@ -567,14 +592,13 @@ class StateManager:
 
     async def _check_alerts(self):
         """Check all tents for alert conditions."""
-        async with async_session() as session:
-            for tent_id, tent in self.tents.items():
-                alerts = []
-                targets = tent.config.targets
-                notifications = tent.config.notifications
+        changed_tent_ids = []
+        for tent_id, tent in self.tents.items():
+            alerts = []
+            targets = tent.config.targets
+            notifications = tent.config.notifications
 
-                if not notifications.get("enabled", True):
-                    continue
+            if notifications.get("enabled", True):
 
                 # Temperature alert (values stored in Celsius)
                 temp_data = tent.sensors.get("temperature", {})
@@ -637,7 +661,17 @@ class StateManager:
                     except (ValueError, TypeError):
                         pass
 
-                tent.alerts = self._apply_mutes(tent_id, alerts)
+            next_alerts = self._apply_mutes(tent_id, alerts)
+            if tent.alerts != next_alerts:
+                tent.alerts = next_alerts
+                changed_tent_ids.append(tent_id)
+
+        if changed_tent_ids:
+            await self.broadcast_alert_state(changed_tent_ids)
+
+    async def refresh_alerts(self):
+        """Recompute alerts immediately after an explicit alert-state change."""
+        await self._check_alerts()
 
     def mute_alert(self, key: str, hours: float = 8) -> datetime:
         """Silence one alert until it lapses or the condition clears."""

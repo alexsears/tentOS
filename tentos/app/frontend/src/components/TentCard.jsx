@@ -487,7 +487,7 @@ function GrowTentIcon({ color = '#22c55e', size = 40 }) {
   )
 }
 
-export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlSettings, onRefresh }) {
+export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlSettings, onRefresh, isLive = false }) {
   const navigate = useNavigate()
   const { unit, formatTemp, getTempUnit } = useTemperatureUnit()
   const [editMode, setEditMode] = useState(false)
@@ -748,6 +748,10 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
               )}
             </div>
             <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1 text-xs ${isLive ? 'text-green-400' : 'text-red-300'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-green-400' : 'bg-red-400'}`} />
+                {tent.last_updated ? (isLive ? 'Live' : 'Stale') : 'No data'}
+              </span>
               {tent.alerts?.length > 0 && (
                 <span className="badge badge-danger animate-pulse text-xs">
                   {tent.alerts.length}
@@ -777,7 +781,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
       </div>
 
       {/* Sensors - Real-time values */}
-      <div className="grid grid-cols-4 gap-1 sm:gap-2 mb-2 p-2 bg-[#1a1a2e] rounded-lg">
+      <div className={`grid ${co2 != null ? 'grid-cols-4' : 'grid-cols-3'} gap-1 sm:gap-2 mb-2 p-2 bg-[#1a1a2e] rounded-lg`}>
         <SensorDisplay
           value={temp != null ? formatTemp(temp, 1) : null}
           unit={getTempUnit()}
@@ -802,7 +806,7 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           color={getVpdColor(tent.vpd)}
           historyPath={tentHistoryPath(tent.id, 'vpd')}
         />
-        {co2 != null ? (
+        {co2 != null && (
           <SensorDisplay
             value={Number(co2).toFixed(1)}
             unit="ppm"
@@ -810,14 +814,6 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
             icon="💨"
             color="text-white"
             historyPath={entityHistoryPath(sensorEntities(tent.sensors?.co2))}
-          />
-        ) : (
-          <SensorDisplay
-            value={tent.last_updated ? 'Live' : null}
-            unit=""
-            label="Status"
-            icon="📡"
-            color="text-green-400"
           />
         )}
       </div>
@@ -1032,7 +1028,15 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
       {/* Footer */}
       <div className="flex items-center justify-between pt-2 border-t border-[#2d3a5c]">
         <div className="text-xs text-gray-500">
-          {tent.last_updated && `Updated: ${new Date(tent.last_updated).toLocaleTimeString()}`}
+          {tent.last_updated && (() => {
+            const updated = new Date(tent.last_updated)
+            const today = new Date()
+            const sameDay = updated.toDateString() === today.toDateString()
+            const formatted = sameDay
+              ? updated.toLocaleTimeString()
+              : updated.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+            return `Updated: ${formatted}`
+          })()}
         </div>
         <Link to={`/tent/${tent.id}`} className="btn btn-primary btn-sm">
           Details →

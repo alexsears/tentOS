@@ -41,6 +41,7 @@ export function useTents() {
   const [loading, setLoading] = useState(!fresh)
   const [error, setError] = useState(null)
   const [pending, setPending] = useState({}) // Track pending actions
+  const [haConnected, setHaConnected] = useState(null)
   const { lastMessage, readyState } = useWebSocket('api/ws')
 
   const fetchTents = useCallback(async (force = false) => {
@@ -62,6 +63,25 @@ export function useTents() {
   useEffect(() => {
     fetchTents()
   }, [fetchTents])
+
+  useEffect(() => {
+    let cancelled = false
+    const checkHealth = () => {
+      if (document.visibilityState !== 'visible') return
+      apiFetch('api/health')
+        .then(response => response.json())
+        .then(data => { if (!cancelled) setHaConnected(Boolean(data.ha_connected)) })
+        .catch(() => { if (!cancelled) setHaConnected(false) })
+    }
+    checkHealth()
+    const interval = setInterval(checkHealth, 30000)
+    document.addEventListener('visibilitychange', checkHealth)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', checkHealth)
+    }
+  }, [])
 
   // Handle WebSocket messages
   useEffect(() => {
@@ -156,6 +176,7 @@ export function useTents() {
     loading,
     error,
     connected: readyState === WebSocket.OPEN,
+    haConnected,
     refetch: () => fetchTents(true),
     performAction,
     toggleActuator,

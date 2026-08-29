@@ -69,25 +69,37 @@ export function AlertsMenu({ summary, onChanged }) {
 
   if (!summary?.total) return null
 
+  const mostSevereLabel = summary.critical > 0 ? 'Critical' : 'Warning'
+
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2"
-        title="Show alerts"
+        className="flex items-center gap-2 min-h-9"
+        title={`Show ${summary.total} active ${summary.total === 1 ? 'alert' : 'alerts'}`}
+        aria-label={`Show ${summary.total} active ${summary.total === 1 ? 'alert' : 'alerts'}`}
         aria-haspopup="true"
         aria-expanded={open}
       >
-        {summary.critical > 0 && (
-          <span className="badge badge-danger">{summary.critical} Critical</span>
-        )}
-        {summary.warning > 0 && (
-          <span className="badge badge-warning">{summary.warning} Warning</span>
-        )}
+        <span className="sm:hidden">
+          <span className={`badge ${summary.critical > 0 ? 'badge-danger' : 'badge-warning'}`}>
+            <span aria-hidden="true">⚠</span>
+            {summary.total}
+            <span className="sr-only">{mostSevereLabel}</span>
+          </span>
+        </span>
+        <span className="hidden sm:flex items-center gap-2">
+          {summary.critical > 0 && (
+            <span className="badge badge-danger">{summary.critical} Critical</span>
+          )}
+          {summary.warning > 0 && (
+            <span className="badge badge-warning">{summary.warning} Warning</span>
+          )}
+        </span>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-y-auto bg-[#16213e] border border-[#2d3a5c] rounded-lg shadow-xl z-50">
+        <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] max-h-96 overflow-y-auto bg-[#16213e] border border-[#2d3a5c] rounded-lg shadow-xl z-50">
           <div className="px-4 py-2 border-b border-[#2d3a5c] text-sm font-semibold">
             Active alerts
           </div>

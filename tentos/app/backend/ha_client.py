@@ -27,20 +27,38 @@ class HAClient:
         self.state_callbacks: list[Callable] = []
         self._pending_responses: dict[int, asyncio.Future] = {}
         self._receive_task: asyncio.Task | None = None
+        self._reconnect_task: asyncio.Task | None = None
+        self._stopping = False
+        self._connected_event = asyncio.Event()
+        self._subscription_active = False
+        self._subscription_lock = asyncio.Lock()
         self._dev_mode = settings.is_dev_mode
         self._mock_states: dict[str, dict] = {}
 
     async def connect(self):
         """Connect to Home Assistant WebSocket API."""
+        self._stopping = False
         if self._dev_mode:
             logger.info("Running in dev mode - using mock data")
             self.connected = True
+            self._connected_event.set()
             self._init_mock_states()
             # Start mock state updates
             self._receive_task = asyncio.create_task(self._mock_state_loop())
             return
 
-        await self._real_connect()
+        try:
+            await self._real_connect()
+        except Exception:
+            # Startup must recover too. Previously only a dropped receive loop
+            # scheduled reconnection, so an unavailable HA instance at add-on
+            # boot left the dashboard disconnected until a manual restart.
+            self._schedule_reconnect()
+            raise
+
+    async def wait_until_connected(self):
+        """Wait until a successful initial connection or reconnect."""
+        await self._connected_event.wait()
 
     def _init_mock_states(self):
         """Initialize mock states for dev mode."""
@@ -83,6 +101,7 @@ class HAClient:
     async def _real_connect(self):
         """Connect to Home Assistant WebSocket API."""
         try:
+            self._subscription_active = False
             headers = {"Authorization": f"Bearer {self.token}"}
             self.ws = await websockets.connect(
                 self.ws_url,
@@ -107,6 +126,7 @@ class HAClient:
 
                 if result.get("type") == "auth_ok":
                     self.connected = True
+                    self._connected_event.set()
                     logger.info("Authenticated with Home Assistant")
                     # Start receive loop
                     self._receive_task = asyncio.create_task(self._receive_loop())
@@ -114,6 +134,7 @@ class HAClient:
                     raise Exception(f"Auth failed: {result}")
             elif auth_msg.get("type") == "auth_ok":
                 self.connected = True
+                self._connected_event.set()
                 self._receive_task = asyncio.create_task(self._receive_loop())
 
         except Exception as e:
@@ -123,7 +144,12 @@ class HAClient:
 
     async def disconnect(self):
         """Disconnect from Home Assistant."""
+        self._stopping = True
         self.connected = False
+        self._connected_event.clear()
+        self._subscription_active = False
+        if self._reconnect_task:
+            self._reconnect_task.cancel()
         if self._receive_task:
             self._receive_task.cancel()
         if self.ws:
@@ -139,11 +165,62 @@ class HAClient:
         except ConnectionClosed:
             logger.warning("WebSocket connection closed")
             self.connected = False
+            self._connected_event.clear()
+            self._subscription_active = False
         except asyncio.CancelledError:
             pass
         except Exception as e:
             logger.error(f"Receive loop error: {e}")
             self.connected = False
+            self._connected_event.clear()
+            self._subscription_active = False
+        finally:
+            if not self._stopping and not self._dev_mode:
+                self._schedule_reconnect()
+
+    def _schedule_reconnect(self):
+        """Start one reconnect supervisor after an unexpected disconnect."""
+        if self._reconnect_task and not self._reconnect_task.done():
+            return
+        self._reconnect_task = asyncio.create_task(self._reconnect_loop())
+
+    async def _reconnect_loop(self):
+        """Reconnect with bounded backoff, then restore subscription and state."""
+        delay = 1
+        while not self._stopping and not self.connected:
+            logger.warning("Reconnecting to Home Assistant in %s seconds", delay)
+            await asyncio.sleep(delay)
+            try:
+                had_state_callbacks = bool(self.state_callbacks)
+                await self._real_connect()
+                # Restore subscriptions that existed before this connection.
+                # On delayed first startup, StateManager is released by the
+                # connected event and owns its initial subscription/load.
+                if had_state_callbacks:
+                    await self._subscribe_state_changes()
+                    await self._replay_current_states()
+                logger.info("Reconnected to Home Assistant")
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error("Home Assistant reconnect failed: %s", e)
+                self.connected = False
+                if self.ws:
+                    await self.ws.close()
+                delay = min(delay * 2, 60)
+
+    async def _replay_current_states(self):
+        """Catch subscribers up on changes that happened during the outage."""
+        states = await self.get_states()
+        for state in states:
+            event_data = {
+                "entity_id": state.get("entity_id"),
+                "new_state": state,
+                "old_state": None,
+            }
+            for callback in self.state_callbacks:
+                await callback(event_data)
 
     async def _handle_message(self, data: dict):
         """Handle incoming WebSocket message."""
@@ -185,22 +262,32 @@ class HAClient:
 
     async def subscribe_state_changes(self, callback: Callable):
         """Subscribe to state change events."""
-        self.state_callbacks.append(callback)
+        if callback not in self.state_callbacks:
+            self.state_callbacks.append(callback)
 
         if self._dev_mode:
             logger.info("Dev mode: registered state callback")
             return
 
-        # Send subscription request
-        result = await self._send_command({
-            "type": "subscribe_events",
-            "event_type": "state_changed"
-        })
+        if self._subscription_active:
+            return
+        await self._subscribe_state_changes()
 
-        if not result.get("success"):
-            raise Exception(f"Failed to subscribe: {result}")
+    async def _subscribe_state_changes(self):
+        """Send the HA subscription command without registering callbacks twice."""
+        async with self._subscription_lock:
+            if self._subscription_active:
+                return
+            result = await self._send_command({
+                "type": "subscribe_events",
+                "event_type": "state_changed"
+            })
 
-        logger.info("Subscribed to state changes")
+            if not result.get("success"):
+                raise Exception(f"Failed to subscribe: {result}")
+
+            self._subscription_active = True
+            logger.info("Subscribed to state changes")
 
     async def get_states(self) -> list[dict]:
         """Get all current states."""
