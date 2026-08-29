@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { useTents } from '../hooks/useTents'
 import { TentCard } from '../components/TentCard'
 
@@ -69,11 +70,25 @@ function AttentionSummary({ tents }) {
 
 export default function Home() {
   const { tents, loading, error, connected, haConnected, performAction, toggleActuator, isPending, updateControlSettings, refetch } = useTents()
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const updateClock = () => {
+      if (document.visibilityState === 'visible') setNow(Date.now())
+    }
+    const interval = setInterval(updateClock, 30000)
+    document.addEventListener('visibilitychange', updateClock)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', updateClock)
+    }
+  }, [])
+
   const newestReadingAt = Math.max(
     0,
     ...tents.map(tent => Date.parse(tent.last_updated)).filter(Number.isFinite)
   )
-  const dataIsFresh = newestReadingAt > 0 && Date.now() - newestReadingAt <= FRESH_READING_MS
+  const dataIsFresh = newestReadingAt > 0 && now - newestReadingAt <= FRESH_READING_MS
   const isLive = connected && haConnected === true && dataIsFresh
   const connectionLabel = isLive
     ? 'Live'
@@ -142,7 +157,7 @@ export default function Home() {
             tent={tent}
             isLive={connected && haConnected === true && (
               Number.isFinite(Date.parse(tent.last_updated))
-              && Date.now() - Date.parse(tent.last_updated) <= FRESH_READING_MS
+              && now - Date.parse(tent.last_updated) <= FRESH_READING_MS
             )}
             onAction={performAction}
             onToggle={toggleActuator}

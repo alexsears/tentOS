@@ -65,3 +65,66 @@ def test_reconnect_retries_with_backoff_after_failure(monkeypatch):
 
     assert attempts == 2
     assert delays == [1, 2]
+
+
+def test_initial_connect_failure_starts_reconnect_supervisor():
+    client = HAClient.__new__(HAClient)
+    client._dev_mode = False
+    client._stopping = False
+    client.connected = False
+    client._reconnect_task = None
+    scheduled = []
+
+    async def fail_connect():
+        raise ConnectionError("HA unavailable during startup")
+
+    client._real_connect = fail_connect
+    client._schedule_reconnect = lambda: scheduled.append("reconnect")
+
+    try:
+        asyncio.run(client.connect())
+    except ConnectionError:
+        pass
+    else:
+        raise AssertionError("initial connection should fail")
+
+    assert scheduled == ["reconnect"]
+
+
+def test_ha_dependents_start_once_after_delayed_connection(monkeypatch):
+    import main
+    import routes.telemetry as telemetry
+
+    calls = []
+
+    class Client:
+        _stopping = False
+
+        async def wait_until_connected(self):
+            calls.append("ready")
+
+    class Manager:
+        async def start(self):
+            calls.append("manager")
+
+    class Scheduler:
+        async def start(self):
+            calls.append("scheduler")
+
+    async def recover(_client):
+        calls.append("watering")
+
+    async def ping():
+        calls.append("ping")
+
+    monkeypatch.setattr(main.watering, "recover_stranded", recover)
+    monkeypatch.setattr(main, "start_config_warmer", lambda _client: calls.append("warmer"))
+    monkeypatch.setattr(telemetry, "ping_install", ping)
+
+    async def run_startup():
+        await main.start_ha_services_when_ready(Client(), Manager(), Scheduler())
+        await asyncio.sleep(0)
+
+    asyncio.run(run_startup())
+
+    assert calls == ["ready", "manager", "scheduler", "watering", "warmer", "ping"]

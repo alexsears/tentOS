@@ -668,7 +668,7 @@ export default function Reports() {
               <>
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                 <span>
-                  Live
+                  HA history - refreshes every 30s
                   {lastUpdated
                     ? ` - updated ${lastUpdated.toLocaleTimeString()}`
                     : ' - waiting for first reading'}

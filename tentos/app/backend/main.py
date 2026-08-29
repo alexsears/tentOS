@@ -3,7 +3,7 @@ import asyncio
 import logging
 import os
 import yaml
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
@@ -54,6 +54,37 @@ state_manager: StateManager | None = None
 light_scheduler: LightScheduler | None = None
 
 
+async def start_ha_services_when_ready(
+    client: HAClient,
+    manager: StateManager,
+    scheduler: LightScheduler,
+):
+    """Start HA-dependent services once, retrying partial startup safely."""
+    while not client._stopping:
+        await client.wait_until_connected()
+        try:
+            await manager.start()
+            await scheduler.start()
+
+            # A watering run that was in flight when the add-on stopped has
+            # lost its timer, so stop those pumps before anything else runs.
+            await watering.recover_stranded(client)
+
+            # Home Assistant serves automation configs one at a time and there
+            # are well over a hundred, so warm the cache in the background.
+            start_config_warmer(client)
+
+            from routes.telemetry import ping_install
+            asyncio.create_task(ping_install())
+            logger.info("Home Assistant-dependent services started")
+            return
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error("Failed to start Home Assistant services: %s", e)
+            await asyncio.sleep(1)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle."""
@@ -76,29 +107,17 @@ async def lifespan(app: FastAPI):
     light_scheduler = LightScheduler(ha_client, state_manager)
     app.state.light_scheduler = light_scheduler
 
-    # Connect to Home Assistant
+    # Start dependents in one guarded task. It waits through an initial HA
+    # outage and is also safe if a connection drops partway through startup.
+    ha_services_task = asyncio.create_task(
+        start_ha_services_when_ready(ha_client, state_manager, light_scheduler)
+    )
+
+    # Connect to Home Assistant. HAClient owns retrying both initial failures
+    # and later WebSocket drops, so the API can remain available meanwhile.
     try:
         await ha_client.connect()
         logger.info("Connected to Home Assistant")
-
-        # Start state subscription
-        asyncio.create_task(state_manager.start())
-
-        # Start light cycle enforcement
-        await light_scheduler.start()
-
-        # A watering run that was in flight when the add-on stopped has lost its
-        # timer, so stop those pumps before anything else runs.
-        await watering.recover_stranded(ha_client)
-
-        # Home Assistant serves automation configs one at a time and there are
-        # well over a hundred of them, so fill that cache in the background
-        # rather than making the first page load wait for it.
-        start_config_warmer(ha_client)
-
-        # Send one-time install ping
-        from routes.telemetry import ping_install
-        asyncio.create_task(ping_install())
     except Exception as e:
         logger.error(f"Failed to connect to Home Assistant: {e}")
 
@@ -106,6 +125,9 @@ async def lifespan(app: FastAPI):
 
     # Cleanup
     logger.info("Shutting down...")
+    ha_services_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await ha_services_task
     await stop_config_warmer()
     await watering.stop_all()
     if light_scheduler:

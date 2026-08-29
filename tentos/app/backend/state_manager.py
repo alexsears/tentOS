@@ -441,7 +441,8 @@ class StateManager:
 
     async def start(self):
         """Start the state manager."""
-        self._running = True
+        if self._running:
+            return
         self._load_config()
 
         # Subscribe to HA state changes
@@ -451,6 +452,7 @@ class StateManager:
         await self._load_initial_states()
 
         # Start background tasks
+        self._running = True
         self._alert_check_task = asyncio.create_task(self._alert_check_loop())
         self._history_task = asyncio.create_task(self._history_record_loop())
 
