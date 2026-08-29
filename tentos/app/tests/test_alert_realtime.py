@@ -8,7 +8,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from state_manager import StateManager  # noqa: E402
-from routes.alerts import MuteRequest, mute_alert  # noqa: E402
+from routes.alerts import MuteRequest, mute_alert, unmute_alert  # noqa: E402
 
 
 class RecordingSocket:
@@ -81,3 +81,16 @@ def test_muting_an_alert_broadcasts_the_updated_tent_and_summary():
         "type": "alert_summary",
         "data": {"critical": 0, "warning": 0, "info": 0, "total": 0},
     }
+
+
+def test_unmuting_recomputes_and_broadcasts_the_active_alert():
+    manager = make_manager()
+    asyncio.run(manager._check_alerts())
+    asyncio.run(mute_alert(MuteRequest(key="flower:humidity_out_of_range", hours=8), manager))
+    manager.ws_clients[0].messages.clear()
+
+    asyncio.run(unmute_alert(MuteRequest(key="flower:humidity_out_of_range"), manager))
+
+    messages = manager.ws_clients[0].messages
+    assert messages[0]["data"]["alerts"][0]["type"] == "humidity_out_of_range"
+    assert messages[1]["data"]["warning"] == 1
