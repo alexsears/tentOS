@@ -262,6 +262,9 @@ class TentState:
         if is_temperature_sensor_type(sensor_type) and value is not None:
             try:
                 temp_val = float(value)
+                if not math.isfinite(temp_val):
+                    value = None
+                    raise ValueError("non-finite temperature")
                 # Detect Fahrenheit: via unit attribute OR heuristic (grow temps > 50°C are unrealistic)
                 is_fahrenheit = (
                     (unit and "f" in unit.lower()) or
@@ -276,6 +279,12 @@ class TentState:
                 unit = "°C"
             except (ValueError, TypeError):
                 pass
+
+        # HA integrations occasionally expose IEEE non-finite values. Keep
+        # those out of API payloads and derived calculations just like
+        # unavailable/unknown states.
+        if isinstance(value, (int, float)) and not math.isfinite(value):
+            value = None
 
         if sensor_type in self.sensors and entity_id:
             # Multi-entity: store per-entity values and average
@@ -329,7 +338,9 @@ class TentState:
         data = self.sensors.get(sensor_type, {})
         if isinstance(data, dict) and data.get("value") is not None:
             try:
-                values.append(float(data["value"]))
+                numeric_value = float(data["value"])
+                if math.isfinite(numeric_value):
+                    values.append(numeric_value)
             except (ValueError, TypeError):
                 pass
         # Also check for _values array (multiple sensors)
@@ -337,7 +348,9 @@ class TentState:
             for v in data["values"]:
                 if v is not None:
                     try:
-                        values.append(float(v))
+                        numeric_value = float(v)
+                        if math.isfinite(numeric_value):
+                            values.append(numeric_value)
                     except (ValueError, TypeError):
                         pass
         if values:

@@ -11,6 +11,7 @@ import { HistoryIcon } from '../components/HistoryIcon'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { apiFetch, requireOk } from '../utils/api'
 import { sensorEntities, entityHistoryPath, tentHistoryPath } from '../utils/history'
+import { finiteNumberOrNull } from '../utils/numbers'
 
 export default function TentDetail() {
   const { tentId } = useParams()
@@ -82,8 +83,8 @@ export default function TentDetail() {
 
   const getSensorDisplay = (type, label, unit = '', isTemp = false) => {
     const sensor = tent.sensors?.[type]
-    const value = sensor?.value
-    const displayValue = isTemp && value != null ? formatTemp(value, 1) : (value != null ? Number(value).toFixed(1) : null)
+    const value = finiteNumberOrNull(sensor?.value)
+    const displayValue = isTemp && value != null ? formatTemp(value, 1) : (value != null ? value.toFixed(1) : null)
     const displayUnit = isTemp ? getTempUnit() : unit
     const historyPath = type === 'vpd'
       ? tentHistoryPath(tentId, 'vpd')
@@ -120,6 +121,7 @@ export default function TentDetail() {
   }
 
   const cameras = getCameras()
+  const displayVpd = finiteNumberOrNull(tent.vpd)
 
   const getActuatorControl = (type, label, icon) => {
     const state = tent.actuators?.[type]?.state || 'unknown'
@@ -256,7 +258,7 @@ export default function TentDetail() {
                 title="VPD history"
               >
                 <div className="text-3xl font-bold mb-1">
-                  {tent.vpd != null ? Number(tent.vpd).toFixed(1) : '--'}
+                  {displayVpd != null ? displayVpd.toFixed(1) : '--'}
                 </div>
                 <div className="text-sm text-gray-400">VPD (kPa)<HistoryIcon className="ml-1 opacity-50" /></div>
               </div>

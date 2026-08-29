@@ -5,8 +5,12 @@ Averaging those raised TypeError: unsupported operand type(s) for +: 'int' and
 'str', which escaped update_sensor, skipped the WebSocket broadcast, and left
 the tent frozen until the entity reported a number again.
 """
+import json
+import math
 import sys
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 
@@ -84,3 +88,18 @@ def test_numeric_readings_still_average():
     tent.update_sensor("temperature", 24.0, "°C", "sensor.b")
 
     assert tent.sensors["temperature"]["value"] == 22.0
+
+
+@pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), float("-inf"), "NaN", "Infinity"])
+def test_non_finite_readings_never_escape_or_refresh_the_tent(bad_value):
+    tent = make_tent()
+
+    tent.update_sensor("temperature", bad_value, "°C", "sensor.temperature")
+    payload = tent.to_dict()
+
+    assert tent.last_updated is None
+    assert tent.avg_temperature is None
+    assert tent.vpd is None
+    stored_value = payload["sensors"]["temperature"]["value"]
+    assert not isinstance(stored_value, float) or math.isfinite(stored_value)
+    json.dumps(payload, allow_nan=False)

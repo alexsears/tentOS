@@ -2,12 +2,12 @@ import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useTents } from '../hooks/useTents'
 import { TentCard } from '../components/TentCard'
+import { finiteNumberOrNull } from '../utils/numbers'
 
 const FRESH_READING_MS = 15 * 60 * 1000
 
 function isUsableSensorValue(value) {
-  if (value === null || value === undefined || value === '') return false
-  return Number.isFinite(Number(value))
+  return finiteNumberOrNull(value) !== null
 }
 
 function tentHasUsableData(tent) {
