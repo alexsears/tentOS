@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
 import { apiFetch } from '../utils/api'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
+import { similarSensorOptions } from '../utils/sensorComparison'
 import { format, subHours, subDays } from 'date-fns'
 
 const TIME_RANGES = [
@@ -126,6 +127,8 @@ export default function Reports() {
     [searchParams]
   )
   const focusKey = focusEntities.join(',')
+  const primaryFocusEntity = focusEntities[0]
+  const comparisonOptions = similarSensorOptions(tents, focusEntities)
 
   // How often a live range re-queries history. The underlying HA recorder updates these
   // sensors about once a minute, so polling faster than this just burns requests for
@@ -188,6 +191,16 @@ export default function Reports() {
   const clearFocus = () => {
     const next = new URLSearchParams(searchParams)
     next.delete('entity')
+    setSearchParams(next, { replace: true })
+  }
+
+  const toggleFocusEntity = (entityId) => {
+    if (!entityId || entityId === primaryFocusEntity) return
+    const nextEntities = focusEntities.includes(entityId)
+      ? focusEntities.filter(id => id !== entityId)
+      : [...focusEntities, entityId]
+    const next = new URLSearchParams(searchParams)
+    next.set('entity', nextEntities.join(','))
     setSearchParams(next, { replace: true })
   }
 
@@ -765,6 +778,53 @@ export default function Reports() {
             </div>
           </div>
         </div>
+
+        {focusKey && comparisonOptions.length > 1 && (
+          <div className="mt-4 pt-4 border-t border-[#2d3a5c]">
+            <div className="flex items-baseline justify-between gap-3 mb-2">
+              <div>
+                <div className="text-sm font-medium text-gray-200">Compare similar sensors</div>
+                <div className="text-xs text-gray-500">Add comparable readings to the same graph.</div>
+              </div>
+              <div className="text-xs text-gray-500 shrink-0">
+                {focusEntities.length} selected
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {comparisonOptions.map(option => {
+                const selected = focusEntities.includes(option.entityId)
+                const primary = option.entityId === primaryFocusEntity
+                return (
+                  <label
+                    key={option.entityId}
+                    className={`flex min-h-12 items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${
+                      selected
+                        ? 'border-green-500/60 bg-green-500/10 text-white'
+                        : 'border-[#2d3a5c] bg-[#1a1a2e] text-gray-300 hover:border-gray-500'
+                    } ${primary ? 'cursor-default' : 'cursor-pointer'}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={primary}
+                      onChange={() => toggleFocusEntity(option.entityId)}
+                      className="h-4 w-4 accent-green-500"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{option.label}</span>
+                      <span className="block truncate text-xs text-gray-500">{option.tentName}</span>
+                    </span>
+                    {primary && (
+                      <span className="rounded bg-green-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-green-300">
+                        Primary
+                      </span>
+                    )}
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Custom range inputs */}
         {showCustom && (
