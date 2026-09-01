@@ -134,7 +134,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-10rem)]">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -161,7 +161,7 @@ export default function Chat() {
       <div
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto card p-4 space-y-4"
+        className="card min-h-0 flex-1 overflow-y-auto p-4 space-y-4"
       >
         {hasMore && (
           <button

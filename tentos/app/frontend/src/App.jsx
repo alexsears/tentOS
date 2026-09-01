@@ -115,7 +115,7 @@ function AppContent() {
 
   return (
     <PreloadContext.Provider value={preloadedData}>
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="app-viewport flex min-w-0 flex-col overflow-hidden">
       {/* Header */}
       <header className="bg-[#16213e] border-b border-[#2d3a5c] shrink-0 z-50">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2">
@@ -137,7 +137,7 @@ function AppContent() {
               <TempToggle />
             </div>
 
-            <nav className="hidden md:flex items-center gap-0.5">
+            <nav className="hidden min-w-0 items-center gap-0.5 overflow-x-auto scrollbar-none xl:flex">
               {navItems.map(item => (
                 <Link
                   key={item.path}
@@ -166,8 +166,8 @@ function AppContent() {
       <AlertBanner />
 
       {/* Main Content - scrolls internally */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 pb-24 md:pb-4">
+      <main className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain">
+        <div className="app-content box-border h-full min-w-0 max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/assistant" element={<Assistant />} />
@@ -182,7 +182,7 @@ function AppContent() {
         </div>
       </main>
 
-      <nav className="md:hidden fixed inset-x-0 bottom-0 z-50 bg-[#121a31]/95 backdrop-blur border-t border-[#2d3a5c] safe-bottom">
+      <nav className="xl:hidden z-50 shrink-0 bg-[#121a31]/95 backdrop-blur border-t border-[#2d3a5c] safe-bottom">
         <div className="grid grid-cols-5 h-16">
           {mobilePrimaryItems.map(item => (
             <Link
@@ -213,9 +213,10 @@ function AppContent() {
       </nav>
 
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-black/60" onClick={() => setMobileMenuOpen(false)}>
+        <div className="xl:hidden fixed inset-0 z-40 bg-black/60" onClick={() => setMobileMenuOpen(false)}>
           <div
             className="absolute inset-x-3 bottom-20 rounded-2xl border border-[#2d3a5c] bg-[#16213e] p-2 shadow-2xl"
+            style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
             onClick={event => event.stopPropagation()}
           >
             {mobileMoreItems.map(item => (

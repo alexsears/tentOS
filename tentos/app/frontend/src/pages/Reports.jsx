@@ -728,9 +728,9 @@ export default function Reports() {
           </div>
 
           {/* Time range */}
-          <div>
+          <div className="min-w-0 w-full lg:w-auto">
             <label className="text-sm text-gray-400 block mb-1">Time Range</label>
-            <div className="flex gap-1">
+            <div className="app-scroll-strip flex gap-1">
               {TIME_RANGES.map(r => (
                 <button
                   key={r.value}
@@ -756,9 +756,9 @@ export default function Reports() {
           </div>
 
           {/* Sensor toggles */}
-          <div className={focusKey ? 'hidden' : ''}>
+          <div className={`${focusKey ? 'hidden' : ''} min-w-0 max-w-full`}>
             <label className="text-sm text-gray-400 block mb-1">Sensors</label>
-            <div className="flex gap-1">
+            <div className="app-scroll-strip flex gap-1">
               {Object.entries(SENSOR_CONFIG).map(([key, config]) => (
                 <button
                   key={key}
