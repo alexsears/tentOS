@@ -862,28 +862,28 @@ export default function Automations() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-[#2d3a5c]">
+      <div className="app-scroll-strip flex gap-2 border-b border-[#2d3a5c]">
         <button
           onClick={() => setActiveTab('automations')}
-          className={`px-4 py-2 font-medium ${activeTab === 'automations' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400'}`}
+          className={`shrink-0 whitespace-nowrap px-4 py-2 font-medium ${activeTab === 'automations' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400'}`}
         >
           Automations
         </button>
         <button
           onClick={() => setActiveTab('create')}
-          className={`px-4 py-2 font-medium ${activeTab === 'create' ? 'border-b-2 border-green-500 text-green-400' : 'text-gray-400'}`}
+          className={`shrink-0 whitespace-nowrap px-4 py-2 font-medium ${activeTab === 'create' ? 'border-b-2 border-green-500 text-green-400' : 'text-gray-400'}`}
         >
           + Create
         </button>
         <button
           onClick={() => setActiveTab('history')}
-          className={`px-4 py-2 font-medium ${activeTab === 'history' ? 'border-b-2 border-purple-500 text-purple-400' : 'text-gray-400'}`}
+          className={`shrink-0 whitespace-nowrap px-4 py-2 font-medium ${activeTab === 'history' ? 'border-b-2 border-purple-500 text-purple-400' : 'text-gray-400'}`}
         >
           History
         </button>
         <button
           onClick={() => setActiveTab('chains')}
-          className={`px-4 py-2 font-medium ${activeTab === 'chains' ? 'border-b-2 border-orange-500 text-orange-400' : 'text-gray-400'}`}
+          className={`shrink-0 whitespace-nowrap px-4 py-2 font-medium ${activeTab === 'chains' ? 'border-b-2 border-orange-500 text-orange-400' : 'text-gray-400'}`}
         >
           Chains
         </button>

@@ -184,12 +184,12 @@ export default function TentDetail() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-[#2d3a5c] pb-2">
+      <div className="app-scroll-strip flex gap-2 mb-6 border-b border-[#2d3a5c] pb-2">
         {['overview', ...(cameras.length > 0 ? ['cameras'] : []), 'charts', 'automations', 'events', 'settings'].map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-t-lg capitalize ${
+            className={`shrink-0 whitespace-nowrap px-4 py-2 rounded-t-lg capitalize ${
               activeTab === tab
                 ? 'bg-[#16213e] text-white border-b-2 border-green-500'
                 : 'text-gray-400 hover:text-white'

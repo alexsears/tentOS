@@ -15,13 +15,42 @@
   --color-info: #3b82f6;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text);
+}
+
+.app-viewport {
+  width: 100%;
+  max-width: 100vw;
   height: 100vh;
-  overflow: hidden;
+  height: 100dvh;
+}
+
+.app-content > * {
+  min-width: 0;
+}
+
+.app-scroll-strip {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+}
+
+.app-scroll-strip::-webkit-scrollbar {
+  display: none;
 }
 
 button, a {
@@ -99,8 +128,9 @@ button, a {
   display: grid;
   grid-template-columns: minmax(300px, 0.78fr) minmax(0, 1.22fr);
   gap: 1rem;
-  height: calc(100dvh - 6.75rem);
-  min-height: 34rem;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .assistant-stage,
@@ -461,16 +491,16 @@ button, a {
 @keyframes assistant-dot { 0%, 100% { transform: translateY(0); opacity: 0.45; } 50% { transform: translateY(-0.25rem); opacity: 1; } }
 
 @media (max-width: 900px) {
-  .assistant-shell { height: auto; min-height: auto; grid-template-columns: 1fr; }
-  .assistant-stage { min-height: 22rem; padding: 1.2rem; }
-  .assistant-conversation { min-height: min(36rem, calc(100dvh - 8rem)); }
+  .assistant-shell { height: 100%; min-height: 0; grid-template-columns: 1fr; grid-template-rows: minmax(12rem, 0.8fr) minmax(0, 1.2fr); }
+  .assistant-stage { min-height: 0; padding: 1.2rem; }
+  .assistant-conversation { min-height: 0; }
   .assistant-orb { width: 11rem; }
 }
 
 @media (max-width: 767px) {
   .assistant-shell {
-    height: calc(100dvh - 9.6rem);
-    min-height: 35rem;
+    height: 100%;
+    min-height: 0;
     grid-template-rows: 8.5rem minmax(0, 1fr);
     gap: 0.55rem;
     overflow: hidden;
