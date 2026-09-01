@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.6
+- Hide the repeated Min, Max, Average, and Now summaries when comparing multiple similar sensors
+- Keep the detailed summary available when viewing a single sensor
+
 ## 1.5.4
 - Treat unavailable, unknown, and non-finite sensor states as unavailable rather than fresh live data
 - Render unavailable sensor values cleanly instead of displaying NaN
