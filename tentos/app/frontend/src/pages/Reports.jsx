@@ -852,7 +852,9 @@ export default function Reports() {
       </div>
 
       {/* Focused entity statistics */}
-      {focusKey && focusData.length > 0 && (
+      {/* Keep the detail text useful for a single reading, but let the chart and
+          legend carry comparisons instead of adding another stats block per sensor. */}
+      {focusKey && focusEntities.length === 1 && focusData.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {focusData.map(entity => (
             entity.kind === 'state' ? (
