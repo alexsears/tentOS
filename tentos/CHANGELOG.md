@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.7
+- Keep the full app shell inside the device viewport with persistent header and navigation
+- Scroll long pages, chat feeds, and assistant conversations inside their available window
+- Contain wide report controls and tab rows with section-level horizontal scrolling
+
 ## 1.5.6
 - Hide the repeated Min, Max, Average, and Now summaries when comparing multiple similar sensors
 - Keep the detailed summary available when viewing a single sensor
