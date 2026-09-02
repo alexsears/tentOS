@@ -233,7 +233,7 @@ function Reading({ value, unit, label, slot, color = 'text-white', historyPath, 
       onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(historyPath) } } : undefined}
     >
       <div className={`flex max-w-full items-baseline ${compact ? 'gap-0.5' : 'gap-1'}`}>
-        <Icon size={compact ? 12 : 14} className="shrink-0 self-center text-gray-500" aria-hidden="true" />
+        {!compact && <Icon size={14} className="shrink-0 self-center text-gray-500" aria-hidden="true" />}
         <span className={`font-semibold leading-7 ${compact ? 'text-lg' : 'text-xl'} ${color}`}>
           {value != null ? value : '--'}
         </span>
@@ -764,8 +764,8 @@ export function TentCard({
             })}
           </div>
         ) : (
-          <div className="app-scroll-strip -mx-1 mt-auto px-1">
-            <div className="flex w-max gap-2 py-0.5">
+          <div className="app-scroll-strip -mx-1 mt-2 px-1">
+            <div className="flex w-max gap-2 py-0.5 xl:w-auto xl:flex-wrap">
               {groupActuatorsByType(displayOrder).map(group => (
                 group.slots.length === 1 ? (
                   <ActuatorPill
