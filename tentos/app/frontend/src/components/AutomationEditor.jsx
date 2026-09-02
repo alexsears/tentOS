@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react'
+import { Moon, X } from 'lucide-react'
 import { apiFetch, requireOk } from '../utils/api'
 import { getTentEntityOptions } from '../utils/automationEntities'
+import { actuatorIcon, sensorIcon } from '../utils/icons'
 
-// Templates for common grow tent automations
+// Templates for common grow tent automations. `icon` is a lucide component
+// from the shared vocabulary, never an emoji string.
 const TEMPLATES = [
   {
     id: 'light_schedule',
-    name: 'Light Schedule',
-    icon: '💡',
-    description: 'Turn lights on/off at specific times',
+    name: 'Light schedule',
+    icon: actuatorIcon('light'),
+    description: 'Turn lights on and off at set times',
     config: {
       triggers: [{ type: 'time', at: '06:00:00' }],
       actions: [{ type: 'turn_on', target: 'light' }]
@@ -16,8 +19,8 @@ const TEMPLATES = [
   },
   {
     id: 'high_temp_exhaust',
-    name: 'High Temp - Exhaust',
-    icon: '🌡️',
+    name: 'High temp exhaust',
+    icon: sensorIcon('temperature'),
     description: 'Turn on exhaust when temp exceeds threshold',
     config: {
       triggers: [{ type: 'numeric_state', target: 'temperature', above: 28 }],
@@ -26,8 +29,8 @@ const TEMPLATES = [
   },
   {
     id: 'low_humidity_humidifier',
-    name: 'Low Humidity - Humidifier',
-    icon: '💧',
+    name: 'Low humidity humidifier',
+    icon: actuatorIcon('humidifier'),
     description: 'Turn on humidifier when humidity drops',
     config: {
       triggers: [{ type: 'numeric_state', target: 'humidity', below: 50 }],
@@ -36,8 +39,8 @@ const TEMPLATES = [
   },
   {
     id: 'high_humidity_dehumidifier',
-    name: 'High Humidity - Dehumidifier',
-    icon: '🏜️',
+    name: 'High humidity dehumidifier',
+    icon: actuatorIcon('dehumidifier'),
     description: 'Turn on dehumidifier when humidity rises',
     config: {
       triggers: [{ type: 'numeric_state', target: 'humidity', above: 70 }],
@@ -46,9 +49,9 @@ const TEMPLATES = [
   },
   {
     id: 'vpd_control',
-    name: 'VPD Control',
-    icon: '🫧',
-    description: 'Maintain optimal VPD range',
+    name: 'VPD control',
+    icon: sensorIcon('vpd'),
+    description: 'Keep VPD in range',
     config: {
       triggers: [{ type: 'numeric_state', target: 'vpd', above: 1.4 }],
       actions: [{ type: 'turn_on', target: 'humidifier' }]
@@ -56,8 +59,8 @@ const TEMPLATES = [
   },
   {
     id: 'night_mode',
-    name: 'Night Mode',
-    icon: '🌙',
+    name: 'Night mode',
+    icon: Moon,
     description: 'Reduce fan speed during quiet hours',
     config: {
       triggers: [{ type: 'time', at: '22:00:00' }],
@@ -268,37 +271,48 @@ export function AutomationEditor({ tent, automation, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#16213e] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-auto">
+      <div className="bg-[#16213e] border border-[#2d3a5c] rounded-xl w-full max-w-2xl max-h-[90vh] overflow-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#2d3a5c]">
+        <div className="flex items-center justify-between gap-3 p-4 border-b border-[#2d3a5c]">
           <h3 className="text-lg font-semibold">
-            {automation ? 'Edit Automation' : 'Create Automation'}
+            {automation ? 'Edit automation' : 'Create automation'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl px-2 py-1 rounded hover:bg-[#2d3a5c]">
-            &times;
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            title="Close"
+            className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-lg text-gray-400 hover:text-white hover:bg-[#2d3a5c]"
+          >
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
         {/* Template Selection */}
         {step === 'template' && (
           <div className="p-4">
-            <p className="text-gray-400 mb-4">Choose a template or start from scratch:</p>
+            <p className="text-xs text-gray-400 mb-3">Templates</p>
             <div className="grid grid-cols-2 gap-3 mb-4">
-              {TEMPLATES.map(template => (
-                <button
-                  key={template.id}
-                  onClick={() => applyTemplate(template)}
-                  className="p-4 bg-[#1a1a2e] rounded-lg text-left hover:bg-[#2d3a5c] transition-colors"
-                >
-                  <div className="text-2xl mb-2">{template.icon}</div>
-                  <div className="font-medium">{template.name}</div>
-                  <div className="text-xs text-gray-400">{template.description}</div>
-                </button>
-              ))}
+              {TEMPLATES.map(template => {
+                const Icon = template.icon
+                return (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => applyTemplate(template)}
+                    className="p-3 bg-[#1a1a2e] border border-[#2d3a5c] rounded-lg text-left hover:bg-[#1f2b4d] transition-colors"
+                  >
+                    <Icon size={18} className="mb-2 text-gray-400" aria-hidden="true" />
+                    <div className="font-medium text-sm">{template.name}</div>
+                    <div className="text-xs text-gray-400">{template.description}</div>
+                  </button>
+                )
+              })}
             </div>
             <button
+              type="button"
               onClick={() => setStep('edit')}
-              className="w-full btn btn-secondary"
+              className="w-full btn btn-secondary min-h-11"
             >
               Start from scratch
             </button>
@@ -322,7 +336,7 @@ export function AutomationEditor({ tent, automation, onClose, onSave }) {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 className="input w-full"
-                placeholder="My Automation"
+                placeholder="My automation"
               />
             </div>
 
@@ -482,17 +496,18 @@ export function AutomationEditor({ tent, automation, onClose, onSave }) {
             {/* Actions */}
             <div className="flex gap-2 justify-end pt-4 border-t border-[#2d3a5c]">
               {!automation && step === 'edit' && (
-                <button onClick={() => setStep('template')} className="btn">
-                  Back to Templates
+                <button type="button" onClick={() => setStep('template')} className="btn min-h-11 border border-[#2d3a5c]">
+                  Back to templates
                 </button>
               )}
-              <button onClick={onClose} className="btn">
+              <button type="button" onClick={onClose} className="btn min-h-11 border border-[#2d3a5c]">
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="btn btn-primary"
+                className="btn btn-primary min-h-11"
               >
                 {saving ? 'Saving...' : (automation ? 'Update' : 'Create')}
               </button>

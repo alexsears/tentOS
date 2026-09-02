@@ -1,66 +1,244 @@
 import { useState, useEffect, useMemo } from 'react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  Footprints,
+  Layers,
+  Lightbulb,
+  ListChecks,
+  Pencil,
+  Play,
+  Radio,
+  RefreshCw,
+  ScrollText,
+  Search,
+  Settings2,
+  SlidersHorizontal,
+  Sun,
+  Trash2,
+  Workflow,
+  X,
+  Zap,
+} from 'lucide-react'
 import { apiFetch } from '../utils/api'
 import { usePreloadedData } from '../App'
 import AutomationChains from '../components/AutomationChains'
+import {
+  AlertGlyph,
+  actuatorIcon,
+  sensorIcon,
+  stageIcon,
+  SENSOR_ICONS,
+} from '../utils/icons'
 
-// Tag colors
-const TAG_COLORS = {
-  schedule: 'bg-blue-500/20 text-blue-300',
-  threshold: 'bg-purple-500/20 text-purple-300',
-  sensor: 'bg-cyan-500/20 text-cyan-300',
-  state: 'bg-orange-500/20 text-orange-300',
-  sun: 'bg-yellow-500/20 text-yellow-300',
-  motion: 'bg-green-500/20 text-green-300',
-  multi: 'bg-red-500/20 text-red-300',
+// The backend ships emoji strings as `icon` on categories, tags, templates,
+// bundles and entity suggestions. Those are ignored for rendering; every glyph
+// below comes from the shared lucide vocabulary.
+const CATEGORY_ICONS = {
+  light: actuatorIcon('light'),
+  climate: SENSOR_ICONS.temperature,
+  exhaust: actuatorIcon('exhaust_fan'),
+  humidity: SENSOR_ICONS.humidity,
+  circulation: actuatorIcon('circulation_fan'),
+  water: actuatorIcon('water_pump'),
+  co2: SENSOR_ICONS.co2,
+  other: Settings2,
 }
 
-// Suggestions banner
-function SuggestionsBanner({ suggestions, onApply, onDismiss }) {
+const CATEGORY_LABELS = {
+  light: 'Lighting',
+  climate: 'Climate control',
+  exhaust: 'Ventilation',
+  humidity: 'Humidity',
+  circulation: 'Air circulation',
+  water: 'Irrigation',
+  co2: 'CO2',
+  other: 'Other',
+}
+
+const TAG_ICONS = {
+  schedule: Clock,
+  threshold: SlidersHorizontal,
+  sensor: Radio,
+  state: RefreshCw,
+  sun: Sun,
+  motion: Footprints,
+  multi: Zap,
+}
+
+const BUNDLE_ICONS = {
+  veg_basic: stageIcon('veg'),
+  flower_basic: stageIcon('flower'),
+  vpd_control: SENSOR_ICONS.vpd,
+  full_climate: SENSOR_ICONS.temperature,
+}
+
+const SUGGESTIONS_OPEN_KEY = 'tentos.automations.suggestionsOpen'
+
+function categoryLabel(catId, categoryInfo) {
+  if (CATEGORY_LABELS[catId]) return CATEGORY_LABELS[catId]
+  const raw = (categoryInfo?.name || catId || '').replace(/_/g, ' ').trim()
+  if (!raw) return 'Other'
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
+}
+
+function templateIcon(template) {
+  if (!template) return Workflow
+  if (template.actuator_type) return actuatorIcon(template.actuator_type)
+  if (template.sensor_type) return sensorIcon(template.sensor_type)
+  return Workflow
+}
+
+function readSuggestionsOpen() {
+  try {
+    return window.localStorage.getItem(SUGGESTIONS_OPEN_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function writeSuggestionsOpen(open) {
+  try {
+    window.localStorage.setItem(SUGGESTIONS_OPEN_KEY, open ? 'true' : 'false')
+  } catch {
+    // Storage can be unavailable in private mode; the toggle still works for this visit.
+  }
+}
+
+// Shared small controls -------------------------------------------------------
+
+function Segmented({ value, options, onChange, className = '' }) {
+  return (
+    <div className={`flex rounded-lg overflow-hidden border border-[#2d3a5c] ${className}`}>
+      {options.map(opt => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          aria-pressed={value === opt.value}
+          title={opt.title}
+          className={`min-h-11 flex-1 sm:flex-none px-3 text-sm whitespace-nowrap transition-colors ${
+            value === opt.value ? 'bg-green-600 text-white' : 'text-gray-400 hover:bg-[#1f2b4d]'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function IconButton({ icon: Icon, label, onClick, active = false, danger = false, className = '', ...rest }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      aria-pressed={active || undefined}
+      className={`inline-flex items-center justify-center min-h-11 min-w-11 rounded-lg border transition-colors ${
+        active
+          ? 'border-green-600 bg-green-600 text-white'
+          : danger
+            ? 'border-[#2d3a5c] text-gray-400 hover:text-red-400 hover:bg-red-500/10'
+            : 'border-[#2d3a5c] text-gray-300 hover:bg-[#1f2b4d] hover:text-white'
+      } ${className}`}
+      {...rest}
+    >
+      <Icon size={16} aria-hidden="true" />
+    </button>
+  )
+}
+
+function Disclosure({ icon: Icon, iconClass = 'text-gray-400', label, open, onToggle, children }) {
+  return (
+    <div className="card p-0 overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="w-full min-h-11 flex items-center gap-3 px-3 py-2 text-left hover:bg-[#1a1a2e] transition-colors"
+      >
+        <Icon size={18} className={`shrink-0 ${iconClass}`} aria-hidden="true" />
+        <span className="flex-1 min-w-0 text-sm font-medium truncate">{label}</span>
+        {open
+          ? <ChevronDown size={16} className="shrink-0 text-gray-400" aria-hidden="true" />
+          : <ChevronRight size={16} className="shrink-0 text-gray-400" aria-hidden="true" />}
+      </button>
+      {open && <div className="border-t border-[#2d3a5c] p-3">{children}</div>}
+    </div>
+  )
+}
+
+function EmptyState({ icon: Icon, text }) {
+  return (
+    <div className="card text-center py-8">
+      <Icon size={28} className="mx-auto mb-3 text-gray-500" aria-hidden="true" />
+      <p className="text-sm text-gray-400">{text}</p>
+    </div>
+  )
+}
+
+// Suggestions: one collapsed row by default, the list behind it.
+function SuggestionsBanner({ suggestions, onApply }) {
   const [dismissed, setDismissed] = useState(new Set())
+  const [open, setOpen] = useState(readSuggestionsOpen)
 
   const visible = suggestions.filter(s => !dismissed.has(`${s.tent_id}-${s.template_id}`))
   if (visible.length === 0) return null
 
+  const toggle = () => {
+    setOpen(prev => {
+      writeSuggestionsOpen(!prev)
+      return !prev
+    })
+  }
+
   return (
-    <div className="card bg-blue-500/10 border-blue-500/30">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold flex items-center gap-2">
-          <span>💡</span> Suggestions ({visible.length})
-        </h3>
-        <button
-          onClick={() => setDismissed(new Set(suggestions.map(s => `${s.tent_id}-${s.template_id}`)))}
-          className="text-sm text-gray-400 hover:text-white"
-        >
-          Dismiss all
-        </button>
-      </div>
+    <Disclosure
+      icon={Lightbulb}
+      label={`${visible.length} suggestion${visible.length !== 1 ? 's' : ''}`}
+      open={open}
+      onToggle={toggle}
+    >
       <div className="space-y-2">
-        {visible.slice(0, 3).map(s => (
-          <div key={`${s.tent_id}-${s.template_id}`} className="flex items-center gap-3 p-2 rounded bg-[#1a1a2e]">
-            <span className="text-xl">{s.template.icon}</span>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium">{s.tent_name}: {s.template.name}</div>
-              <div className="text-xs text-gray-400 truncate">{s.reason}</div>
+        {visible.map(s => {
+          const Icon = templateIcon(s.template)
+          return (
+            <div key={`${s.tent_id}-${s.template_id}`} className="flex items-center gap-3 p-2 rounded-lg bg-[#1a1a2e]">
+              <Icon size={18} className="shrink-0 text-gray-400" aria-hidden="true" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium break-words">{s.tent_name}: {s.template?.name}</div>
+                <div className="text-xs text-gray-400 truncate">{s.reason}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onApply(s)}
+                className="btn btn-primary btn-sm min-h-11 shrink-0"
+              >
+                Create
+              </button>
+              <IconButton
+                icon={X}
+                label="Dismiss suggestion"
+                onClick={() => setDismissed(prev => new Set([...prev, `${s.tent_id}-${s.template_id}`]))}
+              />
             </div>
-            <button
-              onClick={() => onApply(s)}
-              className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-xs"
-            >
-              Create
-            </button>
-            <button
-              onClick={() => setDismissed(prev => new Set([...prev, `${s.tent_id}-${s.template_id}`]))}
-              className="px-2 py-1 text-gray-400 hover:text-white rounded hover:bg-[#2d3a5c]"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-        {visible.length > 3 && (
-          <div className="text-sm text-gray-400 text-center">+{visible.length - 3} more suggestions</div>
-        )}
+          )
+        })}
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={() => setDismissed(new Set(suggestions.map(s => `${s.tent_id}-${s.template_id}`)))}
+            className="min-h-11 px-3 text-sm text-gray-400 hover:text-white"
+          >
+            Dismiss all
+          </button>
+        </div>
       </div>
-    </div>
+    </Disclosure>
   )
 }
 
@@ -71,33 +249,28 @@ function ConflictsWarning({ conflicts }) {
   if (conflicts.length === 0) return null
 
   return (
-    <div className="card bg-yellow-500/10 border-yellow-500/30">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between"
-      >
-        <h3 className="font-semibold flex items-center gap-2">
-          <span>⚠️</span> Potential Conflicts ({conflicts.length})
-        </h3>
-        <span className="text-gray-400">{expanded ? '▼' : '▶'}</span>
-      </button>
-      {expanded && (
-        <div className="mt-3 space-y-2">
-          {conflicts.map((c, i) => (
-            <div key={i} className="p-2 rounded bg-[#1a1a2e] text-sm">
-              <div className="text-yellow-300">{c.detail}</div>
-              <div className="text-xs text-gray-400 mt-1">
-                {c.automation1} ↔ {c.automation2}
-              </div>
+    <Disclosure
+      icon={AlertGlyph}
+      iconClass="text-amber-400"
+      label={`${conflicts.length} possible conflict${conflicts.length !== 1 ? 's' : ''}`}
+      open={expanded}
+      onToggle={() => setExpanded(!expanded)}
+    >
+      <div className="space-y-2">
+        {conflicts.map((c, i) => (
+          <div key={i} className="p-2 rounded-lg bg-[#1a1a2e] text-sm">
+            <div className="text-amber-300">{c.detail}</div>
+            <div className="text-xs text-gray-400 mt-1 break-words">
+              {c.automation1} and {c.automation2}
             </div>
-          ))}
-        </div>
-      )}
-    </div>
+          </div>
+        ))}
+      </div>
+    </Disclosure>
   )
 }
 
-// Automation card component
+// Automation row. `compact` hides the entity id and last-run line.
 function AutomationCard({ automation, tagsInfo, onTrigger, onToggle, onDelete, compact = false, selectable = false, selected = false, onSelect }) {
   const entityId = automation.entity_id || ''
   const name = automation.attributes?.friendly_name || entityId.replace('automation.', '').replace(/_/g, ' ')
@@ -105,135 +278,77 @@ function AutomationCard({ automation, tagsInfo, onTrigger, onToggle, onDelete, c
   const lastTriggered = automation.attributes?.last_triggered
   const isTentOS = entityId.includes('tentos_')
   const tags = automation.tags || []
+  const shownTags = compact ? tags.slice(0, 2) : tags
 
-  if (compact) {
-    return (
-      <div className={`flex items-center gap-3 p-3 rounded-lg bg-[#1a1a2e] ${state === 'off' ? 'opacity-60' : ''}`}>
-        {selectable && (
+  return (
+    <div className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg bg-[#1a1a2e] ${state === 'off' ? 'opacity-60' : ''}`}>
+      {selectable && (
+        <label className="inline-flex items-center justify-center min-h-11 min-w-11 shrink-0">
           <input
             type="checkbox"
             checked={selected}
             onChange={() => onSelect(entityId)}
+            aria-label={`Select ${name}`}
             className="w-4 h-4 rounded"
           />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-sm truncate">{name}</span>
-            {tags.length > 0 && (
-              <div className="flex gap-1 flex-shrink-0">
-                {tags.slice(0, 2).map(tag => (
-                  <span
-                    key={tag}
-                    className={`px-1.5 py-0.5 rounded text-[10px] ${TAG_COLORS[tag] || 'bg-gray-500/20 text-gray-300'}`}
-                    title={tagsInfo?.[tag]?.name || tag}
-                  >
-                    {tagsInfo?.[tag]?.icon || tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            onClick={() => onTrigger(entityId)}
-            className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-xs"
-          >
-            ▶ Run
-          </button>
-          <button
-            onClick={() => onToggle(entityId)}
-            className={`px-2 py-1 rounded text-xs ${
-              state === 'on' ? 'bg-green-600' : 'bg-gray-600'
-            }`}
-          >
-            {state === 'on' ? 'ON' : 'OFF'}
-          </button>
-          {isTentOS && (
-            <button
-              onClick={() => onDelete(entityId)}
-              className="px-2 py-1 hover:bg-red-500/20 rounded text-red-400 text-xs"
-            >
-              ✕ Delete
-            </button>
-          )}
-          <a
-            href={`/config/automation/edit/${entityId.replace('automation.', '')}`}
-            target="_top"
-            className="px-2 py-1 hover:bg-[#2d3a5c] rounded text-xs"
-          >
-            ✏️ Edit
-          </a>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className={`flex items-center gap-4 p-4 rounded-lg bg-[#1a1a2e] ${state === 'off' ? 'opacity-60' : ''}`}>
-      {selectable && (
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={() => onSelect(entityId)}
-          className="w-4 h-4 rounded"
-        />
+        </label>
       )}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="font-medium truncate">{name}</span>
-          {tags.length > 0 && (
-            <div className="flex gap-1 flex-shrink-0">
-              {tags.map(tag => (
-                <span
-                  key={tag}
-                  className={`px-1.5 py-0.5 rounded text-xs ${TAG_COLORS[tag] || 'bg-gray-500/20 text-gray-300'}`}
-                  title={tagsInfo?.[tag]?.name || tag}
-                >
-                  {tagsInfo?.[tag]?.icon} {tagsInfo?.[tag]?.name || tag}
-                </span>
-              ))}
+        <div className="flex items-center gap-2">
+          <span className={`font-medium truncate ${compact ? 'text-sm' : ''}`}>{name}</span>
+          {shownTags.length > 0 && (
+            <div className="flex gap-1 shrink-0">
+              {shownTags.map(tag => {
+                const TagIcon = TAG_ICONS[tag] || Zap
+                const label = tagsInfo?.[tag]?.name || tag
+                return (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#2d3a5c] text-gray-300 text-[11px]"
+                    title={label}
+                  >
+                    <TagIcon size={11} aria-hidden="true" />
+                    {!compact && <span>{label}</span>}
+                  </span>
+                )
+              })}
             </div>
           )}
         </div>
-        <div className="text-sm text-gray-400 truncate">
-          {entityId}
-          {lastTriggered && (
-            <span className="ml-2">• Last: {new Date(lastTriggered).toLocaleString()}</span>
-          )}
-        </div>
+        {!compact && (
+          <div className="text-xs text-gray-400 mt-0.5 min-w-0">
+            <span className="block truncate">{entityId}</span>
+            {lastTriggered && (
+              <span className="block truncate">Last run {new Date(lastTriggered).toLocaleString()}</span>
+            )}
+          </div>
+        )}
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-1 shrink-0">
+        <IconButton icon={Play} label="Run now" onClick={() => onTrigger(entityId)} />
         <button
-          onClick={() => onTrigger(entityId)}
-          className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-xs font-medium"
-          title="Manually trigger this automation"
-        >
-          Run
-        </button>
-        <button
+          type="button"
           onClick={() => onToggle(entityId)}
-          className={`px-3 py-1.5 rounded text-xs font-medium ${
-            state === 'on' ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 hover:bg-gray-700'
+          aria-pressed={state === 'on'}
+          className={`min-h-11 px-3 rounded-lg text-xs font-medium border transition-colors ${
+            state === 'on'
+              ? 'border-green-600 bg-green-600 text-white hover:bg-green-700'
+              : 'border-[#2d3a5c] text-gray-400 hover:bg-[#1f2b4d]'
           }`}
         >
-          {state === 'on' ? 'ON' : 'OFF'}
+          {state === 'on' ? 'On' : 'Off'}
         </button>
         {isTentOS && (
-          <button
-            onClick={() => onDelete(entityId)}
-            className="px-2 py-1 hover:bg-red-500/20 rounded text-red-400 text-xs"
-          >
-            🗑️ Delete
-          </button>
+          <IconButton icon={Trash2} label="Delete automation" danger onClick={() => onDelete(entityId)} />
         )}
         <a
           href={`/config/automation/edit/${entityId.replace('automation.', '')}`}
           target="_top"
-          className="px-2 py-1 hover:bg-[#2d3a5c] rounded text-xs"
+          aria-label="Edit in Home Assistant"
+          title="Edit in Home Assistant"
+          className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-lg border border-[#2d3a5c] text-gray-300 hover:bg-[#1f2b4d] hover:text-white transition-colors"
         >
-          ✏️ Edit
+          <Pencil size={16} aria-hidden="true" />
         </a>
       </div>
     </div>
@@ -245,30 +360,33 @@ function CategoryGroup({ categoryId, categoryInfo, automations, tagsInfo, onTrig
   const [expanded, setExpanded] = useState(defaultExpanded)
   const activeCount = automations.filter(a => a.state === 'on').length
   const selectedCount = automations.filter(a => selectedIds.has(a.entity_id)).length
+  const Icon = CATEGORY_ICONS[categoryId] || Settings2
 
   return (
     <div className="card p-0 overflow-hidden">
       <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 p-4 hover:bg-[#1a1a2e] transition-colors text-left"
+        aria-expanded={expanded}
+        className="w-full min-h-11 flex items-center gap-3 px-3 py-2 hover:bg-[#1a1a2e] transition-colors text-left"
       >
-        <span className="text-2xl">{categoryInfo.icon}</span>
-        <div className="flex-1">
-          <h3 className="font-semibold">{categoryInfo.name}</h3>
-          <span className="text-sm text-gray-400">
+        <Icon size={18} className="shrink-0 text-gray-400" aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-sm truncate">{categoryLabel(categoryId, categoryInfo)}</h3>
+          <span className="text-xs text-gray-400">
             {automations.length} automation{automations.length !== 1 ? 's' : ''}
-            {selectable && selectedCount > 0 && ` (${selectedCount} selected)`}
+            {selectable && selectedCount > 0 && `, ${selectedCount} selected`}
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <span className={`text-sm ${activeCount > 0 ? 'text-green-400' : 'text-gray-500'}`}>
-            {activeCount}/{automations.length} active
-          </span>
-          <span className="text-gray-400">{expanded ? '▼' : '▶'}</span>
-        </div>
+        <span className={`text-xs shrink-0 ${activeCount > 0 ? 'text-green-400' : 'text-gray-500'}`}>
+          {activeCount}/{automations.length} on
+        </span>
+        {expanded
+          ? <ChevronDown size={16} className="shrink-0 text-gray-400" aria-hidden="true" />
+          : <ChevronRight size={16} className="shrink-0 text-gray-400" aria-hidden="true" />}
       </button>
       {expanded && (
-        <div className="border-t border-[#2d3a5c] p-3 space-y-2">
+        <div className="border-t border-[#2d3a5c] p-2 sm:p-3 space-y-2">
           {automations.map(automation => (
             <AutomationCard
               key={automation.entity_id}
@@ -292,24 +410,26 @@ function CategoryGroup({ categoryId, categoryInfo, automations, tagsInfo, onTrig
 // Template card for quick creation
 function TemplateCard({ template, onApply }) {
   const hasAvailableTents = template.available_tents?.length > 0
+  const Icon = templateIcon(template)
 
   return (
     <button
+      type="button"
       onClick={() => hasAvailableTents && onApply(template)}
       disabled={!hasAvailableTents}
-      className={`p-4 rounded-lg text-left transition-colors ${
+      className={`p-3 rounded-lg text-left transition-colors border border-[#2d3a5c] ${
         hasAvailableTents
-          ? 'bg-[#1a1a2e] hover:bg-[#2d3a5c] cursor-pointer'
+          ? 'bg-[#1a1a2e] hover:bg-[#1f2b4d] cursor-pointer'
           : 'bg-[#1a1a2e]/50 opacity-50 cursor-not-allowed'
       }`}
     >
-      <div className="flex items-center gap-3 mb-2">
-        <span className="text-2xl">{template.icon}</span>
-        <span className="font-medium">{template.name}</span>
+      <div className="flex items-center gap-2 mb-1">
+        <Icon size={18} className="shrink-0 text-gray-400" aria-hidden="true" />
+        <span className="font-medium text-sm">{template.name}</span>
       </div>
-      <p className="text-sm text-gray-400">{template.description}</p>
+      <p className="text-xs text-gray-400">{template.description}</p>
       {!hasAvailableTents && (
-        <p className="text-xs text-yellow-500 mt-2">No tents have required sensors/actuators</p>
+        <p className="text-xs text-amber-400 mt-2">No tent has the required sensors and equipment</p>
       )}
     </button>
   )
@@ -329,88 +449,77 @@ function EntitySuggestionsCard({ suggestions }) {
   if (allSuggestions.length === 0) return null
 
   return (
-    <div className="card bg-purple-500/10 border-purple-500/30">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between"
-      >
-        <h3 className="font-semibold flex items-center gap-2">
-          <span>🔮</span> Unlock More Automations
-        </h3>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-purple-300">{allSuggestions.length} suggestions</span>
-          <span className="text-gray-400">{expanded ? '▼' : '▶'}</span>
-        </div>
-      </button>
-
-      {expanded && (
-        <div className="mt-4 space-y-3">
-          <p className="text-sm text-gray-400">
-            Add these entities to your tent configuration to enable more automations:
-          </p>
-          {allSuggestions.slice(0, 6).map((s, i) => (
-            <div key={`${s.tentId}-${s.slot}-${i}`} className="p-3 rounded-lg bg-[#1a1a2e]">
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-2xl">{s.icon}</span>
-                <div className="flex-1">
-                  <div className="font-medium">{s.label}</div>
+    <Disclosure
+      icon={Layers}
+      label={`${allSuggestions.length} more automation${allSuggestions.length !== 1 ? 's' : ''} available with extra equipment`}
+      open={expanded}
+      onToggle={() => setExpanded(!expanded)}
+    >
+      <div className="space-y-2">
+        {allSuggestions.slice(0, 6).map((s, i) => {
+          const Icon = s.type === 'sensor' ? sensorIcon(s.slot) : actuatorIcon(s.slot)
+          return (
+            <div key={`${s.tentId}-${s.slot}-${i}`} className="p-2 rounded-lg bg-[#1a1a2e]">
+              <div className="flex items-center gap-3">
+                <Icon size={18} className="shrink-0 text-gray-400" aria-hidden="true" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">{s.label} <span className="text-gray-400 font-normal">for {s.tentName}</span></div>
                   <div className="text-xs text-gray-400">{s.description}</div>
                 </div>
                 <a
-                  href="/settings"
-                  className="px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 text-xs"
+                  href="#/settings"
+                  className="btn btn-sm min-h-11 inline-flex items-center border border-[#2d3a5c] text-gray-200 hover:bg-[#1f2b4d] shrink-0"
                 >
-                  Add in Settings
+                  Settings
                 </a>
               </div>
               <div className="flex flex-wrap gap-1 mt-2">
-                <span className="text-xs text-gray-500">Enables:</span>
+                <span className="text-xs text-gray-500">Enables</span>
                 {s.enables.map(t => (
-                  <span
-                    key={t.id}
-                    className="px-2 py-0.5 rounded bg-[#2d3a5c] text-xs flex items-center gap-1"
-                  >
-                    {t.icon} {t.name}
+                  <span key={t.id} className="px-2 py-0.5 rounded bg-[#2d3a5c] text-xs">
+                    {t.name}
                   </span>
                 ))}
               </div>
             </div>
-          ))}
-          {allSuggestions.length > 6 && (
-            <div className="text-sm text-center text-gray-400">
-              +{allSuggestions.length - 6} more suggestions
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+          )
+        })}
+        {allSuggestions.length > 6 && (
+          <div className="text-xs text-center text-gray-400">
+            {allSuggestions.length - 6} more
+          </div>
+        )}
+      </div>
+    </Disclosure>
   )
 }
 
 // Bundle card
 function BundleCard({ bundle, onApply }) {
   const hasAvailableTents = bundle.available_tents?.length > 0
+  const Icon = BUNDLE_ICONS[bundle.id] || Layers
 
   return (
     <button
+      type="button"
       onClick={() => hasAvailableTents && onApply(bundle)}
       disabled={!hasAvailableTents}
-      className={`p-4 rounded-lg text-left transition-colors border-2 ${
+      className={`p-3 rounded-lg text-left transition-colors border border-[#2d3a5c] ${
         hasAvailableTents
-          ? 'bg-gradient-to-br from-[#1a1a2e] to-[#2d3a5c] hover:from-[#2d3a5c] hover:to-[#3d4a6c] cursor-pointer border-transparent'
-          : 'bg-[#1a1a2e]/50 opacity-50 cursor-not-allowed border-transparent'
+          ? 'bg-[#1a1a2e] hover:bg-[#1f2b4d] cursor-pointer'
+          : 'bg-[#1a1a2e]/50 opacity-50 cursor-not-allowed'
       }`}
     >
-      <div className="flex items-center gap-3 mb-2">
-        <span className="text-3xl">{bundle.icon}</span>
-        <div>
-          <div className="font-semibold">{bundle.name}</div>
+      <div className="flex items-center gap-2 mb-1">
+        <Icon size={18} className="shrink-0 text-gray-400" aria-hidden="true" />
+        <div className="min-w-0">
+          <div className="font-semibold text-sm">{bundle.name}</div>
           <div className="text-xs text-gray-400">{bundle.templates.length} automations</div>
         </div>
       </div>
-      <p className="text-sm text-gray-400">{bundle.description}</p>
+      <p className="text-xs text-gray-400">{bundle.description}</p>
       {!hasAvailableTents && (
-        <p className="text-xs text-yellow-500 mt-2">No tents have all required equipment</p>
+        <p className="text-xs text-amber-400 mt-2">No tent has all the required equipment</p>
       )}
     </button>
   )
@@ -423,6 +532,7 @@ function ApplyModal({ item, type, onApply, onCancel }) {
   const [timeOn, setTimeOn] = useState(item.time_on?.slice(0, 5) || '06:00')
   const [timeOff, setTimeOff] = useState(item.time_off?.slice(0, 5) || '00:00')
   const [loading, setLoading] = useState(false)
+  const Icon = type === 'bundle' ? (BUNDLE_ICONS[item.id] || Layers) : templateIcon(item)
 
   const handleApply = async () => {
     setLoading(true)
@@ -443,23 +553,23 @@ function ApplyModal({ item, type, onApply, onCancel }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#0d1117] rounded-xl p-6 max-w-md w-full space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold flex items-center gap-2">
-            <span>{item.icon}</span>
-            {item.name}
+      <div className="bg-[#16213e] border border-[#2d3a5c] rounded-xl p-4 sm:p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold flex items-center gap-2 min-w-0">
+            <Icon size={20} className="shrink-0 text-gray-400" aria-hidden="true" />
+            <span className="truncate">{item.name}</span>
           </h3>
-          <button onClick={onCancel} className="text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-[#2d3a5c]">✕</button>
+          <IconButton icon={X} label="Close" onClick={onCancel} />
         </div>
 
         <p className="text-sm text-gray-400">{item.description}</p>
 
         <div>
-          <label className="text-sm text-gray-400 block mb-1">Tent</label>
+          <label className="text-xs text-gray-400 block mb-1">Tent</label>
           <select
             value={tentId}
             onChange={e => setTentId(e.target.value)}
-            className="input w-full"
+            className="input w-full min-h-11"
           >
             {item.available_tents?.map(t => (
               <option key={t.id} value={t.id}>{t.name}</option>
@@ -469,7 +579,7 @@ function ApplyModal({ item, type, onApply, onCancel }) {
 
         {type === 'template' && item.trigger_type === 'numeric_state' && (
           <div>
-            <label className="text-sm text-gray-400 block mb-1">
+            <label className="text-xs text-gray-400 block mb-1">
               Threshold ({item.sensor_type === 'temperature' ? '°C' : item.sensor_type === 'vpd' ? 'kPa' : '%'})
             </label>
             <input
@@ -477,30 +587,30 @@ function ApplyModal({ item, type, onApply, onCancel }) {
               step="0.1"
               value={threshold}
               onChange={e => setThreshold(e.target.value)}
-              className="input w-full"
+              className="input w-full min-h-11"
               placeholder={String(item.above || item.below)}
             />
           </div>
         )}
 
         {type === 'template' && item.trigger_type === 'time' && (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm text-gray-400 block mb-1">Turn On</label>
+              <label className="text-xs text-gray-400 block mb-1">Turn on</label>
               <input
                 type="time"
                 value={timeOn}
                 onChange={e => setTimeOn(e.target.value)}
-                className="input w-full"
+                className="input w-full min-h-11"
               />
             </div>
             <div>
-              <label className="text-sm text-gray-400 block mb-1">Turn Off</label>
+              <label className="text-xs text-gray-400 block mb-1">Turn off</label>
               <input
                 type="time"
                 value={timeOff}
                 onChange={e => setTimeOff(e.target.value)}
-                className="input w-full"
+                className="input w-full min-h-11"
               />
             </div>
           </div>
@@ -508,7 +618,7 @@ function ApplyModal({ item, type, onApply, onCancel }) {
 
         {type === 'bundle' && (
           <div className="text-sm text-gray-400">
-            This will create {item.templates.length} automations:
+            Creates {item.templates.length} automations:
             <ul className="list-disc list-inside mt-1">
               {item.templates.map(t => <li key={t}>{t.replace(/_/g, ' ')}</li>)}
             </ul>
@@ -517,13 +627,14 @@ function ApplyModal({ item, type, onApply, onCancel }) {
 
         <div className="flex gap-2 pt-4 border-t border-[#2d3a5c]">
           <button
+            type="button"
             onClick={handleApply}
             disabled={loading}
-            className="btn btn-primary flex-1"
+            className="btn btn-primary flex-1 min-h-11"
           >
-            {loading ? 'Creating...' : type === 'bundle' ? 'Create All' : 'Create'}
+            {loading ? 'Creating...' : type === 'bundle' ? 'Create all' : 'Create'}
           </button>
-          <button onClick={onCancel} className="btn">Cancel</button>
+          <button type="button" onClick={onCancel} className="btn min-h-11 border border-[#2d3a5c]">Cancel</button>
         </div>
       </div>
     </div>
@@ -535,23 +646,28 @@ function BulkActionsBar({ selectedCount, onEnable, onDisable, onTrigger, onClear
   if (selectedCount === 0) return null
 
   return (
-    <div className="sticky bottom-4 mx-auto w-fit bg-[#1a1a2e] rounded-lg shadow-lg border border-[#2d3a5c] p-3 flex items-center gap-3">
-      <span className="text-sm">{selectedCount} selected</span>
-      <button onClick={onEnable} className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-xs">
-        Enable All
+    <div className="sticky bottom-4 mx-auto w-fit max-w-full bg-[#16213e] rounded-lg shadow-lg border border-[#2d3a5c] p-2 flex items-center gap-2 flex-wrap">
+      <span className="text-sm px-1">{selectedCount} selected</span>
+      <button type="button" onClick={onEnable} className="btn btn-primary btn-sm min-h-11">
+        Enable
       </button>
-      <button onClick={onDisable} className="px-3 py-1 rounded bg-gray-600 hover:bg-gray-700 text-xs">
-        Disable All
+      <button type="button" onClick={onDisable} className="btn btn-sm min-h-11 border border-[#2d3a5c] hover:bg-[#1f2b4d]">
+        Disable
       </button>
-      <button onClick={onTrigger} className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-xs">
-        Trigger All
+      <button type="button" onClick={onTrigger} className="btn btn-sm min-h-11 border border-[#2d3a5c] hover:bg-[#1f2b4d]">
+        Run
       </button>
-      <button onClick={onClear} className="px-2 py-1 text-gray-400 hover:text-white rounded hover:bg-[#2d3a5c]">
-        ✕ Clear
-      </button>
+      <IconButton icon={X} label="Clear selection" onClick={onClear} />
     </div>
   )
 }
+
+const TABS = [
+  { id: 'automations', label: 'Automations' },
+  { id: 'create', label: 'Create' },
+  { id: 'history', label: 'History' },
+  { id: 'chains', label: 'Chains' },
+]
 
 // Main Automations page
 export default function Automations() {
@@ -689,7 +805,7 @@ export default function Automations() {
   const handleTrigger = async (entityId) => {
     try {
       await apiFetch(`api/automations/${encodeURIComponent(entityId)}/trigger`, { method: 'POST' })
-      setSuccess('Automation triggered!')
+      setSuccess('Automation triggered')
       setTimeout(() => setSuccess(null), 3000)
     } catch (e) {
       setError('Failed to trigger automation')
@@ -830,74 +946,62 @@ export default function Automations() {
     return <div className="text-center text-gray-400 py-12">Loading...</div>
   }
 
+  const historyItems = automations
+    .filter(a => a.attributes?.last_triggered)
+    .sort((a, b) => (b.attributes?.last_triggered || '').localeCompare(a.attributes?.last_triggered || ''))
+    .slice(0, 20)
+
   return (
-    <div className="space-y-6 pb-20">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Automations</h2>
-          <p className="text-gray-400">
-            {totalCount} {showAllAutomations ? 'Home Assistant' : 'tent-related'} automations
+    <div className="space-y-4 pb-20">
+      {/* Header: title and tent select on one row; the count only on sm and up */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-2xl font-bold leading-tight">Automations</h2>
+          <p className="hidden sm:block text-xs text-gray-400">
+            {totalCount} {showAllAutomations ? 'Home Assistant' : 'tent'} automation{totalCount !== 1 ? 's' : ''}
           </p>
         </div>
-        <div className="flex gap-2 items-center">
-          {!showAllAutomations && tents.length > 1 && (
-            <select
-              className="input"
-              value={activeTentId || ''}
-              onChange={e => setSelectedTentId(e.target.value)}
-              aria-label="Tent"
-            >
-              {tents.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          )}
-          <button
-            onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()) }}
-            className={`btn ${selectMode ? 'bg-blue-600' : ''}`}
+        {!showAllAutomations && tents.length > 1 && (
+          <select
+            className="input min-h-11 max-w-[50%] shrink-0"
+            value={activeTentId || ''}
+            onChange={e => setSelectedTentId(e.target.value)}
+            aria-label="Tent"
           >
-            {selectMode ? 'Cancel' : 'Select'}
-          </button>
-        </div>
+            {tents.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Tabs */}
-      <div className="app-scroll-strip flex gap-2 border-b border-[#2d3a5c]">
-        <button
-          onClick={() => setActiveTab('automations')}
-          className={`shrink-0 whitespace-nowrap px-4 py-2 font-medium ${activeTab === 'automations' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400'}`}
-        >
-          Automations
-        </button>
-        <button
-          onClick={() => setActiveTab('create')}
-          className={`shrink-0 whitespace-nowrap px-4 py-2 font-medium ${activeTab === 'create' ? 'border-b-2 border-green-500 text-green-400' : 'text-gray-400'}`}
-        >
-          + Create
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`shrink-0 whitespace-nowrap px-4 py-2 font-medium ${activeTab === 'history' ? 'border-b-2 border-purple-500 text-purple-400' : 'text-gray-400'}`}
-        >
-          History
-        </button>
-        <button
-          onClick={() => setActiveTab('chains')}
-          className={`shrink-0 whitespace-nowrap px-4 py-2 font-medium ${activeTab === 'chains' ? 'border-b-2 border-orange-500 text-orange-400' : 'text-gray-400'}`}
-        >
-          Chains
-        </button>
+      <div className="app-scroll-strip flex border-b border-[#2d3a5c]" role="tablist">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`shrink-0 whitespace-nowrap min-h-11 px-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === tab.id ? 'border-green-500 text-white' : 'border-transparent text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {error && (
-        <div className="p-3 bg-red-500/20 border border-red-500/50 rounded text-red-300 flex justify-between">
-          {error}
-          <button onClick={() => setError(null)}>✕</button>
+        <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm flex items-center justify-between gap-2">
+          <span className="min-w-0">{error}</span>
+          <IconButton icon={X} label="Dismiss error" onClick={() => setError(null)} className="border-transparent text-red-300" />
         </div>
       )}
 
       {success && (
-        <div className="p-3 bg-green-500/20 border border-green-500/50 rounded text-green-300">
+        <div className="p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-300 text-sm">
           {success}
         </div>
       )}
@@ -914,68 +1018,70 @@ export default function Automations() {
           {/* Conflicts */}
           <ConflictsWarning conflicts={conflicts} />
 
-          {/* Search, Filter and View Toggle */}
-          <div className="flex items-center gap-4 flex-wrap">
-            <input
-              type="text"
-              placeholder="Search automations..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="input flex-1 min-w-[200px]"
-            />
-            {/* Tent filter toggle */}
-            {tents.length > 0 && (
-              <div className="flex rounded-lg overflow-hidden border border-[#2d3a5c]">
-                <button
-                  onClick={() => setShowAllAutomations(false)}
-                  className={`px-3 py-2 text-sm ${!showAllAutomations ? 'bg-green-600' : 'hover:bg-[#1a1a2e]'}`}
-                  title="Show only automations using your tent's entities"
-                >
-                  🌱 My Tent
-                </button>
-                <button
-                  onClick={() => setShowAllAutomations(true)}
-                  className={`px-3 py-2 text-sm ${showAllAutomations ? 'bg-[#2d3a5c]' : 'hover:bg-[#1a1a2e]'}`}
-                  title="Show all Home Assistant automations"
-                >
-                  All HA
-                </button>
-              </div>
-            )}
-            {/* View mode toggle */}
-            <div className="flex rounded-lg overflow-hidden border border-[#2d3a5c]">
-              <button
-                onClick={() => setViewMode('categories')}
-                className={`px-3 py-2 text-sm ${viewMode === 'categories' ? 'bg-[#2d3a5c]' : 'hover:bg-[#1a1a2e]'}`}
-              >
-                By Type
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-3 py-2 text-sm ${viewMode === 'list' ? 'bg-[#2d3a5c]' : 'hover:bg-[#1a1a2e]'}`}
-              >
-                List
-              </button>
+          {/* Search, filter and view toggle */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div className="relative flex-1 min-w-0">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" aria-hidden="true" />
+              <input
+                type="search"
+                placeholder="Search"
+                aria-label="Search automations"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="input w-full min-h-11"
+                style={{ paddingLeft: '2.25rem' }}
+              />
             </div>
-            <a href="/config/automation/dashboard" target="_top" className="btn">
-              HA
-            </a>
+            <div className="flex items-center gap-2 min-w-0">
+              {tents.length > 0 && (
+                <Segmented
+                  value={showAllAutomations ? 'all' : 'tent'}
+                  onChange={v => setShowAllAutomations(v === 'all')}
+                  className="flex-1 sm:flex-none min-w-0"
+                  options={[
+                    { value: 'tent', label: 'My tent', title: 'Automations that use this tent' },
+                    { value: 'all', label: 'All HA', title: 'Every Home Assistant automation' },
+                  ]}
+                />
+              )}
+              <Segmented
+                value={viewMode}
+                onChange={setViewMode}
+                className="flex-1 sm:flex-none min-w-0"
+                options={[
+                  { value: 'categories', label: 'By type' },
+                  { value: 'list', label: 'List' },
+                ]}
+              />
+              <IconButton
+                icon={ListChecks}
+                label={selectMode ? 'Cancel selection' : 'Select automations'}
+                active={selectMode}
+                onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()) }}
+              />
+              <a
+                href="/config/automation/dashboard"
+                target="_top"
+                aria-label="Open automations in Home Assistant"
+                title="Open automations in Home Assistant"
+                className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-lg border border-[#2d3a5c] text-gray-300 hover:bg-[#1f2b4d] hover:text-white transition-colors shrink-0"
+              >
+                <ExternalLink size={16} aria-hidden="true" />
+              </a>
+            </div>
           </div>
 
           {/* Category View */}
           {viewMode === 'categories' && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {Object.entries(filteredByCategory).length === 0 ? (
-                <div className="card text-center py-8">
-                  <div className="text-4xl mb-4">🔍</div>
-                  <p className="text-gray-400">No automations found</p>
-                </div>
+                <EmptyState icon={Search} text="No automations found" />
               ) : (
                 Object.entries(filteredByCategory).map(([catId, autos]) => (
                   <CategoryGroup
                     key={catId}
                     categoryId={catId}
-                    categoryInfo={categories[catId] || { name: catId, icon: '⚙️' }}
+                    categoryInfo={categories[catId]}
                     automations={autos}
                     tagsInfo={tagsInfo}
                     onTrigger={handleTrigger}
@@ -995,10 +1101,7 @@ export default function Automations() {
           {viewMode === 'list' && (
             <div className="space-y-2">
               {filteredAutomations.length === 0 ? (
-                <div className="card text-center py-8">
-                  <div className="text-4xl mb-4">🔍</div>
-                  <p className="text-gray-400">No automations found</p>
-                </div>
+                <EmptyState icon={Search} text="No automations found" />
               ) : (
                 filteredAutomations.map(automation => (
                   <AutomationCard
@@ -1027,13 +1130,9 @@ export default function Automations() {
 
           {/* Bundles */}
           <div>
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <span>📦</span> Preset Bundles
-            </h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Create multiple automations at once for common setups
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <h3 className="text-base font-semibold mb-1">Preset bundles</h3>
+            <p className="text-xs text-gray-400 mb-3">Several automations for one tent in one step</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {bundles.map(b => (
                 <BundleCard
                   key={b.id}
@@ -1046,12 +1145,8 @@ export default function Automations() {
 
           {/* Individual Templates */}
           <div>
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <span>⚡</span> Individual Templates
-            </h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Create a single automation from a template
-            </p>
+            <h3 className="text-base font-semibold mb-1">Templates</h3>
+            <p className="text-xs text-gray-400 mb-3">One automation from a template</p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {templates.map(t => (
                 <TemplateCard
@@ -1067,37 +1162,32 @@ export default function Automations() {
 
       {/* History Tab */}
       {activeTab === 'history' && (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-400">Recent automation triggers (sorted by last triggered)</p>
+        <div className="space-y-3">
+          <p className="text-xs text-gray-400">Most recent runs first</p>
           <div className="space-y-2">
-            {automations
-              .filter(a => a.attributes?.last_triggered)
-              .sort((a, b) => (b.attributes?.last_triggered || '').localeCompare(a.attributes?.last_triggered || ''))
-              .slice(0, 20)
-              .map(auto => (
-                <div key={auto.entity_id} className="flex items-center gap-4 p-3 rounded-lg bg-[#1a1a2e]">
-                  <div className={`w-2 h-2 rounded-full ${auto.state === 'on' ? 'bg-green-500' : 'bg-gray-500'}`} />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">
-                      {auto.attributes?.friendly_name || auto.entity_id}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {new Date(auto.attributes.last_triggered).toLocaleString()}
-                    </div>
+            {historyItems.map(auto => (
+              <div key={auto.entity_id} className="flex items-center gap-3 p-2 sm:p-3 rounded-lg bg-[#1a1a2e]">
+                <div className={`w-2 h-2 rounded-full shrink-0 ${auto.state === 'on' ? 'bg-green-500' : 'bg-gray-500'}`} aria-hidden="true" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm truncate">
+                    {auto.attributes?.friendly_name || auto.entity_id}
                   </div>
-                  <button
-                    onClick={() => handleTrigger(auto.entity_id)}
-                    className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-xs"
-                  >
-                    Run Again
-                  </button>
+                  <div className="text-xs text-gray-400">
+                    {new Date(auto.attributes.last_triggered).toLocaleString()}
+                  </div>
                 </div>
-              ))}
-            {automations.filter(a => a.attributes?.last_triggered).length === 0 && (
-              <div className="card text-center py-8">
-                <div className="text-4xl mb-4">📜</div>
-                <p className="text-gray-400">No automation history available</p>
+                <button
+                  type="button"
+                  onClick={() => handleTrigger(auto.entity_id)}
+                  className="inline-flex items-center gap-1.5 min-h-11 px-3 rounded-lg border border-[#2d3a5c] text-xs text-gray-200 hover:bg-[#1f2b4d] shrink-0"
+                >
+                  <Play size={14} aria-hidden="true" />
+                  Run again
+                </button>
               </div>
+            ))}
+            {historyItems.length === 0 && (
+              <EmptyState icon={ScrollText} text="No automation has run yet" />
             )}
           </div>
         </div>

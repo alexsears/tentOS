@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTents } from '../hooks/useTents'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { apiFetch } from '../utils/api'
+import { Check, ChevronDown, ChevronRight, Moon, Pencil, Sun, X } from 'lucide-react'
+import { actuatorBaseType, actuatorIcon, sensorIcon, stageIcon, SENSOR_ICONS } from '../utils/icons'
 
 // Chain definitions mapping to backend AUTOMATION_TEMPLATES
 const CHAIN_DEFS = [
@@ -12,9 +14,7 @@ const CHAIN_DEFS = [
     condition: 'above',
     defaultThreshold: 28,
     targetKey: 'temp_day_max',
-    icon: '\u{1F321}\u{FE0F}',
-    actuatorIcon: '\u{1F300}',
-    description: (t) => 'Temp > ' + t + ' \u{2192} Exhaust Fan',
+    description: (t) => 'Temp > ' + t + ' \u{2192} Exhaust fan',
     unit: '\u{00B0}',
   },
   {
@@ -24,8 +24,6 @@ const CHAIN_DEFS = [
     condition: 'above',
     defaultThreshold: 28,
     targetKey: 'temp_day_max',
-    icon: '\u{2744}\u{FE0F}',
-    actuatorIcon: '\u{2744}\u{FE0F}',
     description: (t) => 'Temp > ' + t + ' \u{2192} A/C',
     unit: '\u{00B0}',
   },
@@ -36,8 +34,6 @@ const CHAIN_DEFS = [
     condition: 'below',
     defaultThreshold: 18,
     targetKey: 'temp_night_min',
-    icon: '\u{1F525}',
-    actuatorIcon: '\u{1F525}',
     description: (t) => 'Temp < ' + t + ' \u{2192} Heater',
     unit: '\u{00B0}',
   },
@@ -48,8 +44,6 @@ const CHAIN_DEFS = [
     condition: 'above',
     defaultThreshold: 70,
     targetKey: 'humidity_day_max',
-    icon: '\u{1F4A7}',
-    actuatorIcon: '\u{1F3DC}\u{FE0F}',
     description: (t) => 'Humidity > ' + t + '% \u{2192} Dehumidifier',
     unit: '%',
   },
@@ -60,8 +54,6 @@ const CHAIN_DEFS = [
     condition: 'below',
     defaultThreshold: 50,
     targetKey: 'humidity_day_min',
-    icon: '\u{1F4A8}',
-    actuatorIcon: '\u{1F4A8}',
     description: (t) => 'Humidity < ' + t + '% \u{2192} Humidifier',
     unit: '%',
   },
@@ -72,8 +64,6 @@ const CHAIN_DEFS = [
     condition: 'above',
     defaultThreshold: 1.4,
     targetKey: null,
-    icon: '\u{1FAE7}',
-    actuatorIcon: '\u{1F4A8}',
     description: (t) => 'VPD > ' + t + ' kPa \u{2192} Humidifier',
     unit: ' kPa',
     requires: ['temperature', 'humidity'],
@@ -85,8 +75,6 @@ const CHAIN_DEFS = [
     condition: 'below',
     defaultThreshold: 0.8,
     targetKey: null,
-    icon: '\u{1FAE7}',
-    actuatorIcon: '\u{1F3DC}\u{FE0F}',
     description: (t) => 'VPD < ' + t + ' kPa \u{2192} Dehumidifier',
     unit: ' kPa',
     requires: ['temperature', 'humidity'],
@@ -96,9 +84,7 @@ const CHAIN_DEFS = [
     sensorType: null,
     actuatorType: 'light',
     condition: 'time',
-    icon: '\u{1F4A1}',
-    actuatorIcon: '\u{1F4A1}',
-    description: () => 'Light Schedule',
+    description: () => 'Light schedule',
     unit: '',
   },
   {
@@ -106,9 +92,7 @@ const CHAIN_DEFS = [
     sensorType: null,
     actuatorType: 'circulation_fan',
     condition: 'state',
-    icon: '\u{1F504}',
-    actuatorIcon: '\u{1F504}',
-    description: () => 'Circ Fan follows Lights',
+    description: () => 'Circ fan follows lights',
     unit: '',
   },
   {
@@ -116,23 +100,28 @@ const CHAIN_DEFS = [
     sensorType: null,
     actuatorType: 'water_pump',
     condition: 'time',
-    icon: '\u{1F6BF}',
-    actuatorIcon: '\u{1F6BF}',
-    description: () => 'Watering Schedule',
+    description: () => 'Watering schedule',
     unit: '',
   },
 ]
 
+// Labels only; the glyph for each slot comes from the shared icon vocabulary.
 const ACTUATOR_INFO = {
-  light: { icon: '\u{1F4A1}', label: 'Lights' },
-  exhaust_fan: { icon: '\u{1F300}', label: 'Exhaust' },
-  circulation_fan: { icon: '\u{1F504}', label: 'Circ Fan' },
-  humidifier: { icon: '\u{1F4A8}', label: 'Humidifier' },
-  dehumidifier: { icon: '\u{1F3DC}\u{FE0F}', label: 'Dehu' },
-  heater: { icon: '\u{1F525}', label: 'Heater' },
-  ac: { icon: '\u{2744}\u{FE0F}', label: 'A/C' },
-  water_pump: { icon: '\u{1F6BF}', label: 'Water' },
-  drain_pump: { icon: '\u{1F53D}', label: 'Drain' },
+  light: { label: 'Lights' },
+  exhaust_fan: { label: 'Exhaust' },
+  circulation_fan: { label: 'Circ fan' },
+  humidifier: { label: 'Humidifier' },
+  dehumidifier: { label: 'Dehu' },
+  heater: { label: 'Heater' },
+  ac: { label: 'A/C' },
+  water_pump: { label: 'Water' },
+  drain_pump: { label: 'Drain' },
+}
+
+// A chain is drawn with the icon of the sensor that triggers it, or of the
+// actuator it drives when it is a schedule or state rule.
+function chainIcon(def) {
+  return def.sensorType ? sensorIcon(def.sensorType) : actuatorIcon(def.actuatorType)
 }
 
 function hasEntity(mapping, key) {
@@ -235,49 +224,49 @@ function TargetsPanel({ tentConfig, onTargetChange, onScheduleChange, formatTemp
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       <div>
-        <label className="text-xs text-gray-400">Day Temp Min ({'\u{00B0}'}{unit})</label>
+        <label className="text-xs text-gray-400">Day temp min ({'\u{00B0}'}{unit})</label>
         <input type="number" value={displayTemp(targets.temp_day_min ?? 22)}
           onChange={e => { const c = parseTemp(e.target.value); if (c != null) onTargetChange('temp_day_min', c) }}
           className="input w-full text-sm py-1" step={tempStep} />
       </div>
       <div>
-        <label className="text-xs text-gray-400">Day Temp Max ({'\u{00B0}'}{unit})</label>
+        <label className="text-xs text-gray-400">Day temp max ({'\u{00B0}'}{unit})</label>
         <input type="number" value={displayTemp(targets.temp_day_max ?? 28)}
           onChange={e => { const c = parseTemp(e.target.value); if (c != null) onTargetChange('temp_day_max', c) }}
           className="input w-full text-sm py-1" step={tempStep} />
       </div>
       <div>
-        <label className="text-xs text-gray-400">Night Temp Min ({'\u{00B0}'}{unit})</label>
+        <label className="text-xs text-gray-400">Night temp min ({'\u{00B0}'}{unit})</label>
         <input type="number" value={displayTemp(targets.temp_night_min ?? 18)}
           onChange={e => { const c = parseTemp(e.target.value); if (c != null) onTargetChange('temp_night_min', c) }}
           className="input w-full text-sm py-1" step={tempStep} />
       </div>
       <div>
-        <label className="text-xs text-gray-400">Night Temp Max ({'\u{00B0}'}{unit})</label>
+        <label className="text-xs text-gray-400">Night temp max ({'\u{00B0}'}{unit})</label>
         <input type="number" value={displayTemp(targets.temp_night_max ?? 24)}
           onChange={e => { const c = parseTemp(e.target.value); if (c != null) onTargetChange('temp_night_max', c) }}
           className="input w-full text-sm py-1" step={tempStep} />
       </div>
       <div>
-        <label className="text-xs text-gray-400">Day Humidity Min (%)</label>
+        <label className="text-xs text-gray-400">Day humidity min (%)</label>
         <input type="number" value={targets.humidity_day_min ?? 50}
           onChange={e => { const n = parseFloat(e.target.value); if (!isNaN(n)) onTargetChange('humidity_day_min', n) }}
           className="input w-full text-sm py-1" />
       </div>
       <div>
-        <label className="text-xs text-gray-400">Day Humidity Max (%)</label>
+        <label className="text-xs text-gray-400">Day humidity max (%)</label>
         <input type="number" value={targets.humidity_day_max ?? 70}
           onChange={e => { const n = parseFloat(e.target.value); if (!isNaN(n)) onTargetChange('humidity_day_max', n) }}
           className="input w-full text-sm py-1" />
       </div>
       <div>
-        <label className="text-xs text-gray-400">Lights On</label>
+        <label className="text-xs text-gray-400">Lights on</label>
         <input type="time" value={schedules.photoperiod_on ?? '06:00'}
           onChange={e => onScheduleChange('photoperiod_on', e.target.value)}
           className="input w-full text-sm py-1" />
       </div>
       <div>
-        <label className="text-xs text-gray-400">Lights Off</label>
+        <label className="text-xs text-gray-400">Lights off</label>
         <input type="time" value={schedules.photoperiod_off ?? '22:00'}
           onChange={e => onScheduleChange('photoperiod_off', e.target.value)}
           className="input w-full text-sm py-1" />
@@ -304,15 +293,16 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
     for (const [type, val] of Object.entries(actuators)) {
       const entities = Array.isArray(val) ? val.filter(v => v) : (val ? [val] : [])
       if (entities.length === 0) continue
-      const info = ACTUATOR_INFO[type] || { icon: '\u{26A1}', label: type }
+      const info = ACTUATOR_INFO[actuatorBaseType(type)] || { label: type.replace(/_/g, ' ') }
       const state = getActuatorState(tent, type)
-      items.push({ type, ...info, count: entities.length, state })
+      items.push({ type, ...info, Icon: actuatorIcon(type), count: entities.length, state })
     }
     return items
   }, [tentConfig, tent])
 
   // Context info
   const stage = tent?.growth_stage || {}
+  const StageIcon = stageIcon(stage.stage)
   const daytime = isDaytime(tentConfig?.schedules)
   const score = tent?.environment_score
 
@@ -419,9 +409,10 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
   }
 
   // Format threshold for display
+  // Descriptions already carry their unit, so only temperature needs conversion.
   const fmtThreshold = (chain) => {
     if (chain.sensorType === 'temperature') return formatTemp(chain.threshold)
-    return chain.threshold + chain.unit
+    return chain.threshold
   }
 
   // Build description with formatted threshold
@@ -436,14 +427,16 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
       <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
         <h3 className="font-semibold text-lg">{tent?.name || tentConfig?.name || tentId}</h3>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={'px-2 py-0.5 rounded-full text-xs font-medium ' +
-            (daytime ? 'bg-yellow-900/40 text-yellow-400' : 'bg-blue-900/40 text-blue-400')}>
-            {daytime ? '\u{2600}\u{FE0F} Day' : '\u{1F319} Night'}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-[#2d3a5c] text-gray-300">
+            {daytime
+              ? <Sun size={12} aria-hidden="true" />
+              : <Moon size={12} aria-hidden="true" />}
+            {daytime ? 'Day' : 'Night'}
           </span>
-          <span className={'px-2 py-0.5 rounded-full text-xs font-medium ' +
-            (stage.stage === 'flower' ? 'bg-pink-900/40 text-pink-400' : 'bg-green-900/40 text-green-400')}>
-            {stage.stage === 'flower' ? '\u{1F338}' : '\u{1F331}'} {stage.stage || 'Veg'}
-            {stage.flower_week ? ' Wk ' + stage.flower_week : ''}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-[#2d3a5c] text-gray-300 capitalize">
+            <StageIcon size={12} aria-hidden="true" />
+            {stage.stage || 'Veg'}
+            {stage.flower_week ? ' wk ' + stage.flower_week : ''}
           </span>
           {score != null && (
             <span className={'px-2 py-0.5 rounded-full text-xs font-medium bg-[#2d3a5c] ' +
@@ -459,16 +452,16 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
         <div className={'rounded-lg p-3 text-center border ' +
           (temp == null ? 'border-[#2d3a5c] bg-[#1a1a2e]' : tempInRange ? 'border-green-600/40 bg-green-900/10' : 'border-red-500/40 bg-red-900/10')}>
           <div className="text-2xl font-bold">{temp != null ? formatTemp(temp) : '--'}</div>
-          <div className="text-xs text-gray-400 mt-1">{'\u{1F321}\u{FE0F}'} Temperature</div>
+          <div className="text-xs text-gray-400 mt-1 inline-flex items-center gap-1"><SENSOR_ICONS.temperature size={12} aria-hidden="true" />Temperature</div>
         </div>
         <div className={'rounded-lg p-3 text-center border ' +
           (humidity == null ? 'border-[#2d3a5c] bg-[#1a1a2e]' : humidInRange ? 'border-green-600/40 bg-green-900/10' : 'border-red-500/40 bg-red-900/10')}>
           <div className="text-2xl font-bold">{humidity != null ? Number(humidity).toFixed(0) + '%' : '--'}</div>
-          <div className="text-xs text-gray-400 mt-1">{'\u{1F4A7}'} Humidity</div>
+          <div className="text-xs text-gray-400 mt-1 inline-flex items-center gap-1"><SENSOR_ICONS.humidity size={12} aria-hidden="true" />Humidity</div>
         </div>
         <div className="rounded-lg p-3 text-center border border-[#2d3a5c] bg-[#1a1a2e]">
           <div className="text-2xl font-bold">{vpd != null ? Number(vpd).toFixed(2) : '--'}</div>
-          <div className="text-xs text-gray-400 mt-1">{'\u{1FAE7}'} VPD</div>
+          <div className="text-xs text-gray-400 mt-1 inline-flex items-center gap-1"><SENSOR_ICONS.vpd size={12} aria-hidden="true" />VPD</div>
         </div>
       </div>
 
@@ -480,7 +473,8 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
             return (
               <span key={eq.type} className={'inline-flex items-center gap-1 px-2 py-1 rounded text-xs ' +
                 (isOn ? 'bg-green-900/30 text-green-400' : 'bg-[#1a1a2e] text-gray-500')}>
-                {eq.icon} {eq.label}{eq.count > 1 ? ' x' + eq.count : ''}
+                <eq.Icon size={12} aria-hidden="true" />
+                {eq.label}{eq.count > 1 ? ' x' + eq.count : ''}
                 <span className={'inline-block w-1.5 h-1.5 rounded-full ' + (isOn ? 'bg-green-400' : 'bg-gray-600')} />
               </span>
             )
@@ -491,18 +485,19 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
       {/* Automation rules */}
       {chains.length > 0 && (
         <div className="mb-3">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-2 font-medium">
+          <div className="text-xs text-gray-400 mb-2 font-medium">
             Automations
-            {missingCount > 0 && <span className="text-yellow-500 ml-1">({missingCount} missing)</span>}
+            {missingCount > 0 && <span className="text-amber-400 ml-1">({missingCount} missing)</span>}
           </div>
           <div className="space-y-1">
             {chains.map(chain => {
               const isActive = chain.status === 'active'
+              const ChainIcon = chainIcon(chain)
               return (
                 <div key={chain.templateId}
                   className={'flex items-center gap-2 px-3 py-2 rounded-lg text-sm ' +
                     (isActive ? 'bg-green-900/10 border border-green-600/20' : 'bg-[#1a1a2e] border border-dashed border-[#2d3a5c]')}>
-                  <span className="text-base flex-shrink-0">{chain.icon}</span>
+                  <ChainIcon size={16} className={'flex-shrink-0 ' + (isActive ? 'text-green-400' : 'text-gray-500')} aria-hidden="true" />
                   <span className={'flex-1 min-w-0 truncate ' + (isActive ? 'text-gray-200' : 'text-gray-500')}>
                     {editingChain === chain.templateId ? (
                       <span className="inline-flex items-center gap-1">
@@ -519,23 +514,25 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
                         {chainDesc(chain)}
                         {chain.targetKey && (
                           <button
+                            type="button"
                             onClick={() => { setEditingChain(chain.templateId); setEditVal(chain.threshold) }}
-                            className="ml-1 text-gray-600 hover:text-green-400 text-xs"
+                            className="ml-1 -my-2 inline-flex items-center justify-center min-h-11 min-w-11 rounded-lg text-gray-500 hover:text-green-400 align-middle"
+                            aria-label="Edit threshold"
                             title="Edit threshold"
-                          >{'\u{270F}\u{FE0F}'}</button>
+                          ><Pencil size={14} aria-hidden="true" /></button>
                         )}
                       </span>
                     )}
                   </span>
                   {isActive ? (
-                    <span className="text-green-400 text-xs font-medium flex-shrink-0">{'\u{2713}'} Active</span>
+                    <span className="inline-flex items-center gap-1 text-green-400 text-xs font-medium flex-shrink-0"><Check size={14} aria-hidden="true" />Active</span>
                   ) : (
                     <button
                       onClick={() => handleCreateAutomation(chain)}
                       disabled={creating === chain.templateId}
-                      className="text-xs px-2.5 py-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded text-white flex-shrink-0 transition-colors"
+                      className="text-xs px-3 min-h-11 -my-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg text-white flex-shrink-0 transition-colors"
                     >
-                      {creating === chain.templateId ? '...' : '+ Create'}
+                      {creating === chain.templateId ? 'Creating...' : 'Create'}
                     </button>
                   )}
                 </div>
@@ -546,9 +543,9 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
             <button
               onClick={handleCreateAllMissing}
               disabled={creating}
-              className="mt-2 w-full text-xs py-2 bg-green-600/20 hover:bg-green-600/30 disabled:opacity-50 border border-green-600/30 rounded-lg text-green-400 transition-colors"
+              className="mt-2 w-full text-xs min-h-11 bg-green-600/20 hover:bg-green-600/30 disabled:opacity-50 border border-green-600/30 rounded-lg text-green-400 transition-colors"
             >
-              {creating ? 'Creating...' : 'Create All ' + missingCount + ' Missing'}
+              {creating ? 'Creating...' : 'Create all ' + missingCount + ' missing'}
             </button>
           )}
         </div>
@@ -557,10 +554,13 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
       {/* Targets */}
       <button
         onClick={() => setShowTargets(!showTargets)}
-        className="text-xs font-medium text-gray-500 hover:text-gray-300 flex items-center gap-1.5 transition-colors"
+        aria-expanded={showTargets}
+        className="min-h-11 text-xs font-medium text-gray-400 hover:text-gray-200 flex items-center gap-1.5 transition-colors"
       >
-        <span className="text-[10px]">{showTargets ? '\u{25BC}' : '\u{25B6}'}</span>
-        Climate Targets
+        {showTargets
+          ? <ChevronDown size={14} aria-hidden="true" />
+          : <ChevronRight size={14} aria-hidden="true" />}
+        Climate targets
       </button>
       {showTargets && (
         <div className="mt-3">
@@ -578,6 +578,8 @@ function TentSection({ tent, tentConfig, suggestions, config, setConfig, creatin
 }
 
 // --- Main Component ---
+
+const NoTentIcon = stageIcon('veg')
 
 export default function AutomationChains() {
   const { tents, loading: tentsLoading, connected } = useTents()
@@ -643,10 +645,10 @@ export default function AutomationChains() {
   if (!config?.tents?.length) {
     return (
       <div className="card text-center py-12">
-        <div className="text-4xl mb-4">{'\u{1F331}'}</div>
-        <h3 className="text-xl font-semibold mb-2">No Tents Configured</h3>
+        <NoTentIcon size={28} className="mx-auto mb-3 text-gray-500" aria-hidden="true" />
+        <h3 className="text-xl font-semibold mb-2">No tents configured</h3>
         <p className="text-gray-400 mb-4">Set up a tent in Settings first.</p>
-        <a href="#/settings" className="btn btn-primary">Go to Settings</a>
+        <a href="#/settings" className="btn btn-primary inline-flex items-center min-h-11">Go to settings</a>
       </div>
     )
   }
@@ -654,14 +656,14 @@ export default function AutomationChains() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Automation Chains</h2>
+        <h2 className="text-xl font-bold">Automation chains</h2>
         {!connected && <span className="text-xs text-red-400">Disconnected</span>}
       </div>
 
       {error && (
         <div className="p-3 bg-red-500/20 border border-red-500/50 rounded text-red-300 text-sm flex items-start justify-between gap-2">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-200 font-bold flex-shrink-0">X</button>
+          <button type="button" onClick={() => setError(null)} aria-label="Dismiss error" className="text-red-400 hover:text-red-200 flex-shrink-0 inline-flex items-center justify-center min-h-11 min-w-11 -my-2"><X size={16} aria-hidden="true" /></button>
         </div>
       )}
       {success && (
