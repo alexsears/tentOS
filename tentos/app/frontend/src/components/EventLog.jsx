@@ -1,14 +1,19 @@
 import { apiFetch } from '../utils/api'
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
+import { Droplets, Filter, FlaskConical, Leaf, Lightbulb, StickyNote, TriangleAlert, Waves, Workflow, Wrench } from 'lucide-react'
 
 const EVENT_ICONS = {
-  watering: '💧',
-  refill: '🪣',
-  filter_change: '🔄',
-  solution_change: '🧪',
-  maintenance: '🔧',
-  note: '📝'
+  watering: Droplets,
+  refill: Waves,
+  filter_change: Filter,
+  solution_change: FlaskConical,
+  maintenance: Wrench,
+  note: StickyNote,
+  feeding: Leaf,
+  light_schedule: Lightbulb,
+  alert: TriangleAlert,
+  automation: Workflow
 }
 
 export function EventLog({ tentId, limit = 10 }) {
@@ -76,12 +81,12 @@ export function EventLog({ tentId, limit = 10 }) {
                 onChange={e => setNewEvent({ ...newEvent, event_type: e.target.value })}
                 className="input w-full"
               >
-                <option value="watering">💧 Watering</option>
-                <option value="refill">🪣 Reservoir Refill</option>
-                <option value="filter_change">🔄 Filter Change</option>
-                <option value="solution_change">🧪 Solution Change</option>
-                <option value="maintenance">🔧 Maintenance</option>
-                <option value="note">📝 Note</option>
+                <option value="watering">Watering</option>
+                <option value="refill">Reservoir refill</option>
+                <option value="filter_change">Filter change</option>
+                <option value="solution_change">Solution change</option>
+                <option value="maintenance">Maintenance</option>
+                <option value="note">Note</option>
               </select>
             </div>
             <div>
@@ -112,12 +117,14 @@ export function EventLog({ tentId, limit = 10 }) {
         <div className="text-gray-400 text-center py-4">No events logged</div>
       ) : (
         <div className="space-y-2">
-          {events.map(event => (
+          {events.map(event => {
+            const Icon = EVENT_ICONS[event.event_type] || StickyNote
+            return (
             <div
               key={event.id}
               className="flex items-center gap-3 p-3 bg-[#1a1a2e] rounded-lg"
             >
-              <span className="text-xl">{EVENT_ICONS[event.event_type] || '📌'}</span>
+              <Icon size={18} className="flex-shrink-0 text-gray-400" aria-hidden="true" />
               <div className="flex-1">
                 <div className="font-medium capitalize">
                   {event.event_type.replace('_', ' ')}
@@ -130,7 +137,8 @@ export function EventLog({ tentId, limit = 10 }) {
                 {format(new Date(event.timestamp), 'MMM d, HH:mm')}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

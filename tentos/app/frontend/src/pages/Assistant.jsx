@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch, requireOk } from '../utils/api'
+import { Volume2, VolumeX } from 'lucide-react'
 
 const STARTER_PROMPT = 'Give me a concise, scan-friendly summary of the last 24 hours in the tents. Put each tent name on its own line, keep each detail short, and finish with an Attention needed section.'
 const WELCOME_MESSAGE = 'I know your TentOS setup: configured tents, readings, history, equipment, alerts, and care events. Ask naturally, choose a shortcut, or tap the orb to talk.'
@@ -163,10 +164,10 @@ export default function Assistant() {
 
   const busy = mode === 'thinking' || mode === 'transcribing'
   const orbLabel = useMemo(() => {
-    if (mode === 'listening') return 'Listening — tap to stop'
+    if (mode === 'listening') return 'Listening. Tap to stop'
     if (mode === 'transcribing') return 'Transcribing...'
     if (mode === 'thinking') return 'Reading the tents...'
-    if (mode === 'speaking') return 'Speaking — tap to stop'
+    if (mode === 'speaking') return 'Speaking. Tap to stop'
     return 'Tap the orb to talk'
   }, [mode])
 
@@ -380,7 +381,7 @@ export default function Assistant() {
         <div className="assistant-orb-copy">
           <p className="assistant-orb-label">{orbLabel}</p>
           <button type="button" onClick={toggleSound} className="assistant-sound-toggle" aria-pressed={soundOn}>
-            <span aria-hidden="true">{soundOn ? '🔊' : '🔇'}</span>
+            {soundOn ? <Volume2 size={14} aria-hidden="true" /> : <VolumeX size={14} aria-hidden="true" />}
             Voice replies {soundOn ? 'on' : 'off'}
           </button>
         </div>

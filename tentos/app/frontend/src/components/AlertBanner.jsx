@@ -1,5 +1,7 @@
 import { apiFetch } from '../utils/api'
 import { useState, useEffect } from 'react'
+import { X } from 'lucide-react'
+import { AlertGlyph } from '../utils/icons'
 
 export function AlertBanner() {
   const [alerts, setAlerts] = useState([])
@@ -20,7 +22,7 @@ export function AlertBanner() {
     <div className="bg-red-900/50 border-b border-red-700 px-4 py-2">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-red-400">⚠️</span>
+          <AlertGlyph size={16} className="text-red-400 flex-shrink-0" aria-hidden="true" />
           <span className="text-red-200">
             {visibleAlerts[0].message}
             {visibleAlerts.length > 1 && ` (+${visibleAlerts.length - 1} more)`}
@@ -29,8 +31,9 @@ export function AlertBanner() {
         <button
           onClick={() => setDismissed(prev => new Set([...prev, visibleAlerts[0].id || visibleAlerts[0].message]))}
           className="text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-500/20"
+          aria-label="Dismiss alert"
         >
-          ✕
+          <X size={16} aria-hidden="true" />
         </button>
       </div>
     </div>

@@ -4,6 +4,8 @@ import EntityInventory from '../components/EntityInventory'
 import TentBuilder from '../components/TentBuilder'
 import { apiFetch } from '../utils/api'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
+import { Check, Download, Package, RefreshCw, Upload } from 'lucide-react'
+import { domainIcon, slotIcon } from '../components/EntityInventory'
 
 export default function Settings() {
   const [status, setStatus] = useState(null)
@@ -357,7 +359,7 @@ export default function Settings() {
           }
         }
       }
-      // Sort by name match — best match first
+      // Sort by name match, best match first
       compatible.sort((a, b) => scoreSlotMatch(entity, b.slotType) - scoreSlotMatch(entity, a.slotType))
       return { entity, compatibleSlots: compatible, selectedSlot: compatible[0] || null }
     })
@@ -488,7 +490,7 @@ export default function Settings() {
       if (res.ok && data.success) {
         setSuccess('Update started! The add-on will restart with the new version.')
       } else if (res.status === 403) {
-        setError('Permission denied. Please reinstall the add-on from HA Settings → Add-ons to enable update permissions.')
+        setError('Permission denied. Please reinstall the add-on from HA Settings > Add-ons to enable update permissions.')
       } else {
         setError(data.detail || 'Update failed')
       }
@@ -635,7 +637,7 @@ export default function Settings() {
               <span className="text-yellow-400 animate-pulse">Saving...</span>
             )}
             {autoSaveStatus === 'saved' && (
-              <span className="text-green-400">✓ Saved</span>
+              <span className="text-green-400 inline-flex items-center gap-1"><Check size={14} aria-hidden="true" />Saved</span>
             )}
             {autoSaveStatus === 'error' && (
               <span className="text-red-400">Save failed</span>
@@ -667,10 +669,11 @@ export default function Settings() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 sm:gap-2 border-b border-[#2d3a5c] overflow-x-auto scrollbar-none">
+      <div className="app-scroll-strip">
+      <div className="flex gap-1 sm:gap-2 border-b border-[#2d3a5c] w-max min-w-full">
         <button
           onClick={() => setActiveTab('builder')}
-          className={`px-3 sm:px-4 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
+          className={`min-h-11 px-3 sm:px-4 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
             activeTab === 'builder'
               ? 'border-green-500 text-green-400'
               : 'border-transparent text-gray-400 hover:text-white'
@@ -680,7 +683,7 @@ export default function Settings() {
         </button>
         <button
           onClick={() => setActiveTab('status')}
-          className={`px-3 sm:px-4 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
+          className={`min-h-11 px-3 sm:px-4 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
             activeTab === 'status'
               ? 'border-green-500 text-green-400'
               : 'border-transparent text-gray-400 hover:text-white'
@@ -690,7 +693,7 @@ export default function Settings() {
         </button>
         <button
           onClick={() => setActiveTab('reference')}
-          className={`px-3 sm:px-4 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
+          className={`min-h-11 px-3 sm:px-4 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
             activeTab === 'reference'
               ? 'border-green-500 text-green-400'
               : 'border-transparent text-gray-400 hover:text-white'
@@ -700,7 +703,7 @@ export default function Settings() {
         </button>
         <button
           onClick={() => { setActiveTab('updates'); checkForUpdates() }}
-          className={`px-3 sm:px-4 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
+          className={`min-h-11 px-3 sm:px-4 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
             activeTab === 'updates'
               ? 'border-green-500 text-green-400'
               : 'border-transparent text-gray-400 hover:text-white'
@@ -708,6 +711,7 @@ export default function Settings() {
         >
           Updates
         </button>
+      </div>
       </div>
 
       {/* Tent Builder Tab */}
@@ -776,7 +780,7 @@ export default function Settings() {
             {activeDragEntity ? (
               activeDragEntity._multiDrag ? (
                 <div className="relative flex flex-col items-center justify-center p-3 rounded-lg bg-green-900/30 border-2 border-green-500 shadow-lg shadow-green-500/20 min-w-[80px]">
-                  <span className="text-2xl">📦</span>
+                  <Package size={24} className="text-green-400" aria-hidden="true" />
                   <span className="text-sm font-bold text-green-400 mt-1">{activeDragEntity._selectedIds.length}</span>
                   <span className="text-xs text-white">entities</span>
                 </div>
@@ -789,10 +793,11 @@ export default function Settings() {
                 const tileBg = isOn ? 'bg-green-900/30 border-green-500' : 'bg-[#1a1a2e] border-green-500'
                 const iconColor = isOn ? 'text-green-400' : isNumeric ? 'text-cyan-300' : 'text-gray-400'
                 const name = e.friendly_name || e.entity_id.split('.').pop().replace(/_/g, ' ')
+                const DragIcon = domainIcon(e.domain)
                 return (
                   <div className={'relative flex flex-col items-center justify-center p-3 rounded-lg border-2 shadow-lg shadow-green-500/20 min-w-[80px] ' + tileBg}>
                     <span className={'absolute top-1 right-1 w-2 h-2 rounded-full ' + (isOn ? 'bg-green-400' : isNumeric ? 'bg-cyan-400' : 'bg-gray-600')} />
-                    <span className={'text-2xl ' + iconColor}>{e.icon || '📍'}</span>
+                    <DragIcon size={24} className={iconColor} aria-hidden="true" />
                     {isSensor && isNumeric ? (
                       <span className="text-lg font-bold text-cyan-300 mt-1">
                         {Number(e.state).toFixed(1)}
@@ -836,16 +841,20 @@ export default function Settings() {
                 {/* Entity list with slot assignments */}
                 <div className="mb-4 overflow-y-auto flex-1 space-y-2">
                   <label className="text-xs text-gray-400 block mb-1">Entities & Slots</label>
-                  {quickAddModal.entities.map(({ entity, compatibleSlots, selectedSlot }, idx) => (
+                  {quickAddModal.entities.map(({ entity, compatibleSlots, selectedSlot }, idx) => {
+                    const EntityIcon = domainIcon(entity.domain)
+                    const SelectedSlotIcon = selectedSlot ? slotIcon(selectedSlot.category, selectedSlot.slotType) : null
+                    return (
                     <div key={entity.entity_id} className="flex items-center gap-2 p-2 bg-[#1a1a2e] rounded">
-                      <span className="text-lg flex-shrink-0">{entity.icon || '📍'}</span>
+                      <EntityIcon size={16} className="flex-shrink-0 text-gray-400" aria-hidden="true" />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">
                           {entity.friendly_name || entity.entity_id}
                         </div>
                         {compatibleSlots.length === 1 ? (
-                          <div className="text-xs text-gray-500">
-                            {selectedSlot.slotDef.icon} {selectedSlot.slotDef.label}
+                          <div className="text-xs text-gray-500 flex items-center gap-1">
+                            {SelectedSlotIcon && <SelectedSlotIcon size={12} aria-hidden="true" />}
+                            {selectedSlot.slotDef.label}
                           </div>
                         ) : (
                           <select
@@ -859,14 +868,15 @@ export default function Settings() {
                           >
                             {compatibleSlots.map((s, i) => (
                               <option key={i} value={i}>
-                                {s.slotDef.icon} {s.slotDef.label} ({s.category})
+                                {s.slotDef.label} ({s.category})
                               </option>
                             ))}
                           </select>
                         )}
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
 
                 {/* Actions */}
@@ -1055,11 +1065,13 @@ export default function Settings() {
               Export your tent configuration to a file for backup. Import to restore after reinstall.
             </p>
             <div className="flex gap-3 flex-wrap mb-4">
-              <button onClick={handleExport} className="btn">
-                📥 Export Config
+              <button onClick={handleExport} className="btn inline-flex items-center gap-2">
+                <Download size={16} aria-hidden="true" />
+                Export config
               </button>
-              <label className="btn cursor-pointer">
-                📤 Import Config
+              <label className="btn cursor-pointer inline-flex items-center gap-2">
+                <Upload size={16} aria-hidden="true" />
+                Import config
                 <input
                   type="file"
                   accept=".json"
@@ -1079,9 +1091,9 @@ export default function Settings() {
               <button
                 onClick={handleAutoUpdate}
                 disabled={rebuilding}
-                className="btn bg-green-600 hover:bg-green-700 text-white"
+                className="btn bg-green-600 hover:bg-green-700 text-white inline-flex items-center gap-2"
               >
-                {rebuilding ? 'Updating...' : '🚀 Auto-Update'}
+                {rebuilding ? 'Updating...' : <><RefreshCw size={16} aria-hidden="true" />Auto-update</>}
               </button>
               <button
                 onClick={handleUpdate}

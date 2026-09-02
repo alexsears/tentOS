@@ -3,56 +3,84 @@ import { apiFetch } from '../utils/api'
 import { usePreloadedData } from '../App'
 import { format, formatDistanceToNow } from 'date-fns'
 import { EventLog } from '../components/EventLog'
+import {
+  Activity,
+  CircleDot,
+  Droplets,
+  Fan,
+  Filter,
+  FlaskConical,
+  Gauge,
+  Inbox,
+  Leaf,
+  Lightbulb,
+  Power,
+  PowerOff,
+  RefreshCw,
+  StickyNote,
+  Thermometer,
+  ToggleRight,
+  TriangleAlert,
+  Waves,
+  Workflow,
+  Wrench,
+  Zap,
+} from 'lucide-react'
 
 // Icons for different event types
 const EVENT_ICONS = {
-  device_on: '🟢',
-  device_off: '⚫',
-  sensor_reading: '📊',
-  sensor_trigger: '⚡',
-  state_change: '🔄',
+  device_on: Power,
+  device_off: PowerOff,
+  sensor_reading: Gauge,
+  sensor_trigger: Zap,
+  state_change: RefreshCw,
   // Manual event types
-  watering: '💧',
-  refill: '🪣',
-  filter_change: '🔄',
-  solution_change: '🧪',
-  maintenance: '🔧',
-  note: '📝'
+  watering: Droplets,
+  refill: Waves,
+  filter_change: Filter,
+  solution_change: FlaskConical,
+  maintenance: Wrench,
+  note: StickyNote,
+  feeding: Leaf,
+  light_schedule: Lightbulb,
+  alert: TriangleAlert,
+  automation: Workflow
 }
 
 // Domain icons for entity types
 const DOMAIN_ICONS = {
-  switch: '🔌',
-  light: '💡',
-  fan: '🌀',
-  sensor: '📡',
-  binary_sensor: '🚨',
-  climate: '🌡️',
-  automation: '⚙️'
+  switch: ToggleRight,
+  light: Lightbulb,
+  fan: Fan,
+  sensor: Gauge,
+  binary_sensor: CircleDot,
+  climate: Thermometer,
+  automation: Workflow
 }
 
 function HAEventItem({ event }) {
-  const icon = EVENT_ICONS[event.event_type] || DOMAIN_ICONS[event.domain] || '📌'
+  const Icon = EVENT_ICONS[event.event_type] || DOMAIN_ICONS[event.domain] || Activity
   const time = event.timestamp ? new Date(event.timestamp) : null
   const automation = event.related_automations?.[0] // Show first related automation
 
   return (
     <div className="flex items-center gap-3 p-3 bg-[#1a1a2e] rounded-lg hover:bg-[#252545] transition-colors">
-      <span className="text-xl flex-shrink-0">{icon}</span>
+      <Icon size={18} className="flex-shrink-0 text-gray-400" aria-hidden="true" />
       <div className="flex-1 min-w-0">
         <div className="font-medium text-sm">{event.description}</div>
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <span className="truncate">{event.entity_id}</span>
           {automation && (
             <>
-              <span className="text-gray-600">•</span>
+              <span className="w-px h-3 bg-[#2d3a5c]" aria-hidden="true" />
               <a
                 href={`/config/automation/edit/${automation.id}`}
                 target="_top"
-                className="text-blue-400 hover:text-blue-300 hover:underline truncate"
+                className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 hover:underline truncate"
                 title={`Edit automation: ${automation.name}`}
               >
-                ⚙️ {automation.name}
+                <Workflow size={12} aria-hidden="true" />
+                <span className="truncate">{automation.name}</span>
               </a>
             </>
           )}
@@ -219,7 +247,7 @@ export default function Events() {
               <div className="text-center text-gray-400 py-8">Loading entity history...</div>
             ) : haEvents.length === 0 ? (
               <div className="text-center py-8">
-                <div className="text-4xl mb-4">📭</div>
+                <Inbox size={32} className="mx-auto mb-4 text-gray-500" aria-hidden="true" />
                 <p className="text-gray-400">No entity events found</p>
                 <p className="text-sm text-gray-500 mt-2">
                   {tents.length === 0

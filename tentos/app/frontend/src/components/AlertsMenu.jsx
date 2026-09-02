@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../utils/api'
+import { AlertGlyph } from '../utils/icons'
 
 /**
  * The alert count in the header used to be plain text: you could see that
@@ -83,7 +84,7 @@ export function AlertsMenu({ summary, onChanged }) {
       >
         <span className="sm:hidden">
           <span className={`badge ${summary.critical > 0 ? 'badge-danger' : 'badge-warning'}`}>
-            <span aria-hidden="true">⚠</span>
+            <AlertGlyph size={14} aria-hidden="true" />
             {summary.total}
             <span className="sr-only">{mostSevereLabel}</span>
           </span>
