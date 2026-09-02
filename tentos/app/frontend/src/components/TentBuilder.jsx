@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
+import { ChevronDown, ChevronRight, ChevronUp, Pencil, Trash2, X } from 'lucide-react'
+import { domainIcon, slotIcon } from './EntityInventory'
 
 function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, tentId, onSelect, isSelected, compact, customNames, onRename }) {
   const [editingEntity, setEditingEntity] = useState(null)
@@ -13,6 +15,7 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
   // Normalize to array
   const ids = Array.isArray(entityIds) ? entityIds : (entityIds ? [entityIds] : [])
   const isEmpty = ids.length === 0
+  const SlotIcon = slotIcon(category, slotType)
 
   const handleClick = (e) => {
     if (onSelect) {
@@ -50,7 +53,7 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
           ${slotDef.required ? 'border-yellow-500/50' : ''}
         `}
       >
-        <span className="text-sm">{slotDef.icon}</span>
+        <SlotIcon size={14} className="flex-shrink-0 text-gray-400" aria-hidden="true" />
         <span className="text-xs text-gray-500">{slotDef.label}</span>
       </div>
     )
@@ -73,7 +76,7 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
       `}
     >
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-lg">{slotDef.icon}</span>
+        <SlotIcon size={16} className="flex-shrink-0 text-gray-400" aria-hidden="true" />
         <span className="font-medium text-sm">{slotDef.label}</span>
         {slotDef.required && isEmpty && (
           <span className="text-xs text-yellow-500">Required</span>
@@ -109,6 +112,7 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
               else if (isNumeric) dotColor = 'bg-cyan-400'
 
               const name = customNames?.[entityId] || entity?.friendly_name || entityId.split('.').pop().replace(/_/g, ' ')
+              const TileIcon = entity?.domain ? domainIcon(entity.domain) : SlotIcon
 
               return (
                 <div key={entityId} className={'relative flex flex-col items-center justify-center p-2 rounded-lg transition-all min-w-[60px] ' + tileBg} title={entityId}>
@@ -116,15 +120,13 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
                   <span className={'absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full ' + dotColor} />
 
                   {/* Icon */}
-                  <span className={'text-lg ' + iconColor}>
-                    {entity?.icon || slotDef.icon || '📍'}
-                  </span>
+                  <TileIcon size={18} className={iconColor} aria-hidden="true" />
 
                   {/* Value or state */}
                   {isSensor && isNumeric ? (
                     <span className="text-xs font-bold text-cyan-300">
                       {Number(entity.state).toFixed(1)}
-                      {entity.unit && <span className="text-gray-500 ml-0.5" style={{ fontSize: 9 }}>{entity.unit}</span>}
+                      {entity.unit && <span className="text-gray-500 ml-0.5" style={{ fontSize: 11 }}>{entity.unit}</span>}
                     </span>
                   ) : (
                     <span className={'text-xs ' + (isOn ? 'text-green-400 font-medium' : 'text-gray-500')}>
@@ -133,10 +135,10 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
                   )}
 
                   {/* Name + entity ID */}
-                  <span className={'text-xs truncate w-full text-center mt-0.5 ' + (customNames?.[entityId] ? 'text-blue-400' : 'text-gray-500')} style={{ fontSize: 9 }}>
+                  <span className={'text-xs truncate w-full text-center mt-0.5 ' + (customNames?.[entityId] ? 'text-blue-400' : 'text-gray-500')} style={{ fontSize: 11 }}>
                     {name}
                   </span>
-                  <span className="text-gray-600 truncate w-full text-center" style={{ fontSize: 8 }}>
+                  <span className="text-gray-600 truncate w-full text-center" style={{ fontSize: 11 }}>
                     {entityId.split('.').pop()}
                   </span>
 
@@ -144,17 +146,19 @@ function Slot({ slotType, slotDef, entityIds, getEntity, onRemove, category, ten
                   <div className="flex gap-1 mt-1">
                     <button
                       onClick={(e) => startRename(e, entityId, entity)}
-                      className="px-1.5 py-0.5 rounded text-gray-500 hover:text-blue-300 hover:bg-blue-500/20"
-                      style={{ fontSize: 10 }}
+                      className="px-1.5 py-0.5 rounded text-gray-500 hover:text-blue-300 hover:bg-blue-500/20 inline-flex items-center gap-1"
+                      style={{ fontSize: 11 }}
                     >
-                      ✏ Rename
+                      <Pencil size={11} aria-hidden="true" />
+                      Rename
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); onRemove(category, slotType, idx) }}
-                      className="px-1.5 py-0.5 rounded text-red-400/60 hover:text-red-300 hover:bg-red-500/20"
-                      style={{ fontSize: 10 }}
+                      className="px-1.5 py-0.5 rounded text-red-400/60 hover:text-red-300 hover:bg-red-500/20 inline-flex items-center"
+                      aria-label={`Remove ${name}`}
+                      title="Remove"
                     >
-                      ✕
+                      <X size={12} aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -200,7 +204,6 @@ function ControlCustomizer({ tent, onUpdate }) {
   const [expanded, setExpanded] = useState(false)
   const [editingSlot, setEditingSlot] = useState(null)
   const [tempLabel, setTempLabel] = useState('')
-  const [tempIcon, setTempIcon] = useState('')
 
   // Get current actuator slots that have entities assigned
   const configuredActuators = Object.keys(tent.actuators || {}).filter(
@@ -245,12 +248,12 @@ function ControlCustomizer({ tent, onUpdate }) {
   const startEdit = (slot) => {
     setEditingSlot(slot)
     setTempLabel(tent.control_settings?.labels?.[slot] || '')
-    setTempIcon(tent.control_settings?.icons?.[slot] || '')
   }
 
+  // Custom labels are editable. Stored custom icons (emoji strings) are kept
+  // as they are but never rendered; the icon vocabulary decides the glyph.
   const saveEdit = () => {
     const labels = { ...(tent.control_settings?.labels || {}) }
-    const icons = { ...(tent.control_settings?.icons || {}) }
 
     if (tempLabel.trim()) {
       labels[editingSlot] = tempLabel.trim()
@@ -258,15 +261,9 @@ function ControlCustomizer({ tent, onUpdate }) {
       delete labels[editingSlot]
     }
 
-    if (tempIcon.trim()) {
-      icons[editingSlot] = tempIcon.trim()
-    } else {
-      delete icons[editingSlot]
-    }
-
     onUpdate({
       ...tent,
-      control_settings: { ...tent.control_settings, labels, icons }
+      control_settings: { ...tent.control_settings, labels }
     })
     setEditingSlot(null)
   }
@@ -277,12 +274,6 @@ function ControlCustomizer({ tent, onUpdate }) {
     ac: 'A/C', water_pump: 'Water', drain_pump: 'Drain'
   }
 
-  const defaultIcons = {
-    light: '💡', exhaust_fan: '🌀', circulation_fan: '🔄',
-    humidifier: '💨', dehumidifier: '🏜️', heater: '🔥',
-    ac: '❄️', water_pump: '🚿', drain_pump: '🔽'
-  }
-
   if (configuredActuators.length === 0) return null
 
   return (
@@ -291,13 +282,13 @@ function ControlCustomizer({ tent, onUpdate }) {
         onClick={() => setExpanded(!expanded)}
         className="text-sm font-medium text-gray-400 hover:text-white flex items-center gap-2 px-2 py-1 rounded hover:bg-[#2d3a5c]"
       >
-        <span>{expanded ? '▼' : '▶'}</span>
-        Customize Controls
+        {expanded ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
+        Customize controls
       </button>
       {expanded && <div className="space-y-1 mt-2">
         {orderedActuators.map((slot, idx) => {
           const label = tent.control_settings?.labels?.[slot] || defaultLabels[slot] || slot
-          const icon = tent.control_settings?.icons?.[slot] || defaultIcons[slot] || '⚡'
+          const ControlIcon = slotIcon('actuators', slot)
 
           return (
             <div key={slot} className="flex items-center gap-2 bg-[#1a1a2e] rounded p-2">
@@ -307,24 +298,26 @@ function ControlCustomizer({ tent, onUpdate }) {
                   onClick={() => moveUp(slot)}
                   disabled={idx === 0}
                   className="px-2 py-1 text-sm text-gray-400 hover:text-white hover:bg-[#2d3a5c] rounded disabled:opacity-30"
-                >▲</button>
+                  aria-label="Move up"
+                ><ChevronUp size={14} aria-hidden="true" /></button>
                 <button
                   onClick={() => moveDown(slot)}
                   disabled={idx === orderedActuators.length - 1}
                   className="px-2 py-1 text-sm text-gray-400 hover:text-white hover:bg-[#2d3a5c] rounded disabled:opacity-30"
-                >▼</button>
+                  aria-label="Move down"
+                ><ChevronDown size={14} aria-hidden="true" /></button>
               </div>
 
               {/* Icon and label */}
-              <span className="text-lg">{icon}</span>
+              <ControlIcon size={16} className="flex-shrink-0 text-gray-400" aria-hidden="true" />
               <span className="flex-1 text-sm">{label}</span>
               <span className="text-xs text-gray-500">{slot}</span>
 
               {/* Edit button */}
               <button
                 onClick={() => startEdit(slot)}
-                className="px-2 py-1 hover:bg-[#2d3a5c] rounded text-gray-400 hover:text-white text-sm"
-              >✏️ Edit</button>
+                className="px-2 py-1 hover:bg-[#2d3a5c] rounded text-gray-400 hover:text-white text-sm inline-flex items-center gap-1"
+              ><Pencil size={14} aria-hidden="true" />Edit</button>
             </div>
           )
         })}
@@ -337,24 +330,13 @@ function ControlCustomizer({ tent, onUpdate }) {
             <h4 className="font-semibold mb-3">Edit "{editingSlot}"</h4>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Custom Label</label>
+                <label className="text-xs text-gray-400 block mb-1">Custom label</label>
                 <input
                   type="text"
                   value={tempLabel}
                   onChange={e => setTempLabel(e.target.value)}
                   placeholder={defaultLabels[editingSlot] || editingSlot}
                   className="input w-full"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Custom Icon (emoji)</label>
-                <input
-                  type="text"
-                  value={tempIcon}
-                  onChange={e => setTempIcon(e.target.value)}
-                  placeholder={defaultIcons[editingSlot] || '⚡'}
-                  className="input w-full"
-                  maxLength={4}
                 />
               </div>
               <div className="flex gap-2 justify-end">
@@ -412,9 +394,10 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
       <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 mb-4">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-lg"
+          className="min-h-10 min-w-10 flex items-center justify-center rounded hover:bg-[#2d3a5c] text-gray-400"
+          aria-label={expanded ? 'Collapse tent' : 'Expand tent'}
         >
-          {expanded ? '▼' : '▶'}
+          {expanded ? <ChevronDown size={18} aria-hidden="true" /> : <ChevronRight size={18} aria-hidden="true" />}
         </button>
 
         {editing ? (
@@ -439,20 +422,22 @@ function TentCard({ tent, slots, entities, onUpdate, onDelete, onSlotSelect, sel
             </div>
             <div className="hidden sm:flex items-center gap-2 text-sm text-gray-400">
               <span>{sensorCount} sensors</span>
-              <span>•</span>
+              <span className="w-px h-3 bg-[#2d3a5c]" aria-hidden="true" />
               <span>{actuatorCount} actuators</span>
             </div>
             <button
               onClick={() => setEditing(true)}
-              className="min-h-10 px-2 py-1 hover:bg-[#2d3a5c] rounded text-sm"
+              className="min-h-10 px-2 py-1 hover:bg-[#2d3a5c] rounded text-sm inline-flex items-center gap-1"
             >
-              ✏️ Edit
+              <Pencil size={14} aria-hidden="true" />
+              Edit
             </button>
             <button
               onClick={() => onDelete(tent.id)}
-              className="min-h-10 px-2 py-1 hover:bg-red-500/20 rounded text-red-400 text-sm"
+              className="min-h-10 px-2 py-1 hover:bg-red-500/20 rounded text-red-400 text-sm inline-flex items-center gap-1"
             >
-              🗑️ Delete
+              <Trash2 size={14} aria-hidden="true" />
+              Delete
             </button>
           </>
         )}

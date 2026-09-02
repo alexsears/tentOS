@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useChat } from '../hooks/useChat'
+import { MessageSquare } from 'lucide-react'
 
 function formatTime(isoString) {
   const date = new Date(isoString)
@@ -179,7 +180,7 @@ export default function Chat() {
           </div>
         ) : messages.length === 0 ? (
           <div className="text-center py-12">
-            <div className="text-4xl mb-4">💬</div>
+            <MessageSquare size={32} className="mx-auto mb-4 text-gray-500" aria-hidden="true" />
             <p className="text-gray-400">No messages yet.</p>
             <p className="text-gray-500 text-sm">Be the first to say hello!</p>
           </div>

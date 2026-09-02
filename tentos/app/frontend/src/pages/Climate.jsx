@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { useTents } from '../hooks/useTents'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { apiFetch } from '../utils/api'
+import { stageIcon } from '../utils/icons'
 
 // VPD targets mirrored from backend state_manager.py:125-142
 const VPD_TARGETS = {
@@ -75,34 +76,28 @@ function CurrentVpdReading({ vpd, temp, humidity, target, formatTemp }) {
 
   return (
     <div className="card">
-      <div className="flex items-center gap-6 flex-wrap">
-        {/* Big VPD number */}
-        <div className="text-center">
-          <div className={`text-5xl font-bold tabular-nums ${inRange ? 'text-green-400' : vpd != null ? 'text-red-400' : 'text-gray-500'}`}>
+      {/* Status on its own line, then the target, so nothing wraps beside the number */}
+      <div className={`text-xs font-semibold ${status.color}`}>{status.label}</div>
+      <div className="text-xs text-gray-400">
+        Target {target.min} - {target.max} kPa
+        {target.phase && <span className="ml-1 text-gray-500">({target.phase})</span>}
+      </div>
+
+      {/* VPD, temp and humidity share one row */}
+      <div className="flex items-end gap-6 mt-2">
+        <div>
+          <div className={`text-5xl font-bold tabular-nums leading-none ${inRange ? 'text-green-400' : vpd != null ? 'text-red-400' : 'text-gray-500'}`}>
             {vpd != null ? Number(vpd).toFixed(2) : '--'}
           </div>
           <div className="text-xs text-gray-500 mt-1">VPD (kPa)</div>
         </div>
-
-        {/* Status + target range */}
-        <div className="flex-1 min-w-0">
-          <div className={`text-lg font-semibold ${status.color}`}>{status.label}</div>
-          <div className="text-sm text-gray-400">
-            Target: {target.min} - {target.max} kPa
-            {target.phase && <span className="ml-2 text-gray-500">({target.phase})</span>}
-          </div>
+        <div>
+          <div className="text-2xl font-bold tabular-nums leading-none">{temp != null ? formatTemp(temp) : '--'}</div>
+          <div className="text-xs text-gray-500 mt-1">Temp</div>
         </div>
-
-        {/* Temp + Humidity */}
-        <div className="flex gap-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold">{temp != null ? formatTemp(temp) : '--'}</div>
-            <div className="text-xs text-gray-500">Temp</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold">{humidity != null ? Number(humidity).toFixed(0) + '%' : '--'}</div>
-            <div className="text-xs text-gray-500">Humidity</div>
-          </div>
+        <div>
+          <div className="text-2xl font-bold tabular-nums leading-none">{humidity != null ? Number(humidity).toFixed(0) + '%' : '--'}</div>
+          <div className="text-xs text-gray-500 mt-1">Humidity</div>
         </div>
       </div>
     </div>
@@ -162,7 +157,7 @@ function FlowerWeekTimeline({ stage, flowerWeek }) {
                   wk <= currentWeek ? 'opacity-100' : 'opacity-30'
                 } ${isCurrent ? 'ring-2 ring-white ring-offset-1 ring-offset-[#0d1117] scale-y-125' : ''}`}
               />
-              <div className={`text-center text-[9px] mt-0.5 ${isCurrent ? 'text-white font-bold' : 'text-gray-600'}`}>
+              <div className={`text-center text-[11px] mt-0.5 ${isCurrent ? 'text-white font-bold' : 'text-gray-600'}`}>
                 {wk}
               </div>
             </div>
@@ -170,7 +165,7 @@ function FlowerWeekTimeline({ stage, flowerWeek }) {
         })}
       </div>
       {/* Phase legend */}
-      <div className="flex gap-3 mt-2 text-[10px] text-gray-500">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-gray-500">
         <span><span className="inline-block w-2 h-2 rounded-sm bg-green-600 mr-1" />Transition 1-2</span>
         <span><span className="inline-block w-2 h-2 rounded-sm bg-yellow-600 mr-1" />Stretch 3-6</span>
         <span><span className="inline-block w-2 h-2 rounded-sm bg-orange-600 mr-1" />Bulk 7-10</span>
@@ -294,12 +289,12 @@ function VpdChart({ historyData, target, lightPeriods }) {
               {
                 yAxis: target.min,
                 lineStyle: { color: 'rgba(34, 197, 94, 0.5)' },
-                label: { show: true, formatter: target.min.toFixed(1), color: '#22c55e', fontSize: 10, position: 'insideEndTop' }
+                label: { show: true, formatter: target.min.toFixed(1), color: '#22c55e', fontSize: 11, position: 'insideEndTop' }
               },
               {
                 yAxis: target.max,
                 lineStyle: { color: 'rgba(34, 197, 94, 0.5)' },
-                label: { show: true, formatter: target.max.toFixed(1), color: '#22c55e', fontSize: 10, position: 'insideEndTop' }
+                label: { show: true, formatter: target.max.toFixed(1), color: '#22c55e', fontSize: 11, position: 'insideEndTop' }
               },
             ]
           }
@@ -425,9 +420,10 @@ export default function Climate() {
   }
 
   if (tents.length === 0) {
+    const EmptyIcon = stageIcon('seedling')
     return (
       <div className="card text-center py-12">
-        <div className="text-4xl mb-4">{'\u{1F331}'}</div>
+        <EmptyIcon size={32} className="mx-auto mb-4 text-gray-500" aria-hidden="true" />
         <h3 className="text-xl font-semibold mb-2">No Tents Configured</h3>
         <p className="text-gray-400 mb-4">Set up a tent in Settings first.</p>
         <a href="#/settings" className="btn btn-primary">Go to Settings</a>

@@ -4,6 +4,30 @@ import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { entityHistoryPath } from '../utils/history'
 import { HistoryIcon } from './HistoryIcon'
+import {
+  Camera,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Circle,
+  CircleDot,
+  DoorOpen,
+  Droplet,
+  Droplets,
+  Fan,
+  Flame,
+  Gauge,
+  Hash,
+  Lightbulb,
+  Package,
+  Square,
+  Sun,
+  Thermometer,
+  ToggleRight,
+  Waves,
+  Zap,
+} from 'lucide-react'
+import { actuatorIcon, sensorIcon } from '../utils/icons'
 
 // Domains relevant for grow tent management
 const ALLOWED_DOMAINS = new Set([
@@ -21,20 +45,41 @@ const ALLOWED_DOMAINS = new Set([
   'button',        // Trigger buttons
 ])
 
-// Domain display info
+// Domain display info. Icons are lucide components; HA's own `icon`
+// attribute (an mdi: name) and the old emoji are never rendered.
 const DOMAIN_INFO = {
-  sensor: { icon: '📡', label: 'Sensors', order: 1 },
-  binary_sensor: { icon: '🚨', label: 'Binary Sensors', order: 2 },
-  switch: { icon: '🔌', label: 'Switches', order: 3 },
-  light: { icon: '💡', label: 'Lights', order: 4 },
-  fan: { icon: '🌀', label: 'Fans', order: 5 },
-  climate: { icon: '🌡️', label: 'Climate', order: 6 },
-  humidifier: { icon: '💨', label: 'Humidifiers', order: 7 },
-  water_heater: { icon: '🔥', label: 'Water Heaters', order: 8 },
-  counter: { icon: '🔢', label: 'Counters', order: 9 },
-  camera: { icon: '📷', label: 'Cameras', order: 10 },
-  cover: { icon: '🚪', label: 'Covers', order: 11 },
-  button: { icon: '🔘', label: 'Buttons', order: 12 },
+  sensor: { icon: Gauge, label: 'Sensors', order: 1 },
+  binary_sensor: { icon: CircleDot, label: 'Binary sensors', order: 2 },
+  switch: { icon: ToggleRight, label: 'Switches', order: 3 },
+  light: { icon: Lightbulb, label: 'Lights', order: 4 },
+  fan: { icon: Fan, label: 'Fans', order: 5 },
+  climate: { icon: Thermometer, label: 'Climate', order: 6 },
+  humidifier: { icon: Droplets, label: 'Humidifiers', order: 7 },
+  water_heater: { icon: Flame, label: 'Water heaters', order: 8 },
+  counter: { icon: Hash, label: 'Counters', order: 9 },
+  camera: { icon: Camera, label: 'Cameras', order: 10 },
+  cover: { icon: DoorOpen, label: 'Covers', order: 11 },
+  button: { icon: Circle, label: 'Buttons', order: 12 },
+}
+
+// Entity domain -> icon component, shared with the Tent Builder and Settings.
+export function domainIcon(domain) {
+  return DOMAIN_INFO[domain]?.icon || Package
+}
+
+// Sensor slots the shared vocabulary does not name yet.
+const EXTRA_SENSOR_SLOT_ICONS = {
+  light_level: Sun,
+  reservoir_level: Waves,
+  leak_sensor: Droplet,
+  power_usage: Zap,
+}
+
+// Tent Builder slot -> icon component. Slot definitions from the backend
+// carry an emoji `icon`; it is ignored in favour of the lucide vocabulary.
+export function slotIcon(category, slotType) {
+  if (category === 'actuators') return actuatorIcon(slotType)
+  return EXTRA_SENSOR_SLOT_ICONS[slotType] || sensorIcon(slotType)
 }
 
 // Smart group detection rules
@@ -115,6 +160,8 @@ function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
     onToggleSelect(entity.entity_id)
   }
 
+  const DomainIcon = domainIcon(entity.domain)
+
   return (
     <div
       ref={setNodeRef}
@@ -141,7 +188,7 @@ function DraggableEntity({ entity, slotType, isSelected, onToggleSelect }) {
           {...attributes}
           className="flex-1 min-w-0 flex items-center gap-2 cursor-grab"
         >
-          <span className="text-lg">{entity.icon || '📍'}</span>
+          <DomainIcon size={16} className="flex-shrink-0 text-gray-400" aria-hidden="true" />
           <div className="flex-1 min-w-0">
             <div className="font-medium truncate text-sm">
               {entity.friendly_name || entity.entity_id}
@@ -364,6 +411,8 @@ export default function EntityInventory({
     }
   }
 
+  const SlotFilterIcon = slotFilter ? slotIcon(slotFilter.category, slotFilter.slotType) : null
+
   return (
     <div className="h-full min-h-0 w-full flex flex-col">
       <div className="p-3 border-b border-[#2d3a5c] space-y-2">
@@ -372,7 +421,7 @@ export default function EntityInventory({
         {/* Slot filter indicator */}
         {slotFilter && (
           <div className="flex items-center gap-2 p-2 bg-green-500/20 border border-green-500/50 rounded text-sm">
-            <span className="text-lg">{slotFilter.slotDef?.icon}</span>
+            <SlotFilterIcon size={16} className="flex-shrink-0 text-green-400" aria-hidden="true" />
             <div className="flex-1">
               <span className="text-green-400">Adding to: </span>
               <span className="font-medium">{slotFilter.slotDef?.label}</span>
@@ -426,8 +475,8 @@ export default function EntityInventory({
               onClick={() => setShowFilters(!showFilters)}
               className="text-xs text-gray-400 hover:text-white flex items-center gap-1"
             >
-              <span>{showFilters ? '▼' : '▶'}</span>
-              <span>Smart Filters</span>
+              {showFilters ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
+              <span>Smart filters</span>
               {hiddenGroups.length > 0 && (
                 <span className="text-red-400 ml-1">({hiddenGroups.length} hidden)</span>
               )}
@@ -473,9 +522,10 @@ export default function EntityInventory({
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleSelectAllVisible}
-            className="text-xs text-gray-400 hover:text-white"
+            className="text-xs text-gray-400 hover:text-white flex items-center gap-1 min-h-8"
           >
-            {allVisibleSelected ? '☑ Deselect All' : '☐ Select All'}
+            {allVisibleSelected ? <Check size={14} aria-hidden="true" /> : <Square size={14} aria-hidden="true" />}
+            {allVisibleSelected ? 'Deselect all' : 'Select all'}
           </button>
 
           {visibleSelectedCount > 0 && (
@@ -535,7 +585,8 @@ export default function EntityInventory({
               return orderA - orderB
             })
             .map(([domain, domainEntities]) => {
-              const info = DOMAIN_INFO[domain] || { icon: '📦', label: domain }
+              const info = DOMAIN_INFO[domain] || { icon: Package, label: domain }
+              const DomainIcon = info.icon
               const isCollapsed = collapsedDomains.has(domain)
 
               return (
@@ -545,8 +596,8 @@ export default function EntityInventory({
                     onClick={() => toggleDomain(domain)}
                     className="w-full flex items-center gap-2 px-3 py-2 bg-[#1a1a2e] hover:bg-[#252545] transition-colors text-left"
                   >
-                    <span className="text-sm">{isCollapsed ? '▶' : '▼'}</span>
-                    <span className="text-lg">{info.icon}</span>
+                    {isCollapsed ? <ChevronRight size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+                    <DomainIcon size={16} className="text-gray-400" aria-hidden="true" />
                     <span className="flex-1 text-sm font-medium">{info.label}</span>
                     <span className="text-xs text-gray-400 bg-[#2d3a5c] px-2 py-0.5 rounded-full">
                       {domainEntities.length}
@@ -588,14 +639,16 @@ export default function EntityInventory({
             onClick={() => setShowHidden(!showHidden)}
             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-500 hover:text-gray-300 transition-colors"
           >
-            <span>{showHidden ? '▼' : '▶'}</span>
+            {showHidden ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
             <span>Hidden ({hiddenEntityObjects.length})</span>
           </button>
           {showHidden && (
             <div className="px-3 pb-2 space-y-1 max-h-48 overflow-y-auto">
-              {hiddenEntityObjects.map(entity => (
+              {hiddenEntityObjects.map(entity => {
+                const HiddenIcon = domainIcon(entity.domain)
+                return (
                 <div key={entity.entity_id} className="flex items-center gap-2 p-1.5 bg-[#1a1a2e] rounded text-sm opacity-60">
-                  <span>{entity.icon || '📍'}</span>
+                  <HiddenIcon size={14} className="flex-shrink-0 text-gray-400" aria-hidden="true" />
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-xs">{entity.friendly_name || entity.entity_id}</div>
                   </div>
@@ -608,16 +661,27 @@ export default function EntityInventory({
                     </button>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
       )}
 
-      <div className="p-2 border-t border-[#2d3a5c] text-xs text-gray-500 text-center">
-        {filteredEntities.length} of {relevantEntities.length} entities
-        {hiddenGroupEntityIds.size > 0 && ` • ${hiddenGroupEntityIds.size} filtered`}
-        {selectedEntities.length > 0 && ` • ${selectedEntities.length} selected`}
+      <div className="p-2 border-t border-[#2d3a5c] text-xs text-gray-500 flex items-center justify-center gap-2">
+        <span>{filteredEntities.length} of {relevantEntities.length} entities</span>
+        {hiddenGroupEntityIds.size > 0 && (
+          <>
+            <span className="w-px h-3 bg-[#2d3a5c]" aria-hidden="true" />
+            <span>{hiddenGroupEntityIds.size} filtered</span>
+          </>
+        )}
+        {selectedEntities.length > 0 && (
+          <>
+            <span className="w-px h-3 bg-[#2d3a5c]" aria-hidden="true" />
+            <span>{selectedEntities.length} selected</span>
+          </>
+        )}
       </div>
     </div>
   )
