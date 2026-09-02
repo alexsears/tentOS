@@ -1,63 +1,100 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  ExternalLink,
+  ListOrdered,
+  LoaderCircle,
+  Pencil,
+  RefreshCw,
+  TriangleAlert,
+  X,
+} from 'lucide-react'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
-import { getApiBase, apiFetch } from '../utils/api'
+import { apiFetch } from '../utils/api'
 import { sensorEntities, entityHistoryPath, tentHistoryPath } from '../utils/history'
 import { finiteNumberOrNull } from '../utils/numbers'
+import { actuatorBaseType, actuatorIcon, sensorIcon, stageIcon } from '../utils/icons'
 import { HistoryIcon } from './HistoryIcon'
+import { CardMenu } from './CardMenu'
 
-// Actuator icon definitions with states
-const ACTUATOR_ICONS = {
-  light: { icon: '💡', activeColor: 'text-yellow-400', label: 'Light' },
-  exhaust_fan: { icon: '🌀', activeColor: 'text-blue-400', label: 'Exhaust' },
-  circulation_fan: { icon: '🔄', activeColor: 'text-cyan-400', label: 'Circ Fan' },
-  humidifier: { icon: '💨', activeColor: 'text-blue-300', label: 'Humid' },
-  dehumidifier: { icon: '🏜️', activeColor: 'text-orange-400', label: 'Dehumid' },
-  heater: { icon: '🔥', activeColor: 'text-red-400', label: 'Heater' },
-  ac: { icon: '❄️', activeColor: 'text-cyan-400', label: 'A/C' },
-  water_pump: { icon: '🚿', activeColor: 'text-blue-400', label: 'Water' },
-  drain_pump: { icon: '🔽', activeColor: 'text-gray-400', label: 'Drain' }
-}
-
-function getActuatorDef(slot) {
-  if (ACTUATOR_ICONS[slot]) return ACTUATOR_ICONS[slot]
-  // Handle numbered variants (e.g. exhaust_fan_2 -> exhaust_fan)
-  const match = slot.match(/^(.+)_(\d+)$/)
-  if (match && ACTUATOR_ICONS[match[1]]) {
-    const base = ACTUATOR_ICONS[match[1]]
-    return { ...base, label: `${base.label} ${match[2]}` }
-  }
-  return { icon: '⚡', activeColor: 'text-green-400', label: slot }
+// Default short labels per actuator base type. Numbered variants
+// (exhaust_fan_2) get the number appended.
+const ACTUATOR_LABELS = {
+  light: 'Light',
+  exhaust_fan: 'Exhaust',
+  circulation_fan: 'Circ fan',
+  humidifier: 'Humidifier',
+  dehumidifier: 'Dehumidifier',
+  heater: 'Heater',
+  ac: 'A/C',
+  water_pump: 'Water',
+  drain_pump: 'Drain',
 }
 
 // Plural labels for grouped actuators
 const GROUP_LABELS = {
-  light: 'Lights', exhaust_fan: 'Fans', circulation_fan: 'Circ Fans',
+  light: 'Lights', exhaust_fan: 'Fans', circulation_fan: 'Circ fans',
   humidifier: 'Humidifiers', dehumidifier: 'Dehumidifiers', heater: 'Heaters',
   ac: 'A/Cs', water_pump: 'Pumps', drain_pump: 'Drains'
 }
 
-function getBaseType(slot) {
-  if (ACTUATOR_ICONS[slot]) return slot
+const STAGE_LABELS = {
+  seedling: 'Seedling',
+  veg: 'Veg',
+  flower: 'Flower',
+}
+
+function getActuatorLabel(slot) {
+  if (ACTUATOR_LABELS[slot]) return ACTUATOR_LABELS[slot]
   const match = slot.match(/^(.+)_(\d+)$/)
-  if (match && ACTUATOR_ICONS[match[1]]) return match[1]
+  if (match && ACTUATOR_LABELS[match[1]]) return `${ACTUATOR_LABELS[match[1]]} ${match[2]}`
   return slot
+}
+
+function getGroupLabel(baseType) {
+  return GROUP_LABELS[baseType] || `${getActuatorLabel(baseType)}s`
+}
+
+function isOnState(state) {
+  return state === 'on' || state === 'playing' || state === 'open'
+}
+
+function isUnavailableState(state) {
+  return state === 'unavailable' || state === 'unknown'
 }
 
 function groupActuatorsByType(slots) {
   const groups = []
   const seen = new Set()
   for (const slot of slots) {
-    const base = getBaseType(slot)
+    const base = actuatorBaseType(slot)
     if (seen.has(base)) {
       const group = groups.find(g => g.baseType === base)
       if (group) group.slots.push(slot)
     } else {
       seen.add(base)
-      groups.push({ baseType: base, slots: [slot], def: ACTUATOR_ICONS[base] || { icon: '⚡', activeColor: 'text-green-400', label: base } })
+      groups.push({ baseType: base, slots: [slot] })
     }
   }
   return groups
+}
+
+function relativeTime(iso, now) {
+  const at = Date.parse(iso)
+  if (!Number.isFinite(at)) return null
+  const diff = Math.max(0, now - at)
+  const sec = Math.round(diff / 1000)
+  if (sec < 45) return 'just now'
+  const min = Math.round(sec / 60)
+  if (min < 60) return `${min} min ago`
+  const hr = Math.round(min / 60)
+  if (hr < 24) return `${hr} h ago`
+  const day = Math.round(hr / 24)
+  if (day < 7) return `${day} d ago`
+  return new Date(at).toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
 function HistoryButton({ path, label, className = '' }) {
@@ -65,127 +102,107 @@ function HistoryButton({ path, label, className = '' }) {
   if (!path) return null
   return (
     <button
+      type="button"
       onClick={(e) => { e.stopPropagation(); navigate(path) }}
       title={label ? `${label} history` : 'History'}
-      className={`shrink-0 px-2 py-1 rounded text-gray-400 hover:text-white hover:bg-[#2d3a5c] ${className}`}
+      aria-label={label ? `${label} history` : 'History'}
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-[#2d3a5c] hover:text-white ${className}`}
     >
-      <HistoryIcon size={14} />
+      <HistoryIcon size={16} />
     </button>
   )
 }
 
-function ActuatorButton({ slot, state, pending, onToggle, onClick, customLabel, customIcon, friendlyName }) {
-  const def = getActuatorDef(slot)
-  const isOn = state === 'on' || state === 'playing' || state === 'open'
-  const isUnavailable = state === 'unavailable' || state === 'unknown'
-
-  // Use custom label > friendly name > default slot label
-  const displayLabel = customLabel || friendlyName || def.label
-  const displayIcon = customIcon || def.icon
+// Compact 44px pill: icon, label, state colouring. Custom emoji icons are
+// ignored on purpose; custom labels win over friendly names.
+function ActuatorPill({ slot, state, pending, onToggle, onClick, customLabel, friendlyName, fill = false }) {
+  const Icon = actuatorIcon(slot)
+  const isOn = isOnState(state)
+  const isUnavailable = isUnavailableState(state)
+  const displayLabel = customLabel || friendlyName || getActuatorLabel(slot)
 
   return (
     <button
+      type="button"
       onClick={onClick || (() => onToggle(slot))}
       disabled={pending || isUnavailable}
-      className={`
-        relative flex flex-col items-center justify-center p-2 rounded-lg
-        transition-all duration-200 min-w-0 min-h-16 w-full sm:w-auto sm:min-w-[60px]
-        ${isUnavailable
-          ? 'bg-gray-800 cursor-not-allowed opacity-50'
-          : isOn
-            ? 'bg-green-900/30 hover:bg-green-900/50 border border-green-600/50'
-            : 'bg-[#1a1a2e] hover:bg-[#2d3a5c] border border-transparent'
-        }
-        ${pending ? 'animate-pulse' : ''}
-      `}
+      aria-pressed={isOn}
       title={`${displayLabel}: ${state || 'unknown'}`}
+      className={`inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-medium transition-colors ${
+        fill ? 'min-w-0 flex-1 justify-start' : 'shrink-0'
+      } ${
+        isUnavailable
+          ? 'cursor-not-allowed border-[#2d3a5c] bg-[#1a1a2e] text-gray-500 opacity-50'
+          : isOn
+            ? 'border-green-500/60 bg-green-500/10 text-green-300 hover:bg-green-500/20'
+            : 'border-[#2d3a5c] bg-[#1a1a2e] text-gray-400 hover:border-gray-500 hover:text-gray-200'
+      } ${pending ? 'animate-pulse' : ''}`}
     >
-      {/* Icon with animation for fans */}
-      <span className={`text-xl ${isOn ? def.activeColor : 'text-gray-500'}
-        ${isOn && (slot.includes('fan')) ? 'animate-spin' : ''}
-      `} style={{ animationDuration: '2s' }}>
-        {displayIcon}
-      </span>
-
-      {/* Label */}
-      <span className={`text-[10px] mt-0.5 ${isOn ? 'text-white' : 'text-gray-500'}`}>
-        {displayLabel}
-      </span>
-
-      {/* State indicator dot */}
-      <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full
-        ${pending ? 'bg-yellow-400 animate-pulse' :
-          isUnavailable ? 'bg-gray-600' :
-          isOn ? 'bg-green-400' : 'bg-gray-600'}
-      `} />
+      <Icon size={16} className="shrink-0" aria-hidden="true" />
+      <span className="truncate">{displayLabel}</span>
     </button>
   )
 }
 
-function ActuatorGroupButton({ group, getState, onClick }) {
-  const def = group.def
-  const anyOn = group.slots.some(s => {
-    const st = getState(s)
-    return st === 'on' || st === 'playing' || st === 'open'
-  })
-  const label = GROUP_LABELS[group.baseType] || `${def.label}s`
+function ActuatorGroupPill({ group, getState, onClick }) {
+  const Icon = actuatorIcon(group.baseType)
+  const onCount = group.slots.filter(s => isOnState(getState(s))).length
+  const anyOn = onCount > 0
+  const label = getGroupLabel(group.baseType)
 
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`
-        relative flex flex-col items-center justify-center p-2 sm:p-3 rounded-lg
-        transition-all duration-200 min-w-0 min-h-16 w-full sm:w-auto sm:min-w-[70px]
-        ${anyOn
-          ? 'bg-green-900/30 hover:bg-green-900/50 border border-green-600/50'
-          : 'bg-[#1a1a2e] hover:bg-[#2d3a5c] border border-transparent'
-        }
-      `}
-      title={`${label} (${group.slots.length})`}
+      title={`${label}: ${onCount} of ${group.slots.length} on`}
+      className={`inline-flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-medium transition-colors ${
+        anyOn
+          ? 'border-green-500/60 bg-green-500/10 text-green-300 hover:bg-green-500/20'
+          : 'border-[#2d3a5c] bg-[#1a1a2e] text-gray-400 hover:border-gray-500 hover:text-gray-200'
+      }`}
     >
-      <span className={`text-2xl ${anyOn ? def.activeColor : 'text-gray-500'}`}>
-        {def.icon}
+      <Icon size={16} className="shrink-0" aria-hidden="true" />
+      <span>{label}</span>
+      <span className={`rounded-full px-1.5 text-xs leading-5 ${anyOn ? 'bg-green-500/20' : 'bg-white/10'}`}>
+        {group.slots.length}
       </span>
-      <span className={`text-xs mt-1 flex items-center gap-1 ${anyOn ? 'text-white' : 'text-gray-500'}`}>
-        {label}
-        <span className="bg-white/10 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
-          {group.slots.length}
-        </span>
-      </span>
-      <span className={`absolute top-1 right-1 w-2 h-2 rounded-full ${anyOn ? 'bg-green-400' : 'bg-gray-600'}`} />
     </button>
   )
 }
 
-function GroupPopup({ group, getState, checkPending, onToggle, getDisplayLabel, getCustomIcon, getActuatorName, getActuatorEntity, onClose }) {
-  const def = group.def
-  const label = GROUP_LABELS[group.baseType] || `${def.label}s`
+function GroupPopup({ group, getState, checkPending, onToggle, getDisplayLabel, getActuatorName, getActuatorEntity, onClose }) {
+  const Icon = actuatorIcon(group.baseType)
+  const label = getGroupLabel(group.baseType)
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[#16213e] rounded-lg w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
-        <div className="p-4 border-b border-[#2d3a5c] flex items-center justify-between">
-          <h4 className="font-semibold flex items-center gap-2">
-            <span className="text-xl">{def.icon}</span> {label}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-lg bg-[#16213e]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-[#2d3a5c] py-2 pl-4 pr-2">
+          <h4 className="flex items-center gap-2 font-semibold">
+            <Icon size={18} className="text-gray-400" aria-hidden="true" />
+            {label}
           </h4>
-          <button onClick={onClose} className="text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-[#2d3a5c]">
-            ✕
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-gray-400 hover:bg-[#2d3a5c] hover:text-white"
+          >
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
-        <div className="p-4 space-y-2">
+        <div className="space-y-2 p-4">
           {group.slots.map(slot => (
-            <div key={slot} className="flex items-center gap-3">
-              <div className="flex-1">
-                <ActuatorButton
-                  slot={slot}
-                  state={getState(slot)}
-                  pending={checkPending(slot)}
-                  onToggle={onToggle}
-                  customLabel={getDisplayLabel(slot)}
-                  customIcon={getCustomIcon(slot)}
-                  friendlyName={getActuatorName(slot)}
-                />
-              </div>
+            <div key={slot} className="flex items-center gap-2">
+              <ActuatorPill
+                slot={slot}
+                state={getState(slot)}
+                pending={checkPending(slot)}
+                onToggle={onToggle}
+                customLabel={getDisplayLabel(slot)}
+                friendlyName={getActuatorName(slot)}
+                fill
+              />
               <HistoryButton
                 path={entityHistoryPath(getActuatorEntity?.(slot))}
                 label={getDisplayLabel(slot) || getActuatorName(slot) || slot}
@@ -198,164 +215,31 @@ function GroupPopup({ group, getState, checkPending, onToggle, getDisplayLabel, 
   )
 }
 
-function SensorDisplay({ value, unit, label, icon, color = 'text-white', historyPath }) {
+// Compact mode (four readings) trims the number size so a 300px-wide card
+// still fits every column without clipping.
+function Reading({ value, unit, label, slot, color = 'text-white', historyPath, compact = false }) {
   const navigate = useNavigate()
+  const Icon = sensorIcon(slot)
   const clickable = Boolean(historyPath)
   return (
     <div
-      className={`text-center rounded ${clickable ? 'cursor-pointer hover:bg-[#2d3a5c]/60 transition-colors' : ''}`}
+      className={`flex min-h-[44px] min-w-0 flex-col items-center justify-center overflow-hidden rounded-lg px-0.5 py-1 ${
+        clickable ? 'cursor-pointer transition-colors hover:bg-[#2d3a5c]/60' : ''
+      }`}
       onClick={clickable ? (e) => { e.stopPropagation(); navigate(historyPath) } : undefined}
       title={clickable ? `${label} history` : undefined}
       role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(historyPath) } } : undefined}
     >
-      <div className="text-[10px] text-gray-500">{icon}</div>
-      <div className={`text-lg font-bold leading-tight ${color}`}>
-        {value != null ? value : '--'}
-        {value != null && unit && <span className="text-[10px] text-gray-400 ml-0.5">{unit}</span>}
+      <div className={`flex max-w-full items-baseline ${compact ? 'gap-0.5' : 'gap-1'}`}>
+        <Icon size={compact ? 12 : 14} className="shrink-0 self-center text-gray-500" aria-hidden="true" />
+        <span className={`font-semibold leading-7 ${compact ? 'text-lg' : 'text-xl'} ${color}`}>
+          {value != null ? value : '--'}
+        </span>
+        {value != null && unit && <span className="text-xs text-gray-400">{unit}</span>}
       </div>
-      <div className="text-[10px] text-gray-400">{label}</div>
-    </div>
-  )
-}
-
-function CameraPreview({ tentId, entityId }) {
-  const [expanded, setExpanded] = useState(false)
-  const [error, setError] = useState(false)
-  const [refreshKey, setRefreshKey] = useState(0)
-  const streamImgRef = useRef(null)
-  const apiBase = getApiBase()
-
-  // Auto-refresh snapshot every 10 seconds (slower on dashboard to save bandwidth)
-  useEffect(() => {
-    if (error) return
-    const interval = setInterval(() => {
-      setRefreshKey(k => k + 1)
-    }, 10000)
-    return () => clearInterval(interval)
-  }, [error])
-
-  // Cleanup MJPEG stream when closing expanded view
-  useEffect(() => {
-    if (!expanded && streamImgRef.current) {
-      streamImgRef.current.src = ''
-    }
-    return () => {
-      if (streamImgRef.current) {
-        streamImgRef.current.src = ''
-      }
-    }
-  }, [expanded])
-
-  const snapshotUrl = `${apiBase}/api/camera/${tentId}/${entityId}/snapshot?t=${refreshKey}`
-  const streamUrl = `${apiBase}/api/camera/${tentId}/${entityId}/stream`
-
-  const handleClick = (e) => {
-    e.stopPropagation()
-    setExpanded(!expanded)
-  }
-
-  const handleClose = (e) => {
-    e.stopPropagation()
-    setExpanded(false)
-  }
-
-  return (
-    <>
-      {/* Normal preview */}
-      {!expanded && (
-        <div
-          className="relative rounded-lg overflow-hidden cursor-pointer bg-gray-900 h-24"
-          onClick={handleClick}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === 'Enter' && handleClick(e)}
-          aria-label="Expand camera view"
-        >
-          {error ? (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              <span>📷 Camera unavailable</span>
-            </div>
-          ) : (
-            <img
-              key={refreshKey}
-              src={snapshotUrl}
-              alt={`Camera snapshot`}
-              className="w-full h-full object-cover"
-              onError={() => setError(true)}
-            />
-          )}
-          {!error && (
-            <div className="absolute bottom-1 right-1 text-xs bg-black/50 text-white px-2 py-0.5 rounded">
-              Click for live
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Fullscreen expanded view */}
-      {expanded && (
-        <div
-          className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center"
-          onClick={handleClose}
-        >
-          <div
-            className="relative w-full h-full max-w-6xl max-h-[90vh] m-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <img
-              ref={streamImgRef}
-              src={streamUrl}
-              alt={`Live stream from camera`}
-              className="w-full h-full object-contain"
-              onError={() => setError(true)}
-            />
-            <button
-              onClick={handleClose}
-              className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white px-3 py-1 rounded text-sm"
-            >
-              ✕ Close
-            </button>
-            <div className="absolute bottom-2 left-2 text-xs bg-black/70 text-red-400 px-2 py-1 rounded">
-              ● LIVE
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
-
-// Growth stage badge component
-function GrowthStageBadge({ stage, flowerWeek, onFlip, loading }) {
-  const isFlower = stage === 'flower'
-  const isVeg = stage === 'veg'
-
-  return (
-    <div className="flex items-center gap-2">
-      {/* Stage indicator */}
-      <button
-        className={`
-          px-2.5 sm:px-3 py-1.5 rounded-full font-medium text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 cursor-pointer
-          transition-all active:scale-95 border-2 border-transparent hover:border-white/20
-          ${isFlower
-            ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-lg shadow-pink-500/30'
-            : isVeg
-              ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg shadow-green-500/30'
-              : 'bg-gray-700 text-gray-300'
-          }
-        `}
-        onClick={onFlip}
-      >
-        <span className="text-lg">{isFlower ? '🌸' : isVeg ? '🌱' : '❓'}</span>
-        <span>{isFlower ? 'Flower' : isVeg ? 'Veg' : 'Unknown'}</span>
-        {isFlower && flowerWeek && (
-          <span className="bg-white/20 px-2 py-0.5 rounded text-xs">
-            Week {flowerWeek}
-          </span>
-        )}
-        {loading && <span className="animate-spin">⏳</span>}
-        <span className="text-white/50 text-xs">Change</span>
-      </button>
+      <div className="text-xs leading-4 text-gray-400">{label}</div>
     </div>
   )
 }
@@ -367,13 +251,15 @@ function FlipStageModal({ tent, currentStage, onConfirm, onCancel }) {
   const [createAutomation, setCreateAutomation] = useState(true)
 
   const isFlippingToFlower = currentStage !== 'flower'
+  const TargetIcon = stageIcon(isFlippingToFlower ? 'flower' : 'veg')
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
       <div className="bg-[#16213e] rounded-lg w-full max-w-md">
         <div className="p-4 border-b border-[#2d3a5c]">
           <h3 className="text-lg font-semibold flex items-center gap-2">
-            {isFlippingToFlower ? '🌸 Flip to Flower?' : '🌱 Reset to Veg?'}
+            <TargetIcon size={20} className="text-gray-400" aria-hidden="true" />
+            {isFlippingToFlower ? 'Flip to flower?' : 'Reset to veg?'}
           </h3>
         </div>
 
@@ -384,7 +270,7 @@ function FlipStageModal({ tent, currentStage, onConfirm, onCancel }) {
                 This will set <strong>{tent.name}</strong> to flower stage and:
               </p>
               <ul className="text-sm text-gray-400 list-disc list-inside space-y-1">
-                <li>Start tracking flower week (Week 1)</li>
+                <li>Start tracking flower week (week 1)</li>
                 <li>Adjust VPD targets for flowering</li>
                 <li>Update light schedule to 12/12</li>
               </ul>
@@ -406,7 +292,7 @@ function FlipStageModal({ tent, currentStage, onConfirm, onCancel }) {
                 {createAutomation && (
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Lights On</label>
+                      <label className="block text-xs text-gray-400 mb-1">Lights on</label>
                       <input
                         type="time"
                         value={lightOnTime}
@@ -415,7 +301,7 @@ function FlipStageModal({ tent, currentStage, onConfirm, onCancel }) {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Lights Off</label>
+                      <label className="block text-xs text-gray-400 mb-1">Lights off</label>
                       <input
                         type="time"
                         value={lightOffTime}
@@ -428,7 +314,7 @@ function FlipStageModal({ tent, currentStage, onConfirm, onCancel }) {
               </div>
 
               <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3 text-sm text-yellow-300">
-                <strong>Note:</strong> Make sure your tent is ready for flower before confirming.
+                Make sure the tent is ready for flower before confirming.
               </div>
             </>
           ) : (
@@ -439,23 +325,24 @@ function FlipStageModal({ tent, currentStage, onConfirm, onCancel }) {
               <ul className="text-sm text-gray-400 list-disc list-inside space-y-1">
                 <li>Clear flower start date</li>
                 <li>Reset VPD targets for veg</li>
-                <li>You'll need to manually update light schedule</li>
+                <li>The light schedule needs a manual update afterwards</li>
               </ul>
             </>
           )}
         </div>
 
         <div className="p-4 border-t border-[#2d3a5c] flex gap-2 justify-end">
-          <button onClick={onCancel} className="btn">Cancel</button>
+          <button type="button" onClick={onCancel} className="btn">Cancel</button>
           <button
+            type="button"
             onClick={() => onConfirm({
               createAutomation,
               lightOnTime,
               lightOffTime
             })}
-            className={`btn ${isFlippingToFlower ? 'bg-pink-600 hover:bg-pink-700' : 'btn-primary'}`}
+            className="btn btn-primary"
           >
-            {isFlippingToFlower ? '🌸 Flip to Flower' : '🌱 Reset to Veg'}
+            {isFlippingToFlower ? 'Flip to flower' : 'Reset to veg'}
           </button>
         </div>
       </div>
@@ -463,38 +350,22 @@ function FlipStageModal({ tent, currentStage, onConfirm, onCancel }) {
   )
 }
 
-// Grow tent icon component
-function GrowTentIcon({ color = '#22c55e', size = 40 }) {
-  return (
-    <svg viewBox="0 0 40 40" width={size} height={size}>
-      {/* Tent body */}
-      <rect x="4" y="8" width="32" height="28" rx="2" fill="#1a1a2e" stroke="#374151" strokeWidth="1.5"/>
-      {/* Door zipper */}
-      <line x1="20" y1="12" x2="20" y2="36" stroke="#4b5563" strokeWidth="1" strokeDasharray="2,2"/>
-      {/* Door panels */}
-      <path d="M8,12 L20,12 L20,32 L8,32 Z" fill="#111827" opacity="0.5"/>
-      <path d="M20,12 L32,12 L32,32 L20,32 Z" fill="#0d1117" opacity="0.5"/>
-      {/* Top vent port */}
-      <circle cx="20" cy="5" r="3" fill="#1a1a2e" stroke="#374151" strokeWidth="1"/>
-      <circle cx="20" cy="5" r="1.5" fill={color} opacity="0.8"/>
-      {/* Side vent ports */}
-      <circle cx="6" cy="18" r="2.5" fill="#111827" stroke="#374151" strokeWidth="1"/>
-      <circle cx="34" cy="18" r="2.5" fill="#111827" stroke="#374151" strokeWidth="1"/>
-      {/* Status light */}
-      <circle cx="30" cy="10" r="2" fill={color}/>
-      {/* Grow light glow inside */}
-      <ellipse cx="20" cy="20" rx="8" ry="4" fill={color} opacity="0.15"/>
-    </svg>
-  )
-}
-
-export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlSettings, onRefresh, isLive = false, hasUsableData = false }) {
+export function TentCard({
+  tent,
+  onAction,
+  onToggle,
+  isPending,
+  onUpdateControlSettings,
+  onRefresh,
+  isLive = false,
+  hasUsableData = false,
+  now = Date.now(),
+}) {
   const navigate = useNavigate()
   const { unit, formatTemp, getTempUnit } = useTemperatureUnit()
   const [editMode, setEditMode] = useState(false)
   const [editingSlot, setEditingSlot] = useState(null)
   const [tempLabel, setTempLabel] = useState('')
-  const [tempIcon, setTempIcon] = useState('')
   const [localOrder, setLocalOrder] = useState(null)
   const [localLabels, setLocalLabels] = useState({})
   const [localIcons, setLocalIcons] = useState({})
@@ -506,6 +377,12 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
   const growthStage = tent.growth_stage || {}
   const currentStage = growthStage.stage || 'unknown'
   const flowerWeek = growthStage.flower_week
+  const StageIcon = stageIcon(currentStage)
+  const stageLabel = STAGE_LABELS[currentStage] || 'Unknown'
+  const stageText = currentStage === 'flower' && flowerWeek ? `${stageLabel}, week ${flowerWeek}` : stageLabel
+  const stageTitle = growthStage.vpd_target
+    ? `Target VPD ${growthStage.vpd_target.min}-${growthStage.vpd_target.max} kPa`
+    : `Growth stage: ${stageLabel}`
 
   // Handle flip stage
   const handleFlipStage = async (options) => {
@@ -609,19 +486,10 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
     return available
   }
 
-  const configuredActuators = getOrderedActuators()
-
   // Get custom label for actuator
   const getCustomLabel = (slot) => {
     const labels = tent.control_settings?.labels
     return labels?.[slot] || null
-  }
-
-  // Get custom icon for actuator
-  const getCustomIcon = (slot) => {
-    if (editMode && localIcons[slot]) return localIcons[slot]
-    const icons = tent.control_settings?.icons
-    return icons?.[slot] || null
   }
 
   // Get custom label (with edit mode support)
@@ -670,27 +538,18 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
 
   const startEditSlot = (slot) => {
     setEditingSlot(slot)
-    const def = getActuatorDef(slot)
     setTempLabel(localLabels[slot] || tent.control_settings?.labels?.[slot] || '')
-    setTempIcon(localIcons[slot] || tent.control_settings?.icons?.[slot] || '')
   }
 
   const saveSlotEdit = () => {
     if (editingSlot) {
       const newLabels = { ...localLabels }
-      const newIcons = { ...localIcons }
       if (tempLabel.trim()) {
         newLabels[editingSlot] = tempLabel.trim()
       } else {
         delete newLabels[editingSlot]
       }
-      if (tempIcon.trim()) {
-        newIcons[editingSlot] = tempIcon.trim()
-      } else {
-        delete newIcons[editingSlot]
-      }
       setLocalLabels(newLabels)
-      setLocalIcons(newIcons)
     }
     setEditingSlot(null)
   }
@@ -706,226 +565,210 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
     }
   }
 
-  // Get configured cameras
-  const getCameras = () => {
-    const cameras = tent.sensors?.camera
-    if (!cameras) return []
-    if (Array.isArray(cameras)) {
-      // Handle array of entity IDs or objects with entity_id
-      return cameras.map(c => typeof c === 'string' ? c : c?.entity_id).filter(Boolean)
-    }
-    if (typeof cameras === 'string') return [cameras]
-    // Handle object with _entities
-    if (cameras._entities) {
-      return Object.keys(cameras._entities)
-    }
-    return []
-  }
-
   const checkPending = (slot) => {
     return isPending ? isPending(tent.id, slot) : false
   }
 
-  // Get tent status color
-  const getTentColor = () => {
-    if (tent.alerts?.length > 0) return '#ef4444' // red
-    if (tent.environment_score >= 80) return '#22c55e' // green
-    if (tent.environment_score >= 60) return '#eab308' // yellow
-    return '#6b7280' // gray
+  // Status cluster
+  const statusLabel = isLive
+    ? 'Live'
+    : hasUsableData
+      ? 'Stale'
+      : Object.keys(tent.sensors || {}).length > 0 ? 'Unavailable' : 'No data'
+  const statusDot = isLive ? 'bg-green-400' : hasUsableData ? 'bg-yellow-400' : 'bg-gray-500'
+  const statusText = isLive ? 'text-green-400' : hasUsableData ? 'text-yellow-300' : 'text-gray-400'
+  const updatedAgo = relativeTime(tent.last_updated, now)
+  const score = finiteNumberOrNull(tent.environment_score)
+
+  // Alert line: highest severity, one line
+  const alerts = Array.isArray(tent.alerts) ? tent.alerts : []
+  const primaryAlert = alerts.find(alert => alert.severity === 'critical') || alerts[0] || null
+  let alertMessage = primaryAlert?.message || ''
+  if (primaryAlert && primaryAlert.type === 'temp_out_of_range' && primaryAlert.unit === 'C' && unit === 'F') {
+    // Convert Celsius values to Fahrenheit for display
+    const tempF = formatTemp(primaryAlert.value, 1)
+    const minF = formatTemp(primaryAlert.range_min, 0)
+    const maxF = formatTemp(primaryAlert.range_max, 0)
+    alertMessage = `Temperature ${tempF}°F is outside range (${minF}-${maxF}°F)`
   }
+  const alertIsCritical = primaryAlert?.severity === 'critical'
+
+  const displayOrder = getDisplayOrder()
+  const detailPath = `/tent/${tent.id}`
+
+  const menuItems = [
+    { label: 'Change stage', icon: RefreshCw, onSelect: () => setShowFlipModal(true), disabled: flipping },
+    displayOrder.length > 0 && !editMode
+      ? { label: 'Arrange controls', icon: ListOrdered, onSelect: enterEditMode }
+      : null,
+    { label: 'Open details', icon: ExternalLink, onSelect: () => navigate(detailPath) },
+  ]
 
   return (
-    <div className="card hover:border-green-600/50 transition-colors overflow-hidden">
-      {/* Header */}
-      <div className="flex items-start gap-2 mb-2">
-        <GrowTentIcon color={getTentColor()} size={36} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between">
-            <div>
-              <Link to={`/tent/${tent.id}`} className="text-base font-semibold hover:text-green-400">
-                {tent.name}
-              </Link>
-              {tent.description && (
-                <p className="hidden sm:block text-xs text-gray-400">{tent.description}</p>
-              )}
+    <div className="card relative flex min-w-0 flex-col gap-2 transition-colors hover:border-green-600/50">
+      {/* Header: name + stage on the left, status on the right, overflow menu at the corner */}
+      <div className="flex items-start gap-1">
+        <Link
+          to={detailPath}
+          title={tent.description || tent.name}
+          className="group flex min-h-[44px] min-w-0 flex-1 items-center gap-2 rounded-lg"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-base font-semibold leading-6 group-hover:text-green-400">
+              {tent.name}
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center gap-1 text-xs ${isLive ? 'text-green-400' : 'text-red-300'}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-green-400' : 'bg-red-400'}`} />
-                {isLive ? 'Live' : hasUsableData ? 'Stale' : Object.keys(tent.sensors || {}).length > 0 ? 'Unavailable' : 'No data'}
-              </span>
-              {tent.alerts?.length > 0 && (
-                <span className="badge badge-danger animate-pulse text-xs">
-                  {tent.alerts.length}
-                </span>
-              )}
-              <span className={`text-xl font-bold ${getScoreColor(tent.environment_score)}`}>
-                {tent.environment_score || '--'}
-              </span>
+            <span
+              className="mt-0.5 inline-flex max-w-full items-center gap-1 rounded-md bg-white/5 px-1.5 text-xs leading-5 text-gray-300"
+              title={stageTitle}
+            >
+              {flipping
+                ? <LoaderCircle size={12} className="shrink-0 animate-spin text-gray-400" aria-hidden="true" />
+                : <StageIcon size={12} className="shrink-0 text-gray-400" aria-hidden="true" />}
+              <span className="truncate">{stageText}</span>
+            </span>
+          </div>
+          <div className="shrink-0 text-right text-xs leading-5">
+            <div className={`flex items-center justify-end gap-1.5 ${statusText}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${statusDot}`} aria-hidden="true" />
+              <span>{statusLabel}</span>
+              {updatedAgo && <span className="text-gray-500">{updatedAgo}</span>}
+            </div>
+            <div className="text-gray-400">
+              Env <span className={`font-semibold ${score != null ? getScoreColor(score) : 'text-gray-500'}`}>{score != null ? score : '--'}</span>
             </div>
           </div>
-        </div>
+          <ChevronRight size={16} className="shrink-0 text-gray-500 group-hover:text-green-400" aria-hidden="true" />
+        </Link>
+        <CardMenu items={menuItems} label={`${tent.name} actions`} className="-mr-2 -mt-1" />
       </div>
 
-      {/* Growth Stage Badge */}
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <GrowthStageBadge
-          stage={currentStage}
-          flowerWeek={flowerWeek}
-          onFlip={() => setShowFlipModal(true)}
-          loading={flipping}
-        />
-        {growthStage.vpd_target && (
-          <div className="hidden sm:block text-xs text-gray-400 text-right">
-            Target VPD: {growthStage.vpd_target.min}-{growthStage.vpd_target.max} kPa
-          </div>
-        )}
-      </div>
-
-      {/* Sensors - Real-time values */}
-      <div className={`grid ${co2 != null ? 'grid-cols-4' : 'grid-cols-3'} gap-1 sm:gap-2 mb-2 p-2 bg-[#1a1a2e] rounded-lg`}>
-        <SensorDisplay
+      {/* Readings */}
+      <div className={`grid ${co2 != null ? 'grid-cols-4' : 'grid-cols-3'} gap-1 rounded-lg bg-[#1a1a2e] px-1 py-0.5`}>
+        <Reading
           value={temp != null ? formatTemp(temp, 1) : null}
           unit={getTempUnit()}
           label="Temp"
-          icon="🌡️"
+          slot="temperature"
+          compact={co2 != null}
           color={getTempColor()}
           historyPath={entityHistoryPath(sensorEntities(tent.sensors?.temperature))}
         />
-        <SensorDisplay
+        <Reading
           value={humidity != null ? Number(humidity).toFixed(1) : null}
           unit="%"
           label="Humidity"
-          icon="💧"
+          slot="humidity"
+          compact={co2 != null}
           color={getHumidityColor()}
           historyPath={entityHistoryPath(sensorEntities(tent.sensors?.humidity))}
         />
-        <SensorDisplay
+        <Reading
           value={vpd != null ? vpd.toFixed(1) : null}
-          unit=""
+          unit="kPa"
           label="VPD"
-          icon="🫧"
+          slot="vpd"
+          compact={co2 != null}
           color={getVpdColor(vpd)}
           historyPath={tentHistoryPath(tent.id, 'vpd')}
         />
         {co2 != null && (
-          <SensorDisplay
-            value={Number(co2).toFixed(1)}
+          <Reading
+            value={Number(co2).toFixed(0)}
             unit="ppm"
             label="CO2"
-            icon="💨"
+            slot="co2"
+            compact
             color="text-white"
             historyPath={entityHistoryPath(sensorEntities(tent.sensors?.co2))}
           />
         )}
       </div>
 
-      {/* Camera Preview */}
-      {getCameras().length > 0 && (
-        <div className="hidden sm:block mb-2">
-          <div className="text-xs text-gray-500 mb-2">Camera{getCameras().length > 1 ? 's' : ''}</div>
-          <div className={`grid gap-2 ${getCameras().length > 1 ? 'grid-cols-2' : ''}`}>
-            {getCameras().map(cameraId => (
-              <CameraPreview
-                key={cameraId}
-                tentId={tent.id}
-                entityId={cameraId}
-              />
-            ))}
-          </div>
-        </div>
+      {/* Alert line */}
+      {primaryAlert && (
+        <Link
+          to={detailPath}
+          title={alertMessage}
+          className={`flex min-w-0 items-center gap-1.5 text-xs leading-5 ${alertIsCritical ? 'text-red-300' : 'text-yellow-300'}`}
+        >
+          <TriangleAlert size={14} className="shrink-0" aria-hidden="true" />
+          <span className="truncate">{alertMessage}</span>
+        </Link>
       )}
 
-      {/* Actuators - Clickable Controls */}
-      {getDisplayOrder().length > 0 && (
-        <div className="mb-2">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-gray-500">
-              {editMode ? 'Drag to reorder, click ✏️ to rename' : 'Controls (click to toggle)'}
-            </div>
-            {!editMode ? (
-              <button
-                onClick={enterEditMode}
-                className="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded hover:bg-[#2d3a5c]"
-              >
-                ✏️ Edit
-              </button>
-            ) : (
-              <div className="flex gap-2">
+      {/* Controls */}
+      {displayOrder.length > 0 && (
+        editMode ? (
+          <div className="mt-auto space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-medium text-gray-400">Arrange controls</div>
+              <div className="flex gap-1">
                 <button
+                  type="button"
                   onClick={exitEditMode}
-                  className="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded hover:bg-[#2d3a5c]"
+                  className="h-11 rounded-lg px-3 text-xs text-gray-400 hover:bg-[#2d3a5c] hover:text-white"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={saveChanges}
-                  className="text-xs text-green-400 hover:text-green-300 px-3 py-1.5 rounded bg-green-900/30 hover:bg-green-900/50"
+                  className="h-11 rounded-lg bg-green-900/30 px-3 text-xs font-medium text-green-400 hover:bg-green-900/50 hover:text-green-300"
                 >
                   Save
                 </button>
               </div>
-            )}
-          </div>
-
-          {editMode ? (
-            // Edit mode: show reorder controls
-            <div className="space-y-1">
-              {getDisplayOrder().map((slot, idx) => {
-                const def = getActuatorDef(slot)
-                const state = getActuatorState(slot)
-                const isOn = state === 'on' || state === 'playing' || state === 'open'
-                const displayIcon = getCustomIcon(slot) || def.icon
-                const displayLabel = getDisplayLabel(slot) || def.label
-
-                return (
-                  <div key={slot} className="flex items-center gap-2 p-2 bg-[#1a1a2e] rounded-lg">
-                    {/* Reorder buttons */}
-                    <div className="flex flex-col gap-0.5">
-                      <button
-                        onClick={() => moveControl(slot, 'up')}
-                        disabled={idx === 0}
-                        className="px-2 py-1 text-sm text-gray-400 hover:text-white hover:bg-[#2d3a5c] rounded disabled:opacity-30"
-                      >
-                        ▲
-                      </button>
-                      <button
-                        onClick={() => moveControl(slot, 'down')}
-                        disabled={idx === getDisplayOrder().length - 1}
-                        className="px-2 py-1 text-sm text-gray-400 hover:text-white hover:bg-[#2d3a5c] rounded disabled:opacity-30"
-                      >
-                        ▼
-                      </button>
-                    </div>
-
-                    {/* Icon and label */}
-                    <span className={`text-xl ${isOn ? def.activeColor : 'text-gray-500'}`}>
-                      {displayIcon}
-                    </span>
-                    <span className="flex-1 text-sm">{displayLabel}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded ${
-                      isOn ? 'bg-green-900/30 text-green-400' : 'text-gray-500'
-                    }`}>
-                      {state}
-                    </span>
-
-                    {/* Edit button */}
-                    <button
-                      onClick={() => startEditSlot(slot)}
-                      className="px-2 py-1 hover:bg-[#2d3a5c] rounded text-gray-400 hover:text-white text-sm"
-                    >
-                      ✏️ Edit
-                    </button>
-                  </div>
-                )
-              })}
             </div>
-          ) : (
-            // Normal mode: grouped buttons
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(64px,1fr))] gap-2 sm:flex sm:flex-wrap">
-              {groupActuatorsByType(getDisplayOrder()).map(group => (
+            {displayOrder.map((slot, idx) => {
+              const Icon = actuatorIcon(slot)
+              const state = getActuatorState(slot)
+              const isOn = isOnState(state)
+              const displayLabel = getDisplayLabel(slot) || getActuatorName(slot) || getActuatorLabel(slot)
+
+              return (
+                <div key={slot} className="flex items-center gap-1 rounded-lg bg-[#1a1a2e] pl-1 pr-1">
+                  <button
+                    type="button"
+                    onClick={() => moveControl(slot, 'up')}
+                    disabled={idx === 0}
+                    aria-label={`Move ${displayLabel} up`}
+                    className="flex h-11 w-9 items-center justify-center rounded text-gray-400 hover:bg-[#2d3a5c] hover:text-white disabled:opacity-30"
+                  >
+                    <ArrowUp size={16} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveControl(slot, 'down')}
+                    disabled={idx === displayOrder.length - 1}
+                    aria-label={`Move ${displayLabel} down`}
+                    className="flex h-11 w-9 items-center justify-center rounded text-gray-400 hover:bg-[#2d3a5c] hover:text-white disabled:opacity-30"
+                  >
+                    <ArrowDown size={16} aria-hidden="true" />
+                  </button>
+                  <Icon size={16} className={`ml-1 shrink-0 ${isOn ? 'text-green-400' : 'text-gray-500'}`} aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate text-sm">{displayLabel}</span>
+                  <span className={`shrink-0 text-xs ${isOn ? 'text-green-400' : 'text-gray-500'}`}>
+                    {state}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => startEditSlot(slot)}
+                    aria-label={`Rename ${displayLabel}`}
+                    title="Rename"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-[#2d3a5c] hover:text-white"
+                  >
+                    <Pencil size={16} aria-hidden="true" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="app-scroll-strip -mx-1 mt-auto px-1">
+            <div className="flex w-max gap-2 py-0.5">
+              {groupActuatorsByType(displayOrder).map(group => (
                 group.slots.length === 1 ? (
-                  <ActuatorButton
+                  <ActuatorPill
                     key={group.slots[0]}
                     slot={group.slots[0]}
                     state={getActuatorState(group.slots[0])}
@@ -933,11 +776,10 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
                     onToggle={handleToggle}
                     onClick={group.slots[0] === 'ac' ? () => navigate('/climate') : undefined}
                     customLabel={getDisplayLabel(group.slots[0])}
-                    customIcon={getCustomIcon(group.slots[0])}
                     friendlyName={getActuatorName(group.slots[0])}
                   />
                 ) : (
-                  <ActuatorGroupButton
+                  <ActuatorGroupPill
                     key={group.baseType}
                     group={group}
                     getState={getActuatorState}
@@ -946,50 +788,42 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
                 )
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )
       )}
 
-      {/* Edit slot modal */}
+      {/* Rename control dialog */}
       {editingSlot && (
         <div
-          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
           onClick={() => setEditingSlot(null)}
         >
           <div
-            className="bg-[#16213e] rounded-lg p-4 w-80"
+            className="w-full max-w-xs rounded-lg bg-[#16213e] p-4"
             onClick={e => e.stopPropagation()}
           >
-            <h4 className="font-semibold mb-3">
-              Edit "{ACTUATOR_ICONS[editingSlot]?.label || editingSlot}"
+            <h4 className="mb-3 font-semibold">
+              Rename {getActuatorName(editingSlot) || getActuatorLabel(editingSlot)}
             </h4>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Custom Label</label>
+                <label htmlFor={`rename-${tent.id}-${editingSlot}`} className="mb-1 block text-xs text-gray-400">Label</label>
                 <input
+                  id={`rename-${tent.id}-${editingSlot}`}
                   type="text"
                   value={tempLabel}
                   onChange={e => setTempLabel(e.target.value)}
-                  placeholder={ACTUATOR_ICONS[editingSlot]?.label || editingSlot}
+                  onKeyDown={e => { if (e.key === 'Enter') saveSlotEdit() }}
+                  placeholder={getActuatorName(editingSlot) || getActuatorLabel(editingSlot)}
                   className="input w-full"
+                  autoFocus
                 />
               </div>
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Custom Icon (emoji)</label>
-                <input
-                  type="text"
-                  value={tempIcon}
-                  onChange={e => setTempIcon(e.target.value)}
-                  placeholder={ACTUATOR_ICONS[editingSlot]?.icon || '⚡'}
-                  className="input w-full"
-                  maxLength={4}
-                />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button onClick={() => setEditingSlot(null)} className="btn btn-sm">
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setEditingSlot(null)} className="btn btn-sm">
                   Cancel
                 </button>
-                <button onClick={saveSlotEdit} className="btn btn-sm btn-primary">
+                <button type="button" onClick={saveSlotEdit} className="btn btn-sm btn-primary">
                   Apply
                 </button>
               </div>
@@ -997,53 +831,6 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           </div>
         </div>
       )}
-
-      {/* Alerts */}
-      {tent.alerts?.length > 0 && (
-        <div className="mb-2 space-y-1">
-          {tent.alerts.slice(0, 2).map((alert, i) => {
-            // Format alert message based on user's temperature preference
-            let message = alert.message
-            if (alert.type === 'temp_out_of_range' && alert.unit === 'C' && unit === 'F') {
-              // Convert Celsius values to Fahrenheit for display
-              const tempF = formatTemp(alert.value, 1)
-              const minF = formatTemp(alert.range_min, 0)
-              const maxF = formatTemp(alert.range_max, 0)
-              message = `Temperature ${tempF}°F is outside range (${minF}-${maxF}°F)`
-            }
-            return (
-              <div
-                key={i}
-                className={`text-xs p-2 rounded ${
-                  alert.severity === 'critical'
-                    ? 'bg-red-900/30 text-red-300'
-                    : 'bg-yellow-900/30 text-yellow-300'
-                }`}
-              >
-                {message}
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="flex items-center justify-between pt-2 border-t border-[#2d3a5c]">
-        <div className="text-xs text-gray-500">
-          {tent.last_updated && (() => {
-            const updated = new Date(tent.last_updated)
-            const today = new Date()
-            const sameDay = updated.toDateString() === today.toDateString()
-            const formatted = sameDay
-              ? updated.toLocaleTimeString()
-              : updated.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-            return `Updated: ${formatted}`
-          })()}
-        </div>
-        <Link to={`/tent/${tent.id}`} className="btn btn-primary btn-sm">
-          Details →
-        </Link>
-      </div>
 
       {/* Actuator Group Popup */}
       {openGroup && (
@@ -1053,7 +840,6 @@ export function TentCard({ tent, onAction, onToggle, isPending, onUpdateControlS
           checkPending={checkPending}
           onToggle={handleToggle}
           getDisplayLabel={getDisplayLabel}
-          getCustomIcon={getCustomIcon}
           getActuatorName={getActuatorName}
           getActuatorEntity={getActuatorEntity}
           onClose={() => setOpenGroup(null)}
