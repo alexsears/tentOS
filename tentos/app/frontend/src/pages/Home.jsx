@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { ChevronRight, Sprout, TriangleAlert } from 'lucide-react'
 import { useTents } from '../hooks/useTents'
 import { TentCard } from '../components/TentCard'
 import { finiteNumberOrNull } from '../utils/numbers'
@@ -58,7 +59,7 @@ function AttentionSummary({ tents }) {
         }`}
         aria-hidden="true"
       >
-        ⚠
+        <TriangleAlert size={18} />
       </span>
       <div className="min-w-0 flex-1">
         <div className={`text-sm font-semibold ${hasCritical ? 'text-red-200' : 'text-yellow-200'}`}>
@@ -69,8 +70,8 @@ function AttentionSummary({ tents }) {
           {remainingCount > 0 && ` (+${remainingCount} more)`}
         </div>
       </div>
-      <span className="shrink-0 text-xs font-medium text-gray-300 sm:text-sm">
-        Review <span aria-hidden="true">→</span>
+      <span className="flex shrink-0 items-center gap-0.5 text-xs font-medium text-gray-300 sm:text-sm">
+        Review <ChevronRight size={16} aria-hidden="true" />
       </span>
     </Link>
   )
@@ -129,8 +130,10 @@ export default function Home() {
   if (tents.length === 0) {
     return (
       <div className="card text-center py-12">
-        <div className="text-4xl mb-4">🌱</div>
-        <h2 className="text-xl font-semibold mb-2">No Tents Configured</h2>
+        <div className="mb-4 flex justify-center text-gray-500" aria-hidden="true">
+          <Sprout size={40} />
+        </div>
+        <h2 className="text-xl font-semibold mb-2">No tents configured</h2>
         <p className="text-gray-400 mb-4">
           Configure your tents in the Settings tab.
         </p>
@@ -167,6 +170,7 @@ export default function Home() {
             tent={tent}
             hasUsableData={tentHasUsableData(tent)}
             isLive={connected && haConnected === true && tentReadingIsFresh(tent, now)}
+            now={now}
             onAction={performAction}
             onToggle={toggleActuator}
             isPending={isPending}
