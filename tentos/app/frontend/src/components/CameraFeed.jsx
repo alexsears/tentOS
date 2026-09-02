@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
+import { Camera, Maximize2, Minimize2, RefreshCw } from 'lucide-react'
 import { getApiBase } from '../utils/api'
+
+const ICON_BUTTON = 'flex h-11 w-11 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white'
 
 export function CameraFeed({ tentId, entityId, label, defaultMode = 'snapshot', refreshInterval = 5000 }) {
   const [mode, setMode] = useState(defaultMode) // 'snapshot' | 'stream'
@@ -71,6 +74,7 @@ export function CameraFeed({ tentId, entityId, label, defaultMode = 'snapshot', 
 
   // Extract friendly name from entity_id
   const displayName = label || entityId.split('.').pop().replace(/_/g, ' ')
+  const streaming = mode === 'stream'
 
   return (
     <div
@@ -80,53 +84,60 @@ export function CameraFeed({ tentId, entityId, label, defaultMode = 'snapshot', 
       }`}
     >
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-2 bg-gradient-to-b from-black/70 to-transparent">
-        <span className="text-sm font-medium text-white capitalize">{displayName}</span>
-        <div className="flex items-center gap-1">
-          {/* Mode toggle */}
+      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between gap-2 px-2 py-1 bg-gradient-to-b from-black/70 to-transparent">
+        <span className="min-w-0 truncate text-sm font-medium text-white capitalize">{displayName}</span>
+        <div className="flex shrink-0 items-center">
+          {/* Mode toggle: snapshots or live stream */}
           <button
+            type="button"
             onClick={() => {
               setLoading(true)
               setMode(m => m === 'snapshot' ? 'stream' : 'snapshot')
             }}
-            className={`px-2 py-1 text-xs rounded ${
-              mode === 'stream' ? 'bg-red-600 text-white' : 'bg-gray-700 text-gray-300'
-            }`}
-            title={mode === 'snapshot' ? 'Switch to live stream' : 'Switch to snapshots'}
-            aria-label={mode === 'snapshot' ? 'Switch to live stream' : 'Switch to snapshot mode'}
+            aria-pressed={streaming}
+            className={`${ICON_BUTTON} ${streaming ? 'text-red-400 hover:text-red-300' : ''}`}
+            title={streaming ? 'Switch to snapshots' : 'Switch to live stream'}
+            aria-label={streaming ? 'Switch to snapshot mode' : 'Switch to live stream'}
           >
-            {mode === 'stream' ? '● LIVE' : '📷 Snap'}
+            <Camera size={20} aria-hidden="true" />
           </button>
           {/* Refresh button (snapshot mode only) */}
           {mode === 'snapshot' && (
             <button
+              type="button"
               onClick={handleRefresh}
-              className="px-2 py-1 text-white/70 hover:text-white rounded hover:bg-white/10"
+              className={ICON_BUTTON}
+              title="Refresh snapshot"
               aria-label="Refresh camera snapshot"
             >
-              🔄
+              <RefreshCw size={20} aria-hidden="true" />
             </button>
           )}
           {/* Fullscreen button */}
           <button
+            type="button"
             onClick={toggleFullscreen}
-            className="px-2 py-1 text-white/70 hover:text-white rounded hover:bg-white/10"
+            className={ICON_BUTTON}
+            title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
             aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
-            {fullscreen ? '⛶' : '⛶'}
+            {fullscreen
+              ? <Minimize2 size={20} aria-hidden="true" />
+              : <Maximize2 size={20} aria-hidden="true" />}
           </button>
         </div>
       </div>
 
-      {/* Camera feed */}
-      <div className={`relative ${fullscreen ? 'h-full' : 'aspect-video'}`}>
+      {/* Camera feed: full width, no taller than 40vh on phones */}
+      <div className={`relative ${fullscreen ? 'h-full' : 'aspect-video max-h-[40vh] md:max-h-none'}`}>
         {error ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
-            <span className="text-4xl mb-2">📷</span>
+            <Camera size={32} className="mb-2" aria-hidden="true" />
             <span className="text-sm">Camera unavailable</span>
             <button
+              type="button"
               onClick={handleRefresh}
-              className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+              className="mt-1 min-h-[44px] px-3 text-sm text-green-400 hover:text-green-300"
               aria-label="Retry loading camera"
             >
               Try again
@@ -157,19 +168,22 @@ export function CameraFeed({ tentId, entityId, label, defaultMode = 'snapshot', 
         {/* Loading indicator */}
         {loading && !error && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-            <span className="text-white text-sm animate-pulse">Loading...</span>
+            <span className="text-white text-sm">Loading...</span>
           </div>
         )}
       </div>
 
       {/* Footer with status */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-between p-2 bg-gradient-to-t from-black/70 to-transparent text-xs text-gray-400">
+      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-between gap-2 p-2 bg-gradient-to-t from-black/70 to-transparent text-xs text-gray-400">
         <span className="truncate max-w-[60%]">{entityId}</span>
         {mode === 'snapshot' && !error && lastUpdated && (
-          <span>Updated: {lastUpdated.toLocaleTimeString()}</span>
+          <span className="shrink-0">Updated {lastUpdated.toLocaleTimeString()}</span>
         )}
-        {mode === 'stream' && !error && (
-          <span className="text-red-400">● Streaming</span>
+        {streaming && !error && (
+          <span className="inline-flex shrink-0 items-center gap-1.5 text-red-400">
+            <span className="h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />
+            Live
+          </span>
         )}
       </div>
     </div>
@@ -179,10 +193,10 @@ export function CameraFeed({ tentId, entityId, label, defaultMode = 'snapshot', 
 export function CameraGrid({ tentId, cameras }) {
   if (!cameras || cameras.length === 0) {
     return (
-      <div className="text-center text-gray-500 py-8">
-        <span className="text-4xl mb-2 block">📷</span>
+      <div className="flex flex-col items-center py-8 text-center text-gray-500">
+        <Camera size={32} className="mb-2" aria-hidden="true" />
         <p>No cameras configured for this tent.</p>
-        <p className="text-sm mt-1">Add cameras in Settings → Sensors → Camera</p>
+        <p className="text-sm mt-1">Add one in the Tent Builder under Sensors.</p>
       </div>
     )
   }

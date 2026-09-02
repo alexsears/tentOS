@@ -1,5 +1,19 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import {
+  Activity,
+  ChevronLeft,
+  ChevronRight,
+  Droplet,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  RotateCcw,
+  Trash2,
+  TriangleAlert,
+  Workflow,
+} from 'lucide-react'
 import { useTent, useTents } from '../hooks/useTents'
 import { SensorChart } from '../components/SensorChart'
 import { EventLog } from '../components/EventLog'
@@ -12,6 +26,56 @@ import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { apiFetch, requireOk } from '../utils/api'
 import { sensorEntities, entityHistoryPath, tentHistoryPath } from '../utils/history'
 import { finiteNumberOrNull } from '../utils/numbers'
+import { actuatorIcon, actuatorBaseType, sensorIcon, stageIcon } from '../utils/icons'
+
+const TAB_LABELS = {
+  overview: 'Overview',
+  cameras: 'Cameras',
+  charts: 'Charts',
+  automations: 'Automations',
+  events: 'Events',
+  settings: 'Settings',
+}
+
+// The order controls are listed in when the tent has no custom order saved.
+const DEFAULT_CONTROL_ORDER = [
+  'light', 'light_2', 'light_3',
+  'exhaust_fan', 'exhaust_fan_2', 'exhaust_fan_3',
+  'circulation_fan', 'circulation_fan_2', 'circulation_fan_3',
+  'humidifier', 'dehumidifier', 'heater', 'ac',
+  'water_pump', 'water_pump_2', 'water_pump_3',
+  'drain_pump',
+]
+
+const CONTROL_LABELS = {
+  light: 'Light',
+  exhaust_fan: 'Exhaust fan',
+  circulation_fan: 'Circulation fan',
+  humidifier: 'Humidifier',
+  dehumidifier: 'Dehumidifier',
+  heater: 'Heater',
+  ac: 'A/C',
+  water_pump: 'Water pump',
+  drain_pump: 'Drain pump',
+}
+
+function defaultControlLabel(slot) {
+  const base = actuatorBaseType(slot)
+  const name = CONTROL_LABELS[base] || slot.replace(/_/g, ' ')
+  const numbered = slot.match(/_(\d+)$/)
+  return numbered && base !== slot ? `${name} ${numbered[1]}` : name
+}
+
+function stateLabel(state) {
+  if (state === 'on') return 'On'
+  if (state === 'off') return 'Off'
+  return 'Unavailable'
+}
+
+function titleCase(value) {
+  if (!value) return ''
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
 
 export default function TentDetail() {
   const { tentId } = useParams()
@@ -22,6 +86,7 @@ export default function TentDetail() {
   const [activeTab, setActiveTab] = useState('overview')
   const [chartRange, setChartRange] = useState('24h')
   const [actionLoading, setActionLoading] = useState(null)
+  const [pendingSlot, setPendingSlot] = useState(null)
   const [haAutomations, setHaAutomations] = useState([])
   const [automationsLoading, setAutomationsLoading] = useState(false)
   const [showAllAutomations, setShowAllAutomations] = useState(false)
@@ -63,6 +128,17 @@ export default function TentDetail() {
     }
   }
 
+  // One switch per actuator: it calls the same turn_on / turn_off action the
+  // old button pair did, and remembers which row is waiting on HA.
+  const toggleActuator = async (slot, isOn) => {
+    setPendingSlot(slot)
+    try {
+      await handleAction(isOn ? 'turn_off' : 'turn_on', { entity_type: slot })
+    } finally {
+      setPendingSlot(null)
+    }
+  }
+
   if (loading) {
     return <div className="text-gray-400 text-center py-8">Loading...</div>
   }
@@ -71,7 +147,10 @@ export default function TentDetail() {
     return (
       <div className="card border-red-500/50">
         <div className="text-red-400">Error: {error || 'Tent not found'}</div>
-        <Link to="/" className="btn btn-secondary mt-4">← Back to Dashboard</Link>
+        <Link to="/" className="btn btn-secondary mt-4 inline-flex min-h-[44px] items-center gap-1">
+          <ChevronLeft size={18} />
+          Back to dashboard
+        </Link>
       </div>
     )
   }
@@ -81,7 +160,32 @@ export default function TentDetail() {
     if (path) navigate(path)
   }
 
-  const getSensorDisplay = (type, label, unit = '', isTemp = false) => {
+  const renderReadingTile = ({ key, type, label, value, historyPath, valueClass = '', icon }) => {
+    const Icon = icon || sensorIcon(type)
+    const Tag = historyPath ? 'button' : 'div'
+    return (
+      <Tag
+        key={key}
+        type={historyPath ? 'button' : undefined}
+        onClick={historyPath ? () => goToHistory(historyPath) : undefined}
+        title={historyPath ? `${label} history` : undefined}
+        className={`card flex min-h-[72px] flex-col justify-between text-left ${
+          historyPath ? 'hover:border-green-600/50 transition-colors' : ''
+        }`}
+      >
+        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+          <Icon size={14} className="shrink-0" aria-hidden="true" />
+          <span className="truncate">{label}</span>
+          {historyPath && <HistoryIcon className="opacity-50 shrink-0" />}
+        </div>
+        <div className={`mt-1 text-2xl font-semibold leading-tight ${valueClass}`}>
+          {value ?? '--'}
+        </div>
+      </Tag>
+    )
+  }
+
+  const getSensorTile = (type, label, unit = '', isTemp = false) => {
     const sensor = tent.sensors?.[type]
     const value = finiteNumberOrNull(sensor?.value)
     const displayValue = isTemp && value != null ? formatTemp(value, 1) : (value != null ? value.toFixed(1) : null)
@@ -89,21 +193,13 @@ export default function TentDetail() {
     const historyPath = type === 'vpd'
       ? tentHistoryPath(tentId, 'vpd')
       : entityHistoryPath(sensorEntities(sensor))
-    return (
-      <div
-        className={`card text-center ${historyPath ? 'cursor-pointer hover:border-green-600/50 transition-colors' : ''}`}
-        onClick={() => goToHistory(historyPath)}
-        title={historyPath ? `${label} history` : undefined}
-      >
-        <div className="text-3xl font-bold mb-1">
-          {displayValue != null ? `${displayValue}${displayUnit}` : '--'}
-        </div>
-        <div className="text-sm text-gray-400">
-          {label}
-          {historyPath && <HistoryIcon className="ml-1 opacity-50" />}
-        </div>
-      </div>
-    )
+    return renderReadingTile({
+      key: type,
+      type,
+      label,
+      value: displayValue != null ? `${displayValue}${displayUnit}` : null,
+      historyPath,
+    })
   }
 
   // Get configured cameras from sensor config
@@ -122,82 +218,156 @@ export default function TentDetail() {
 
   const cameras = getCameras()
   const displayVpd = finiteNumberOrNull(tent.vpd)
+  const envScore = tent.environment_score
+  const envScoreClass = envScore >= 80 ? 'text-green-400' : envScore >= 60 ? 'text-yellow-400' : 'text-red-400'
 
-  const getActuatorControl = (type, label, icon) => {
-    const state = tent.actuators?.[type]?.state || 'unknown'
+  const growthStage = tent.growth_stage || {}
+  const StageIcon = stageIcon(growthStage.stage)
+  const stageText = growthStage.stage
+    ? (growthStage.stage === 'flower' && growthStage.flower_week
+      ? `Flower week ${growthStage.flower_week}`
+      : titleCase(growthStage.stage))
+    : null
+
+  // Controls: every mapped actuator, in the saved order if there is one.
+  const getControlSlots = () => {
+    const present = Object.keys(tent.actuators || {}).filter(slot => tent.actuators[slot])
+    const customOrder = Array.isArray(tent.control_settings?.order) ? tent.control_settings.order : []
+    const ordered = []
+    for (const slot of [...customOrder, ...DEFAULT_CONTROL_ORDER, ...present]) {
+      if (present.includes(slot) && !ordered.includes(slot)) ordered.push(slot)
+    }
+    return ordered
+  }
+  const controlSlots = getControlSlots()
+  const controlLabel = (slot) => tent.control_settings?.labels?.[slot] || defaultControlLabel(slot)
+
+  const renderActuatorRow = (slot) => {
+    const actuator = tent.actuators?.[slot]
+    const state = actuator?.state || 'unknown'
     const isOn = state === 'on'
-    const historyPath = entityHistoryPath(tent.actuators?.[type]?.entity_id)
+    const unavailable = state !== 'on' && state !== 'off'
+    const pending = pendingSlot === slot
+    const historyPath = entityHistoryPath(actuator?.entity_id)
+    const label = controlLabel(slot)
+    const Icon = actuatorIcon(slot)
     return (
-      <div className="card">
-        <div className="flex items-center justify-between">
-          <div
-            className={`flex items-center gap-3 ${historyPath ? 'cursor-pointer' : ''}`}
-            onClick={() => goToHistory(historyPath)}
-            title={historyPath ? `${label} history` : undefined}
-          >
-            <span className={`text-2xl ${isOn ? '' : 'opacity-50'}`}>{icon}</span>
-            <div>
-              <div className="font-medium">
-                {label}
-                {historyPath && <HistoryIcon className="ml-1 opacity-50" />}
-              </div>
-              <div className={`text-sm ${isOn ? 'text-green-400' : 'text-gray-400'}`}>
-                {state}
-              </div>
+      <div key={slot} className="flex min-h-[44px] items-center gap-3">
+        <div
+          className={`flex min-w-0 flex-1 items-center gap-3 ${historyPath ? 'cursor-pointer' : ''}`}
+          onClick={() => goToHistory(historyPath)}
+          title={historyPath ? `${label} history` : undefined}
+        >
+          <Icon size={20} className={`shrink-0 ${isOn ? 'text-green-400' : 'text-gray-500'}`} aria-hidden="true" />
+          <div className="min-w-0">
+            <div className="truncate font-medium">
+              {label}
+              {historyPath && <HistoryIcon className="ml-1 opacity-50" />}
+            </div>
+            <div className={`text-xs ${isOn ? 'text-green-400' : 'text-gray-400'}`}>
+              {stateLabel(state)}
             </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => handleAction('turn_on', { entity_type: type })}
-              disabled={actionLoading}
-              className={`btn btn-sm ${isOn ? 'btn-primary' : 'btn-secondary'}`}
-            >
-              On
-            </button>
-            <button
-              onClick={() => handleAction('turn_off', { entity_type: type })}
-              disabled={actionLoading}
-              className={`btn btn-sm ${!isOn ? 'btn-primary' : 'btn-secondary'}`}
-            >
-              Off
-            </button>
-          </div>
         </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={isOn}
+          aria-label={`${label} ${isOn ? 'on' : 'off'}`}
+          disabled={pending}
+          onClick={() => toggleActuator(slot, isOn)}
+          className={`flex h-11 w-14 shrink-0 items-center justify-center ${
+            pending || unavailable ? 'opacity-50' : ''
+          } ${pending ? 'cursor-wait' : ''}`}
+        >
+          <span
+            className={`relative inline-block h-6 w-11 rounded-full transition-colors ${
+              isOn ? 'bg-green-500' : 'bg-gray-600'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                isOn ? 'translate-x-5' : ''
+              }`}
+            />
+          </span>
+        </button>
       </div>
     )
   }
 
+  const renderClimateRow = () => {
+    const state = tent.actuators.ac?.state || 'unknown'
+    const active = state !== 'off' && state !== 'unknown' && state !== 'unavailable'
+    const Icon = actuatorIcon('ac')
+    return (
+      <button
+        key="ac"
+        type="button"
+        onClick={() => navigate('/climate')}
+        className="flex min-h-[44px] w-full items-center gap-3 text-left"
+      >
+        <Icon size={20} className={`shrink-0 ${active ? 'text-cyan-400' : 'text-gray-500'}`} aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium">{controlLabel('ac')}</div>
+          <div className={`text-xs ${active ? 'text-cyan-400' : 'text-gray-400'}`}>
+            {titleCase(state)}
+          </div>
+        </div>
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center text-gray-400">
+          <ChevronRight size={20} aria-hidden="true" />
+        </span>
+      </button>
+    )
+  }
+
+  const tabs = ['overview', ...(cameras.length > 0 ? ['cameras'] : []), 'charts', 'automations', 'events', 'settings']
+
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <Link to="/" className="text-gray-400 hover:text-white text-2xl px-2 py-1">←</Link>
-        <div>
-          <h2 className="text-2xl font-bold">{tent.name}</h2>
-          {tent.description && <p className="text-gray-400">{tent.description}</p>}
+      <div className="mb-3 flex items-center gap-1">
+        <Link
+          to="/"
+          aria-label="Back to dashboard"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:text-white"
+        >
+          <ChevronLeft size={24} />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-xl font-bold md:text-2xl">{tent.name}</h2>
+            {stageText && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#2d3a5c] px-2 py-0.5 text-xs text-gray-300">
+                <StageIcon size={12} aria-hidden="true" />
+                {stageText}
+              </span>
+            )}
+          </div>
+          {tent.description && <p className="truncate text-sm text-gray-400">{tent.description}</p>}
         </div>
-        {tent.alerts?.length > 0 && (
-          <span className="badge badge-danger ml-auto">
-            {tent.alerts.length} Alert{tent.alerts.length !== 1 && 's'}
-          </span>
-        )}
       </div>
 
       {/* Tabs */}
-      <div className="app-scroll-strip flex gap-2 mb-6 border-b border-[#2d3a5c] pb-2">
-        {['overview', ...(cameras.length > 0 ? ['cameras'] : []), 'charts', 'automations', 'events', 'settings'].map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`shrink-0 whitespace-nowrap px-4 py-2 rounded-t-lg capitalize ${
-              activeTab === tab
-                ? 'bg-[#16213e] text-white border-b-2 border-green-500'
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            {tab === 'cameras' ? `📷 ${tab}` : tab === 'automations' ? `⚡ ${tab}` : tab}
-          </button>
-        ))}
+      <div className="app-scroll-strip mb-5">
+        <div className="flex min-w-max gap-1 border-b border-[#2d3a5c]" role="tablist">
+          {tabs.map(tab => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab}
+              onClick={() => setActiveTab(tab)}
+              className={`min-h-[44px] shrink-0 whitespace-nowrap border-b-2 px-3 text-sm font-medium ${
+                activeTab === tab
+                  ? 'border-green-500 text-white'
+                  : 'border-transparent text-gray-400 hover:text-white'
+              }`}
+            >
+              {TAB_LABELS[tab]}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Overview Tab */}
@@ -205,37 +375,82 @@ export default function TentDetail() {
         <div className="space-y-6">
           {/* Alerts */}
           {tent.alerts?.length > 0 && (
-            <div className="card border-red-500/50">
-              <h3 className="font-semibold text-red-400 mb-3">⚠️ Active Alerts</h3>
-              <div className="space-y-2">
-                {tent.alerts.map((alert, i) => (
-                  <div key={i} className="flex items-center gap-3 text-sm">
-                    <span className={`badge badge-${alert.severity === 'critical' ? 'danger' : 'warning'}`}>
-                      {alert.severity}
-                    </span>
-                    <span>{alert.message}</span>
+            <div className="space-y-1">
+              {tent.alerts.map((alert, i) => (
+                <div
+                  key={i}
+                  className={`flex min-h-[44px] items-center gap-2 rounded-lg border px-3 text-sm ${
+                    alert.severity === 'critical'
+                      ? 'border-red-500/50 text-red-300'
+                      : 'border-yellow-500/50 text-yellow-300'
+                  }`}
+                >
+                  <TriangleAlert size={16} className="shrink-0" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">{alert.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Environment */}
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-gray-300">Environment</h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {getSensorTile('temperature', 'Temperature', '', true)}
+              {getSensorTile('humidity', 'Humidity', '%')}
+              {renderReadingTile({
+                key: 'vpd',
+                type: 'vpd',
+                label: 'VPD (kPa)',
+                value: displayVpd != null ? displayVpd.toFixed(1) : null,
+                historyPath: tentHistoryPath(tentId, 'vpd'),
+              })}
+              {tent.sensors?.co2 && getSensorTile('co2', 'CO2', ' ppm')}
+              {tent.sensors?.reservoir_level && getSensorTile('reservoir_level', 'Reservoir', '%')}
+              {tent.sensors?.power_usage && getSensorTile('power_usage', 'Power', ' W')}
+              {renderReadingTile({
+                key: 'score',
+                type: 'score',
+                icon: Activity,
+                label: 'Env score',
+                value: envScore || null,
+                valueClass: envScore ? envScoreClass : '',
+              })}
+            </div>
+          </div>
+
+          {/* Controls */}
+          {controlSlots.length > 0 && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-gray-300">Controls</h3>
+              <div className="card divide-y divide-[#2d3a5c] py-1">
+                {controlSlots.map(slot => (
+                  <div key={slot} className="py-1">
+                    {slot === 'ac' ? renderClimateRow() : renderActuatorRow(slot)}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Camera Preview on Overview */}
+          {/* Camera */}
           {cameras.length > 0 && (
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">📷 Camera{cameras.length > 1 ? 's' : ''}</h3>
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-300">Camera{cameras.length > 1 ? 's' : ''}</h3>
                 {cameras.length > 1 && (
                   <button
+                    type="button"
                     onClick={() => setActiveTab('cameras')}
-                    className="text-sm text-green-400 hover:text-green-300"
+                    className="inline-flex min-h-[44px] items-center gap-0.5 text-sm text-green-400 hover:text-green-300"
                   >
-                    View all →
+                    All cameras
+                    <ChevronRight size={16} aria-hidden="true" />
                   </button>
                 )}
               </div>
               {/* Show first camera only on overview */}
-              <div className="max-w-xl">
+              <div className="w-full lg:max-w-3xl">
                 <CameraFeed
                   tentId={tentId}
                   entityId={cameras[0]}
@@ -246,105 +461,30 @@ export default function TentDetail() {
             </div>
           )}
 
-          {/* Sensors */}
+          {/* Quick actions */}
           <div>
-            <h3 className="font-semibold mb-3">Environment</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {getSensorDisplay('temperature', 'Temperature', '', true)}
-              {getSensorDisplay('humidity', 'Humidity', '%')}
-              <div
-                className="card text-center cursor-pointer hover:border-green-600/50 transition-colors"
-                onClick={() => goToHistory(tentHistoryPath(tentId, 'vpd'))}
-                title="VPD history"
-              >
-                <div className="text-3xl font-bold mb-1">
-                  {displayVpd != null ? displayVpd.toFixed(1) : '--'}
-                </div>
-                <div className="text-sm text-gray-400">VPD (kPa)<HistoryIcon className="ml-1 opacity-50" /></div>
-              </div>
-              <div className="card text-center">
-                <div className={`text-3xl font-bold mb-1 ${
-                  tent.environment_score >= 80 ? 'text-green-400' :
-                  tent.environment_score >= 60 ? 'text-yellow-400' : 'text-red-400'
-                }`}>
-                  {tent.environment_score || '--'}
-                </div>
-                <div className="text-sm text-gray-400">Env Score</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Additional Sensors */}
-          {(tent.sensors?.co2 || tent.sensors?.reservoir_level || tent.sensors?.power_usage) && (
-            <div>
-              <h3 className="font-semibold mb-3">Additional Sensors</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {tent.sensors?.co2 && getSensorDisplay('co2', 'CO2', ' ppm')}
-                {tent.sensors?.reservoir_level && getSensorDisplay('reservoir_level', 'Reservoir', '%')}
-                {tent.sensors?.power_usage && getSensorDisplay('power_usage', 'Power', ' W')}
-              </div>
-            </div>
-          )}
-
-          {/* Actuators */}
-          <div>
-            <h3 className="font-semibold mb-3">Controls</h3>
-            <div className="grid md:grid-cols-2 gap-4">
-              {tent.actuators?.light && getActuatorControl('light', 'Light 1', '💡')}
-              {tent.actuators?.light_2 && getActuatorControl('light_2', 'Light 2', '💡')}
-              {tent.actuators?.light_3 && getActuatorControl('light_3', 'Light 3', '💡')}
-              {tent.actuators?.exhaust_fan && getActuatorControl('exhaust_fan', 'Exhaust Fan', '🌀')}
-              {tent.actuators?.exhaust_fan_2 && getActuatorControl('exhaust_fan_2', 'Exhaust Fan 2', '🌀')}
-              {tent.actuators?.exhaust_fan_3 && getActuatorControl('exhaust_fan_3', 'Exhaust Fan 3', '🌀')}
-              {tent.actuators?.circulation_fan && getActuatorControl('circulation_fan', 'Circulation Fan', '🔄')}
-              {tent.actuators?.circulation_fan_2 && getActuatorControl('circulation_fan_2', 'Circulation Fan 2', '🔄')}
-              {tent.actuators?.circulation_fan_3 && getActuatorControl('circulation_fan_3', 'Circulation Fan 3', '🔄')}
-              {tent.actuators?.humidifier && getActuatorControl('humidifier', 'Humidifier', '💨')}
-              {tent.actuators?.dehumidifier && getActuatorControl('dehumidifier', 'Dehumidifier', '🏜️')}
-              {tent.actuators?.heater && getActuatorControl('heater', 'Heater', '🔥')}
-              {tent.actuators?.ac && (
-                <button onClick={() => navigate('/climate')} className="card w-full text-left hover:bg-[#2d3a5c] transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className={`text-2xl ${tent.actuators.ac.state === 'cool' || tent.actuators.ac.state === 'on' ? '' : 'opacity-50'}`}>❄️</span>
-                      <div>
-                        <div className="font-medium">A/C</div>
-                        <div className={`text-sm ${tent.actuators.ac.state !== 'off' ? 'text-cyan-400' : 'text-gray-400'}`}>
-                          {tent.actuators.ac.state}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-gray-400 text-lg">→</span>
-                  </div>
-                </button>
-              )}
-              {tent.actuators?.water_pump && getActuatorControl('water_pump', 'Water Pump 1', '🚿')}
-              {tent.actuators?.water_pump_2 && getActuatorControl('water_pump_2', 'Water Pump 2', '🚿')}
-              {tent.actuators?.water_pump_3 && getActuatorControl('water_pump_3', 'Water Pump 3', '🚿')}
-              {tent.actuators?.drain_pump && getActuatorControl('drain_pump', 'Drain Pump', '🔽')}
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div>
-            <h3 className="font-semibold mb-3">Quick Actions</h3>
+            <h3 className="mb-2 text-sm font-semibold text-gray-300">Quick actions</h3>
             <div className="flex flex-wrap gap-3">
               {/* Only offered when a pump is mapped; without one the action 400s */}
               {tent.actuators?.water_pump && (
                 <button
+                  type="button"
                   onClick={() => handleAction('run_watering', { duration_minutes: 1 })}
                   disabled={actionLoading}
-                  className="btn btn-primary"
+                  className="btn btn-primary inline-flex min-h-[44px] items-center gap-2"
                 >
-                  💧 Run Watering (1 min)
+                  <Droplet size={16} aria-hidden="true" />
+                  Run watering (1 min)
                 </button>
               )}
               <button
+                type="button"
                 onClick={() => handleAction('clear_overrides')}
                 disabled={actionLoading}
-                className="btn btn-secondary"
+                className="btn btn-secondary inline-flex min-h-[44px] items-center gap-2"
               >
-                🔄 Clear Overrides
+                <RotateCcw size={16} aria-hidden="true" />
+                Clear overrides
               </button>
             </div>
           </div>
@@ -354,8 +494,8 @@ export default function TentDetail() {
       {/* Cameras Tab */}
       {activeTab === 'cameras' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Cameras ({cameras.length})</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-300">Cameras ({cameras.length})</h3>
           </div>
           <CameraGrid tentId={tentId} cameras={cameras} />
         </div>
@@ -368,8 +508,9 @@ export default function TentDetail() {
             {['24h', '7d', '30d'].map(range => (
               <button
                 key={range}
+                type="button"
                 onClick={() => setChartRange(range)}
-                className={`btn btn-sm ${chartRange === range ? 'btn-primary' : 'btn-secondary'}`}
+                className={`btn btn-sm min-h-[44px] ${chartRange === range ? 'btn-primary' : 'btn-secondary'}`}
               >
                 {range}
               </button>
@@ -377,7 +518,7 @@ export default function TentDetail() {
           </div>
 
           <div className="card">
-            <h3 className="font-semibold mb-4">Temperature & Humidity</h3>
+            <h3 className="mb-4 text-sm font-semibold text-gray-300">Temperature and humidity</h3>
             <SensorChart
               tentId={tentId}
               sensors={['temperature', 'humidity']}
@@ -386,7 +527,7 @@ export default function TentDetail() {
           </div>
 
           <div className="card">
-            <h3 className="font-semibold mb-4">VPD</h3>
+            <h3 className="mb-4 text-sm font-semibold text-gray-300">VPD</h3>
             <SensorChart
               tentId={tentId}
               sensors={['vpd']}
@@ -399,13 +540,10 @@ export default function TentDetail() {
       {/* Automations Tab */}
       {activeTab === 'automations' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold">Home Assistant Automations</h3>
-              <p className="text-sm text-gray-400">Create and manage automations for this tent</p>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-gray-300">Home Assistant automations</h3>
             <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-gray-400">
+              <label className="flex min-h-[44px] items-center gap-2 text-sm text-gray-400">
                 <input
                   type="checkbox"
                   checked={showAllAutomations}
@@ -415,10 +553,12 @@ export default function TentDetail() {
                 Show all
               </label>
               <button
+                type="button"
                 onClick={() => setShowCreateModal(true)}
-                className="btn btn-primary"
+                className="btn btn-primary inline-flex min-h-[44px] items-center gap-1.5"
               >
-                + New Automation
+                <Plus size={16} aria-hidden="true" />
+                New automation
               </button>
             </div>
           </div>
@@ -426,17 +566,15 @@ export default function TentDetail() {
           {automationsLoading ? (
             <div className="text-center text-gray-400 py-8">Loading automations...</div>
           ) : haAutomations.length === 0 ? (
-            <div className="card text-center py-8">
-              <div className="text-4xl mb-4">⚡</div>
-              <div className="text-gray-400 mb-2">No automations found</div>
-              <p className="text-sm text-gray-500 mb-4">
-                Create your first automation to control this tent automatically.
-              </p>
+            <div className="card flex flex-col items-center py-8 text-center">
+              <Workflow size={32} className="mb-3 text-gray-500" aria-hidden="true" />
+              <div className="mb-4 text-gray-400">No automations for this tent</div>
               <button
+                type="button"
                 onClick={() => setShowCreateModal(true)}
-                className="btn btn-primary"
+                className="btn btn-primary min-h-[44px]"
               >
-                Create Automation
+                Create automation
               </button>
             </div>
           ) : (
@@ -445,12 +583,18 @@ export default function TentDetail() {
                 const isEnabled = auto.state === 'on'
                 const lastTriggered = auto.attributes?.last_triggered
                 const friendlyName = auto.attributes?.friendly_name || auto.entity_id
+                const running = actionLoading === auto.entity_id
+                const toggling = actionLoading === `toggle-${auto.entity_id}`
 
                 return (
                   <div key={auto.entity_id} className="card hover:border-green-600/30 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <span className={`text-2xl ${isEnabled ? '' : 'opacity-50'}`}>⚡</span>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <Workflow
+                          size={20}
+                          className={`shrink-0 ${isEnabled ? 'text-green-400' : 'text-gray-500'}`}
+                          aria-hidden="true"
+                        />
                         <div className="min-w-0">
                           <div className="font-medium truncate">{friendlyName}</div>
                           <div className="text-xs text-gray-500 truncate">{auto.entity_id}</div>
@@ -461,13 +605,14 @@ export default function TentDetail() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                         <div className={`px-2 py-1 rounded text-xs ${
                           isEnabled ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
                         }`}>
                           {isEnabled ? 'On' : 'Off'}
                         </div>
                         <button
+                          type="button"
                           onClick={async () => {
                             setActionLoading(auto.entity_id)
                             try {
@@ -480,12 +625,14 @@ export default function TentDetail() {
                               setActionLoading(null)
                             }
                           }}
-                          disabled={actionLoading === auto.entity_id}
-                          className="btn btn-sm"
+                          disabled={running}
+                          className="btn btn-sm inline-flex min-h-[44px] items-center gap-1.5 border border-[#2d3a5c] text-gray-200 hover:bg-[#1f2b4d]"
                         >
-                          {actionLoading === auto.entity_id ? '...' : '▶ Run'}
+                          <Play size={14} aria-hidden="true" />
+                          {running ? '...' : 'Run'}
                         </button>
                         <button
+                          type="button"
                           onClick={async () => {
                             setActionLoading(`toggle-${auto.entity_id}`)
                             try {
@@ -498,18 +645,28 @@ export default function TentDetail() {
                               setActionLoading(null)
                             }
                           }}
-                          disabled={actionLoading === `toggle-${auto.entity_id}`}
-                          className={`btn btn-sm ${isEnabled ? '' : 'btn-primary'}`}
+                          disabled={toggling}
+                          className={`btn btn-sm inline-flex min-h-[44px] items-center gap-1.5 ${
+                            isEnabled
+                              ? 'border border-[#2d3a5c] text-gray-200 hover:bg-[#1f2b4d]'
+                              : 'btn-primary'
+                          }`}
                         >
-                          {actionLoading === `toggle-${auto.entity_id}` ? '...' : (isEnabled ? '⏸ Disable' : '▶ Enable')}
+                          {isEnabled
+                            ? <Pause size={14} aria-hidden="true" />
+                            : <Play size={14} aria-hidden="true" />}
+                          {toggling ? '...' : (isEnabled ? 'Disable' : 'Enable')}
                         </button>
                         <button
+                          type="button"
                           onClick={() => setEditingAutomation(auto)}
-                          className="btn btn-sm"
+                          className="btn btn-sm inline-flex min-h-[44px] items-center gap-1.5 border border-[#2d3a5c] text-gray-200 hover:bg-[#1f2b4d]"
                         >
-                          ✏️ Edit
+                          <Pencil size={14} aria-hidden="true" />
+                          Edit
                         </button>
                         <button
+                          type="button"
                           onClick={async () => {
                             if (confirm(`Delete "${friendlyName}"?`)) {
                               try {
@@ -521,9 +678,10 @@ export default function TentDetail() {
                               }
                             }
                           }}
-                          className="btn btn-sm text-red-400 hover:bg-red-500/20"
+                          className="btn btn-sm inline-flex min-h-[44px] items-center gap-1.5 text-red-400 hover:bg-red-500/20"
                         >
-                          🗑️ Delete
+                          <Trash2 size={14} aria-hidden="true" />
+                          Delete
                         </button>
                       </div>
                     </div>
@@ -575,28 +733,23 @@ export default function TentDetail() {
           <TargetsEditor tentId={tentId} targets={tent.targets} />
 
           <div className="card">
-            <h3 className="font-semibold mb-4">Schedules</h3>
-            <div className="grid md:grid-cols-2 gap-4 text-sm">
+            <h3 className="mb-4 text-sm font-semibold text-gray-300">Schedules</h3>
+            <div className="grid gap-4 text-sm md:grid-cols-2">
               <div>
-                <span className="text-gray-400">Photoperiod On:</span>{' '}
+                <span className="text-gray-400">Photoperiod on:</span>{' '}
                 {tent.schedules?.photoperiod_on || 'Not set'}
               </div>
               <div>
-                <span className="text-gray-400">Photoperiod Off:</span>{' '}
+                <span className="text-gray-400">Photoperiod off:</span>{' '}
                 {tent.schedules?.photoperiod_off || 'Not set'}
               </div>
               <div>
-                <span className="text-gray-400">Quiet Hours:</span>{' '}
+                <span className="text-gray-400">Quiet hours:</span>{' '}
                 {tent.schedules?.quiet_hours_start && tent.schedules?.quiet_hours_end
-                  ? `${tent.schedules.quiet_hours_start} - ${tent.schedules.quiet_hours_end}`
+                  ? `${tent.schedules.quiet_hours_start} to ${tent.schedules.quiet_hours_end}`
                   : 'Not set'}
               </div>
             </div>
-          </div>
-
-          <div className="text-sm text-gray-400">
-            The light cycle is managed above. To modify targets or quiet hours, edit the
-            add-on configuration in Home Assistant or use the Tent Builder.
           </div>
         </div>
       )}
