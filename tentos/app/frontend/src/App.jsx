@@ -14,30 +14,23 @@ import { AlertBanner } from './components/AlertBanner'
 import { apiFetch } from './utils/api'
 import { fetchTentsShared } from './hooks/useTents'
 import { AlertsMenu } from './components/AlertsMenu'
-import { TempUnitProvider, useTemperatureUnit } from './hooks/useTemperatureUnit'
+import { TempUnitProvider } from './hooks/useTemperatureUnit'
+import { NAV_ICONS, BrandGlyph } from './utils/icons'
+import { Ellipsis } from 'lucide-react'
 
 // Preloaded data context - fetches automations and events on app load
 const PreloadContext = createContext({ automations: null, events: null, tents: null })
 export const usePreloadedData = () => useContext(PreloadContext)
 
-// Temperature unit toggle component
-function TempToggle() {
-  const { unit, toggleUnit } = useTemperatureUnit()
-  return (
-    <button
-      onClick={toggleUnit}
-      className="px-2 py-1 rounded bg-[#1a1a2e] hover:bg-[#2d3a5c] text-sm font-medium transition-colors"
-      title="Toggle temperature unit"
-    >
-      °{unit}
-    </button>
-  )
+function NavGlyph({ path, size = 16, className = '' }) {
+  const Icon = NAV_ICONS[path]
+  if (!Icon) return null
+  return <Icon size={size} className={`shrink-0 ${className}`} aria-hidden="true" />
 }
 
 function AppContent() {
   const location = useLocation()
   const [alerts, setAlerts] = useState([])
-  const [version, setVersion] = useState('')
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [latestVersion, setLatestVersion] = useState('')
   const [preloadedData, setPreloadedData] = useState({ automations: null, events: null, tents: null })
@@ -54,12 +47,6 @@ function AppContent() {
   useEffect(() => {
     // Fetch initial alerts
     refreshAlertSummary()
-
-    // Fetch version
-    apiFetch('api/health')
-      .then(r => r.json())
-      .then(data => setVersion(data.version || ''))
-      .catch(console.error)
 
     // Check for updates
     apiFetch('api/updates/check')
@@ -96,14 +83,14 @@ function AppContent() {
   }, [lastMessage])
 
   const navItems = [
-    { path: '/', label: 'Dashboard', icon: '🌱' },
-    { path: '/assistant', label: 'Assistant', icon: '◉' },
-    { path: '/climate', label: 'Climate', icon: '🌡️' },
-    { path: '/reports', label: 'Reports', icon: '📊' },
-    { path: '/automations', label: 'Automations', icon: '🤖' },
-    { path: '/events', label: 'Events', icon: '📋' },
-    { path: '/chat', label: 'Chat', icon: '💬' },
-    { path: '/settings', label: 'Settings', icon: '⚙️' },
+    { path: '/', label: 'Dashboard' },
+    { path: '/assistant', label: 'Assistant' },
+    { path: '/climate', label: 'Climate' },
+    { path: '/reports', label: 'Reports' },
+    { path: '/automations', label: 'Automations' },
+    { path: '/events', label: 'Events' },
+    { path: '/chat', label: 'Chat' },
+    { path: '/settings', label: 'Settings' },
   ]
   const mobilePrimaryPaths = new Set(['/', '/assistant', '/climate', '/automations'])
   const mobilePrimaryItems = navItems.filter(item => mobilePrimaryPaths.has(item.path))
@@ -121,9 +108,8 @@ function AppContent() {
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <span className="text-xl shrink-0">🌿</span>
-              <h1 className="text-lg font-semibold shrink-0">TentOS</h1>
-              {version && <span className="text-xs text-gray-500">v{version}</span>}
+              <BrandGlyph size={20} className="shrink-0 text-green-400" aria-hidden="true" />
+              <h1 className="text-lg font-semibold shrink-0 tracking-tight">TentOS</h1>
               {updateAvailable && (
                 <a
                   href="/hassio/addon/f2f41762_tentos/info"
@@ -134,7 +120,6 @@ function AppContent() {
                   Update
                 </a>
               )}
-              <TempToggle />
             </div>
 
             <nav className="hidden min-w-0 items-center gap-0.5 overflow-x-auto scrollbar-none xl:flex">
@@ -142,13 +127,13 @@ function AppContent() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`px-3 py-1.5 rounded-lg transition-colors text-sm ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors text-sm ${
                     location.pathname === item.path
                       ? 'bg-green-600/20 text-green-400'
                       : 'hover:bg-[#1f2b4d] text-gray-300'
                   }`}
                 >
-                  <span className="mr-1">{item.icon}</span>
+                  <NavGlyph path={item.path} size={15} />
                   {item.label}
                 </Link>
               ))}
@@ -192,7 +177,7 @@ function AppContent() {
                 location.pathname === item.path ? 'text-green-400' : 'text-gray-400 active:text-white'
               }`}
             >
-              <span className="text-xl leading-none">{item.icon}</span>
+              <NavGlyph path={item.path} size={22} />
               <span>{item.label}</span>
             </Link>
           ))}
@@ -206,7 +191,7 @@ function AppContent() {
             aria-expanded={mobileMenuOpen}
             aria-label="More navigation"
           >
-            <span className="text-xl leading-none">•••</span>
+            <Ellipsis size={22} aria-hidden="true" />
             <span>More</span>
           </button>
         </div>
@@ -225,7 +210,7 @@ function AppContent() {
                 to={item.path}
                 className="flex items-center gap-3 min-h-12 px-4 rounded-xl text-gray-200 active:bg-[#2d3a5c]"
               >
-                <span className="text-xl">{item.icon}</span>
+                <NavGlyph path={item.path} size={20} className="text-gray-400" />
                 <span className="font-medium">{item.label}</span>
               </Link>
             ))}

@@ -49,7 +49,7 @@ export function useTemperatureUnit() {
     } catch {}
   }, [unit])
 
-  return { unit, toggleUnit, formatTemp: (c, d) => formatTemp(c, unit, d), getTempUnit: () => getTempUnit(unit) }
+  return { unit, setUnit, toggleUnit, formatTemp: (c, d) => formatTemp(c, unit, d), getTempUnit: () => getTempUnit(unit) }
 }
 
 // Provider component
@@ -62,16 +62,21 @@ export function TempUnitProvider({ children }) {
     }
   })
 
-  const toggleUnit = useCallback(() => {
-    const newUnit = unit === 'C' ? 'F' : 'C'
+  const chooseUnit = useCallback((newUnit) => {
+    if (newUnit !== 'C' && newUnit !== 'F') return
     setUnit(newUnit)
     try {
       localStorage.setItem('tempUnit', newUnit)
     } catch {}
-  }, [unit])
+  }, [])
+
+  const toggleUnit = useCallback(() => {
+    chooseUnit(unit === 'C' ? 'F' : 'C')
+  }, [unit, chooseUnit])
 
   const value = {
     unit,
+    setUnit: chooseUnit,
     toggleUnit,
     formatTemp: (celsius, decimals) => formatTemp(celsius, unit, decimals),
     getTempUnit: () => getTempUnit(unit)

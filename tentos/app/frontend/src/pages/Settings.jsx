@@ -3,9 +3,12 @@ import { DndContext, DragOverlay, pointerWithin } from '@dnd-kit/core'
 import EntityInventory from '../components/EntityInventory'
 import TentBuilder from '../components/TentBuilder'
 import { apiFetch } from '../utils/api'
+import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 
 export default function Settings() {
   const [status, setStatus] = useState(null)
+  const [version, setVersion] = useState('')
+  const { unit: tempUnit, setUnit: setTempUnit } = useTemperatureUnit()
   const [entities, setEntities] = useState([])
   const [slots, setSlots] = useState(null)
   const [config, setConfig] = useState({ version: '1.0', tents: [] })
@@ -28,6 +31,7 @@ export default function Settings() {
 
   // Load all data
   useEffect(() => {
+    apiFetch('api/health').then(r => r.json()).then(h => setVersion(h.version || '')).catch(() => {})
     Promise.all([
       apiFetch('api/system/status').then(r => r.json()),
       apiFetch('api/system/entities').then(r => r.json()),
@@ -884,6 +888,28 @@ export default function Settings() {
       {activeTab === 'status' && (
         <div className="card">
           <h3 className="font-semibold mb-4">System Status</h3>
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <div className="flex items-center justify-between rounded-lg bg-[#1a1a2e] px-3 py-2">
+              <span className="text-gray-400">TentOS version</span>
+              <span className="font-medium">{version ? `v${version}` : '--'}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg bg-[#1a1a2e] px-3 py-2">
+              <span className="text-gray-400">Temperature unit</span>
+              <div className="inline-flex rounded-md border border-[#2d3a5c] p-0.5" role="group" aria-label="Temperature unit">
+                {['F', 'C'].map(u => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => setTempUnit(u)}
+                    aria-pressed={tempUnit === u}
+                    className={`px-3 py-1 text-sm rounded ${tempUnit === u ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    °{u}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
           {status ? (
             <div className="grid md:grid-cols-2 gap-4">
               <div className="flex items-center gap-3">
