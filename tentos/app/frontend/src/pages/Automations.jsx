@@ -119,7 +119,7 @@ function Segmented({ value, options, onChange, className = '' }) {
           onClick={() => onChange(opt.value)}
           aria-pressed={value === opt.value}
           title={opt.title}
-          className={`min-h-11 flex-1 sm:flex-none px-3 text-sm whitespace-nowrap transition-colors ${
+          className={`min-h-11 flex-1 sm:flex-none px-2.5 text-sm whitespace-nowrap transition-colors ${
             value === opt.value ? 'bg-green-600 text-white' : 'text-gray-400 hover:bg-[#1f2b4d]'
           }`}
         >
@@ -1032,7 +1032,7 @@ export default function Automations() {
                 style={{ paddingLeft: '2.25rem' }}
               />
             </div>
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
               {tents.length > 0 && (
                 <Segmented
                   value={showAllAutomations ? 'all' : 'tent'}

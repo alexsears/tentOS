@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.0
+- Make the dashboard a glance: compact tent cards with a stage chip, readings row, one alert line, a scrolling row of control pills and an overflow menu; three tents fit one phone screen and four share a desktop row
+- Replace every emoji in the app with a shared lucide icon vocabulary (src/utils/icons.jsx)
+- Move the version and the F/C control out of the header into Settings > System Status
+- Tent detail: single switches per control instead of On/Off button pairs, text tabs, readings before the camera
+- Reports: chart first, one-line header, range and sensor chips that fit a phone, exports behind one icon on small screens
+- Automations: one-row header, collapsed suggestions, sentence-case groups, icon toolbar actions; thresholds no longer double their unit
+- Climate, Settings, Events, Chat and Assistant fit 390px without clipping
+
 ## 1.5.7
 - Keep the full app shell inside the device viewport with persistent header and navigation
 - Scroll long pages, chat feeds, and assistant conversations inside their available window
