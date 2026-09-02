@@ -4,18 +4,25 @@ import ReactECharts from 'echarts-for-react'
 import { apiFetch } from '../utils/api'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { similarSensorOptions } from '../utils/sensorComparison'
-import { format, subHours, subDays } from 'date-fns'
+import { format } from 'date-fns'
+import { ArrowLeft, Download } from 'lucide-react'
 
 const TIME_RANGES = [
-  { value: '1h', label: '1 Hour' },
-  { value: '6h', label: '6 Hours' },
-  { value: '12h', label: '12 Hours' },
-  { value: '24h', label: '24 Hours' },
-  { value: '3d', label: '3 Days' },
-  { value: '7d', label: '7 Days' },
-  { value: '14d', label: '14 Days' },
-  { value: '30d', label: '30 Days' },
+  { value: '1h', label: '1h' },
+  { value: '6h', label: '6h' },
+  { value: '12h', label: '12h' },
+  { value: '24h', label: '24h' },
+  { value: '3d', label: '3d' },
+  { value: '7d', label: '7d' },
+  { value: '14d', label: '14d' },
+  { value: '30d', label: '30d' },
 ]
+
+// Chips share one shape so the range row and the sensor row read as one control set.
+// 44px tall keeps them a real touch target on a phone.
+const CHIP_BASE = 'h-11 shrink-0 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors'
+const CHIP_IDLE = 'bg-[#1a1a2e] border border-[#2d3a5c] text-gray-300 hover:border-gray-500'
+const CHIP_ON = 'bg-green-600 border border-green-600 text-white'
 
 const SENSOR_CONFIG = {
   temperature: { label: 'Temperature', unit: null, color: '#ef4444', yAxisIndex: 0 },
@@ -26,26 +33,37 @@ const SENSOR_CONFIG = {
 
 const FOCUS_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7', '#14b8a6']
 
-function StateStatsCard({ label, stats }) {
+// One line per entity: name, then the few numbers that matter. The row scrolls
+// sideways rather than wrapping so a phone never gets a ragged stack of values.
+function Stat({ label, value, accent }) {
+  return (
+    <span className="flex items-baseline gap-1">
+      <span className="text-xs text-gray-500">{label}</span>
+      <span className={`font-medium ${accent ? 'text-green-400' : 'text-gray-100'}`}>{value}</span>
+    </span>
+  )
+}
+
+function StatsRowShell({ label, color, children }) {
+  return (
+    <div className="app-scroll-strip flex min-h-11 items-center gap-3 py-1 text-sm tabular-nums">
+      <span className="flex min-w-[5.5rem] shrink-0 items-center gap-2 font-medium text-gray-200">
+        {color && <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />}
+        <span className="truncate">{label}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-3 whitespace-nowrap">{children}</span>
+    </div>
+  )
+}
+
+function StateStatsRow({ label, stats, color }) {
   if (!stats) return null
   return (
-    <div className="bg-[#1a1a2e] rounded-lg p-3">
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
-      <div className="grid grid-cols-3 gap-2 text-sm">
-        <div>
-          <span className="text-gray-400">On:</span>
-          <span className="ml-1 font-medium">{stats.on_percent != null ? `${stats.on_percent}%` : '--'}</span>
-        </div>
-        <div>
-          <span className="text-gray-400">Hours:</span>
-          <span className="ml-1 font-medium">{stats.on_hours != null ? stats.on_hours : '--'}</span>
-        </div>
-        <div>
-          <span className="text-gray-400">Now:</span>
-          <span className="ml-1 font-medium text-green-400">{stats.current ?? '--'}</span>
-        </div>
-      </div>
-    </div>
+    <StatsRowShell label={label} color={color}>
+      <Stat label="On" value={stats.on_percent != null ? `${stats.on_percent}%` : '--'} />
+      <Stat label="Hours" value={stats.on_hours != null ? stats.on_hours : '--'} />
+      <Stat label="Now" value={stats.current ?? '--'} accent />
+    </StatsRowShell>
   )
 }
 
@@ -78,30 +96,15 @@ function toDisplayUnits(data, unit) {
   return converted
 }
 
-function StatsCard({ label, stats, unit }) {
+function StatsRow({ label, stats, unit, color }) {
   if (!stats) return null
   return (
-    <div className="bg-[#1a1a2e] rounded-lg p-3">
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-sm whitespace-nowrap">
-        <div>
-          <span className="text-gray-400">Min:</span>
-          <span className="ml-1 font-medium">{stats.min}{unit}</span>
-        </div>
-        <div>
-          <span className="text-gray-400">Max:</span>
-          <span className="ml-1 font-medium">{stats.max}{unit}</span>
-        </div>
-        <div>
-          <span className="text-gray-400">Avg:</span>
-          <span className="ml-1 font-medium">{stats.avg}{unit}</span>
-        </div>
-        <div>
-          <span className="text-gray-400">Now:</span>
-          <span className="ml-1 font-medium text-green-400">{stats.current}{unit}</span>
-        </div>
-      </div>
-    </div>
+    <StatsRowShell label={label} color={color}>
+      <Stat label="Min" value={`${stats.min}${unit}`} />
+      <Stat label="Max" value={`${stats.max}${unit}`} />
+      <Stat label="Avg" value={`${stats.avg}${unit}`} />
+      <Stat label="Now" value={`${stats.current}${unit}`} accent />
+    </StatsRowShell>
   )
 }
 
@@ -121,6 +124,23 @@ export default function Reports() {
   // Entity focus: arrives as ?entity=sensor.a,sensor.b when something is clicked elsewhere
   const [focusData, setFocusData] = useState([])
   const [focusLoading, setFocusLoading] = useState(false)
+  // Phone-only export menu. On wider screens both formats sit inline instead.
+  const [exportOpen, setExportOpen] = useState(false)
+  const exportMenuRef = useRef(null)
+
+  useEffect(() => {
+    if (!exportOpen) return undefined
+    const onClickOutside = (e) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) setExportOpen(false)
+    }
+    const onEscape = (e) => { if (e.key === 'Escape') setExportOpen(false) }
+    document.addEventListener('mousedown', onClickOutside)
+    document.addEventListener('keydown', onEscape)
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside)
+      document.removeEventListener('keydown', onEscape)
+    }
+  }, [exportOpen])
 
   const focusEntities = useMemo(
     () => (searchParams.get('entity') || '').split(',').map(e => e.trim()).filter(Boolean),
@@ -156,6 +176,16 @@ export default function Reports() {
   const coarsePointer = useMemo(
     () => (typeof window !== 'undefined' && window.matchMedia
       ? window.matchMedia('(pointer: coarse)').matches
+      : false),
+    []
+  )
+
+  // Below the sm breakpoint the three axis titles and the legend fight for one strip and
+  // 160px of side margins leave almost no plot. Drop the titles there: the axis colours
+  // still say which scale is which and the legend carries the names.
+  const narrowChart = useMemo(
+    () => (typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(max-width: 639px)').matches
       : false),
     []
   )
@@ -427,12 +457,9 @@ export default function Reports() {
         textStyle: { color: '#9ca3af' },
         top: 10
       },
-      grid: {
-        left: 60,
-        right: 100,
-        top: 50,
-        bottom: 80
-      },
+      grid: narrowChart
+        ? { left: 40, right: 72, top: 40, bottom: 80 }
+        : { left: 60, right: 100, top: 50, bottom: 80 },
       xAxis: {
         type: 'time',
         axisLine: { lineStyle: { color: '#2d3a5c' } },
@@ -442,7 +469,7 @@ export default function Reports() {
       yAxis: [
         {
           type: 'value',
-          name: `Temp (${tempUnitLabel})`,
+          name: narrowChart ? '' : `Temp (${tempUnitLabel})`,
           nameTextStyle: { color: '#ef4444' },
           axisLine: { lineStyle: { color: '#ef4444' } },
           axisLabel: { color: '#9ca3af' },
@@ -450,7 +477,7 @@ export default function Reports() {
         },
         {
           type: 'value',
-          name: 'Humidity %',
+          name: narrowChart ? '' : 'Humidity %',
           nameGap: 26,
           nameTextStyle: { color: '#3b82f6' },
           axisLine: { lineStyle: { color: '#3b82f6' } },
@@ -461,11 +488,11 @@ export default function Reports() {
         },
         {
           type: 'value',
-          name: 'VPD (kPa)',
+          name: narrowChart ? '' : 'VPD (kPa)',
           nameGap: 8,
           nameTextStyle: { color: '#22c55e' },
           position: 'right',
-          offset: 50,
+          offset: narrowChart ? 36 : 50,
           axisLine: { lineStyle: { color: '#22c55e' } },
           axisLabel: { color: '#9ca3af' },
           splitLine: { show: false },
@@ -496,7 +523,7 @@ export default function Reports() {
       ],
       series
     }
-  }, [historyData, coarsePointer, tempUnitLabel])
+  }, [historyData, coarsePointer, narrowChart, tempUnitLabel])
 
   // Chart for the focused entities. Numeric readings draw as lines; switches and
   // binary sensors draw as a 0/1 step so on/off runs are readable at a glance.
@@ -595,7 +622,9 @@ export default function Reports() {
         }
       },
       legend: { data: legend, textStyle: { color: '#9ca3af' }, top: 10, type: 'scroll' },
-      grid: { left: 60, right: 70, top: 50, bottom: 80 },
+      grid: narrowChart
+        ? { left: 44, right: 56, top: 40, bottom: 80 }
+        : { left: 60, right: 70, top: 50, bottom: 80 },
       xAxis: {
         type: 'time',
         min: new Date(focusData[0].from).getTime(),
@@ -624,7 +653,7 @@ export default function Reports() {
       ],
       series
     }
-  }, [focusData, coarsePointer])
+  }, [focusData, coarsePointer, narrowChart])
 
   // Export data
   const handleExport = async (format) => {
@@ -660,305 +689,314 @@ export default function Reports() {
     return <div className="text-center text-gray-400 py-12">Loading...</div>
   }
 
+  const exportAs = (fmt) => {
+    setExportOpen(false)
+    handleExport(fmt)
+  }
+
+  const rangeChips = (
+    <>
+      {TIME_RANGES.map(r => (
+        <button
+          key={r.value}
+          type="button"
+          onClick={() => { setTimeRange(r.value); setShowCustom(false) }}
+          className={`${CHIP_BASE} ${timeRange === r.value && !showCustom ? CHIP_ON : CHIP_IDLE}`}
+        >
+          {r.label}
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={() => setShowCustom(!showCustom)}
+        className={`${CHIP_BASE} ${showCustom ? CHIP_ON : CHIP_IDLE}`}
+      >
+        Custom
+      </button>
+    </>
+  )
+
+  const showTentStats = !focusKey && historyData?.stats && Object.keys(historyData.stats).length > 0
+  const showFocusStats = focusKey && focusEntities.length === 1 && focusData.some(e => e.stats)
+  const pointCount = focusKey
+    ? focusData.reduce((sum, e) => sum + (e.stats?.points || 0), 0)
+    : historyData ? Object.values(historyData.data || {}).reduce((sum, d) => sum + d.length, 0) : 0
+  const dataWindow = focusKey ? focusData[0] : historyData
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4">
+      {/* Header: one line, actions on the right */}
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-2xl font-bold truncate">
-            {focusKey
-              ? (focusData[0]?.friendly_name || focusEntities[0])
-              : 'Reports & History'}
-          </h2>
-          <p className="text-gray-400 truncate">
-            {focusKey
-              ? focusEntities.join(', ')
-              : 'Analyze historical sensor data with interactive charts'}
-          </p>
-          {/* Says outright whether the chart is still moving. A graph that silently stopped
-              updating looks exactly like a graph where nothing is happening. */}
-          <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
-            {isLiveRange ? (
-              <>
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span>
-                  HA history - refreshes every 30s
-                  {lastUpdated
-                    ? ` - updated ${lastUpdated.toLocaleTimeString()}`
-                    : ' - waiting for first reading'}
-                </span>
-              </>
-            ) : (
-              <span>Fixed window - not updating</span>
-            )}
-          </p>
-        </div>
-        <div className="flex gap-2 shrink-0">
+        <h2 className="min-w-0 truncate text-lg font-bold sm:text-xl">
+          {focusKey ? (focusData[0]?.friendly_name || focusEntities[0]) : 'Reports'}
+        </h2>
+        <div className="flex shrink-0 items-center gap-2">
           {focusKey ? (
-            <button onClick={clearFocus} className="btn btn-sm">
-              &larr; All tent sensors
+            <button
+              type="button"
+              onClick={clearFocus}
+              className="flex h-11 items-center gap-1.5 rounded-lg border border-[#2d3a5c] bg-[#16213e] px-3 text-sm text-gray-200 hover:border-gray-500 sm:h-9"
+            >
+              <ArrowLeft size={16} />
+              <span>All sensors</span>
             </button>
           ) : (
             <>
-              <button onClick={() => handleExport('csv')} className="btn btn-sm">
-                Export CSV
-              </button>
-              <button onClick={() => handleExport('json')} className="btn btn-sm">
-                Export JSON
-              </button>
+              {/* Phone: one icon button with a small menu */}
+              <div className="relative sm:hidden" ref={exportMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setExportOpen(o => !o)}
+                  aria-label="Export"
+                  aria-haspopup="menu"
+                  aria-expanded={exportOpen}
+                  className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#2d3a5c] bg-[#16213e] text-gray-200 hover:border-gray-500"
+                >
+                  <Download size={18} />
+                </button>
+                {exportOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-lg border border-[#2d3a5c] bg-[#16213e] shadow-lg"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => exportAs('csv')}
+                      className="flex h-11 w-full items-center px-3 text-sm text-gray-200 hover:bg-[#2d3a5c]"
+                    >
+                      Export CSV
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => exportAs('json')}
+                      className="flex h-11 w-full items-center px-3 text-sm text-gray-200 hover:bg-[#2d3a5c]"
+                    >
+                      Export JSON
+                    </button>
+                  </div>
+                )}
+              </div>
+              {/* sm and up: inline small buttons */}
+              <div className="hidden items-center gap-2 sm:flex">
+                <button type="button" onClick={() => handleExport('csv')} className="btn btn-sm btn-secondary flex items-center gap-1.5">
+                  <Download size={14} />
+                  <span>CSV</span>
+                </button>
+                <button type="button" onClick={() => handleExport('json')} className="btn btn-sm btn-secondary flex items-center gap-1.5">
+                  <Download size={14} />
+                  <span>JSON</span>
+                </button>
+              </div>
             </>
           )}
         </div>
       </div>
 
       {/* Controls */}
-      <div className="card">
-        <div className="flex flex-wrap gap-4 items-end">
-          {/* Tent selector */}
-          <div className={focusKey ? 'hidden' : ''}>
-            <label className="text-sm text-gray-400 block mb-1">Tent</label>
+      <div className="card space-y-2">
+        <div className="app-scroll-strip flex items-center gap-2">
+          {!focusKey && (
             <select
               value={selectedTent || ''}
               onChange={e => setSelectedTent(e.target.value)}
-              className="input"
+              aria-label="Tent"
+              className="input h-11 max-w-[11rem] shrink-0 py-0 text-sm"
             >
               {tents.map(t => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
-          </div>
+          )}
+          {rangeChips}
+        </div>
 
-          {/* Time range */}
-          <div className="min-w-0 w-full lg:w-auto">
-            <label className="text-sm text-gray-400 block mb-1">Time Range</label>
-            <div className="app-scroll-strip flex gap-1">
-              {TIME_RANGES.map(r => (
-                <button
-                  key={r.value}
-                  onClick={() => { setTimeRange(r.value); setShowCustom(false) }}
-                  className={`px-3 py-2 rounded text-sm ${
-                    timeRange === r.value && !showCustom
-                      ? 'bg-green-600 text-white'
-                      : 'bg-[#1a1a2e] hover:bg-[#2d3a5c]'
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-              <button
-                onClick={() => setShowCustom(!showCustom)}
-                className={`px-3 py-2 rounded text-sm ${
-                  showCustom ? 'bg-green-600 text-white' : 'bg-[#1a1a2e] hover:bg-[#2d3a5c]'
-                }`}
-              >
-                Custom
-              </button>
-            </div>
-          </div>
-
-          {/* Sensor toggles */}
-          <div className={`${focusKey ? 'hidden' : ''} min-w-0 max-w-full`}>
-            <label className="text-sm text-gray-400 block mb-1">Sensors</label>
-            <div className="app-scroll-strip flex gap-1">
-              {Object.entries(SENSOR_CONFIG).map(([key, config]) => (
+        {!focusKey && (
+          <div className="app-scroll-strip flex items-center gap-2">
+            {Object.entries(SENSOR_CONFIG).map(([key, config]) => {
+              const on = sensors.includes(key)
+              return (
                 <button
                   key={key}
+                  type="button"
                   onClick={() => toggleSensor(key)}
-                  className={`px-3 py-2 rounded text-sm ${
-                    sensors.includes(key)
-                      ? 'text-white'
-                      : 'bg-[#1a1a2e] text-gray-500'
-                  }`}
-                  style={{
-                    backgroundColor: sensors.includes(key) ? config.color : undefined
-                  }}
+                  aria-pressed={on}
+                  className={`${CHIP_BASE} ${on ? 'border text-white' : CHIP_IDLE}`}
+                  style={on ? { backgroundColor: config.color, borderColor: config.color } : undefined}
                 >
                   {config.label}
                 </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {focusKey && comparisonOptions.length > 1 && (
-          <div className="mt-4 pt-4 border-t border-[#2d3a5c]">
-            <div className="flex items-baseline justify-between gap-3 mb-2">
-              <div>
-                <div className="text-sm font-medium text-gray-200">Compare similar sensors</div>
-                <div className="text-xs text-gray-500">Add comparable readings to the same graph.</div>
-              </div>
-              <div className="text-xs text-gray-500 shrink-0">
-                {focusEntities.length} selected
-              </div>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {comparisonOptions.map(option => {
-                const selected = focusEntities.includes(option.entityId)
-                const primary = option.entityId === primaryFocusEntity
-                return (
-                  <label
-                    key={option.entityId}
-                    className={`flex min-h-12 items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${
-                      selected
-                        ? 'border-green-500/60 bg-green-500/10 text-white'
-                        : 'border-[#2d3a5c] bg-[#1a1a2e] text-gray-300 hover:border-gray-500'
-                    } ${primary ? 'cursor-default' : 'cursor-pointer'}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      disabled={primary}
-                      onChange={() => toggleFocusEntity(option.entityId)}
-                      className="h-4 w-4 accent-green-500"
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{option.label}</span>
-                      <span className="block truncate text-xs text-gray-500">{option.tentName}</span>
-                    </span>
-                    {primary && (
-                      <span className="rounded bg-green-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-green-300">
-                        Primary
-                      </span>
-                    )}
-                  </label>
-                )
-              })}
-            </div>
+              )
+            })}
           </div>
         )}
 
-        {/* Custom range inputs */}
         {showCustom && (
-          <div className="flex gap-4 mt-4 pt-4 border-t border-[#2d3a5c]">
-            <div>
-              <label className="text-sm text-gray-400 block mb-1">From</label>
+          <div className="flex flex-wrap items-center gap-2 border-t border-[#2d3a5c] pt-2">
+            <label className="flex min-w-0 flex-1 items-center gap-2 text-xs text-gray-400">
+              <span className="shrink-0">From</span>
               <input
                 type="datetime-local"
                 value={customRange.from}
                 onChange={e => setCustomRange(prev => ({ ...prev, from: e.target.value }))}
-                className="input"
+                className="input h-11 min-w-0 flex-1 py-0 text-sm"
               />
-            </div>
-            <div>
-              <label className="text-sm text-gray-400 block mb-1">To</label>
+            </label>
+            <label className="flex min-w-0 flex-1 items-center gap-2 text-xs text-gray-400">
+              <span className="shrink-0">To</span>
               <input
                 type="datetime-local"
                 value={customRange.to}
                 onChange={e => setCustomRange(prev => ({ ...prev, to: e.target.value }))}
-                className="input"
+                className="input h-11 min-w-0 flex-1 py-0 text-sm"
               />
-            </div>
+            </label>
+          </div>
+        )}
+
+        {focusKey && comparisonOptions.length > 1 && (
+          <div className="app-scroll-strip flex items-center gap-2">
+            <span className="shrink-0 text-xs text-gray-500">Compare</span>
+            {comparisonOptions.map(option => {
+              const selected = focusEntities.includes(option.entityId)
+              const primary = option.entityId === primaryFocusEntity
+              return (
+                <button
+                  key={option.entityId}
+                  type="button"
+                  disabled={primary}
+                  aria-pressed={selected}
+                  onClick={() => toggleFocusEntity(option.entityId)}
+                  className={`${CHIP_BASE} flex items-center gap-1.5 ${selected ? CHIP_ON : CHIP_IDLE} ${primary ? 'cursor-default' : ''}`}
+                >
+                  <span>{option.label}</span>
+                  <span className={`text-[11px] font-normal ${selected ? 'text-green-100/80' : 'text-gray-500'}`}>{option.tentName}</span>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* Focused entity statistics */}
+      {/* Chart, first thing below the controls */}
+      <div className="card">
+        <div className="h-[360px] sm:h-[500px]">
+          {focusKey ? (
+            focusLoading ? (
+              <div className="flex h-full items-center justify-center text-gray-400">
+                Loading chart data...
+              </div>
+            ) : focusChartOptions ? (
+              <ReactECharts
+                // Keyed on the selection, not the data. Changing what is charted remounts
+                // for a clean slate; a live refresh keeps the same instance so the view does
+                // not jump underneath whoever is reading it.
+                key={`focus:${focusSelection}`}
+                option={focusChartOptions}
+                style={{ height: '100%', touchAction: 'pan-y' }}
+                theme="dark"
+                opts={{ renderer: 'canvas' }}
+                onEvents={onChartEvents}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center px-4 text-center text-gray-400">
+                Home Assistant has no recorded history for {focusEntities.join(', ')} in this range.
+              </div>
+            )
+          ) : loading ? (
+            <div className="flex h-full items-center justify-center text-gray-400">
+              Loading chart data...
+            </div>
+          ) : chartOptions ? (
+            <ReactECharts
+              key={`tent:${tentSelection}`}
+              option={chartOptions}
+              style={{ height: '100%', touchAction: 'pan-y' }}
+              theme="dark"
+              opts={{ renderer: 'canvas' }}
+              onEvents={onChartEvents}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-gray-400">
+              No data available for the selected time range
+            </div>
+          )}
+        </div>
+
+        {/* Says outright whether the chart is still moving. A graph that silently stopped
+            updating looks exactly like a graph where nothing is happening. */}
+        <div className="mt-2 space-y-0.5 text-xs text-gray-500">
+          <p className="flex flex-wrap items-center gap-x-1.5">
+            {isLiveRange ? (
+              <>
+                <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
+                <span>
+                  Home Assistant history, 30s refresh.
+                  {lastUpdated ? ` Updated ${format(lastUpdated, 'h:mm a')}` : ' Waiting for first reading'}
+                </span>
+              </>
+            ) : (
+              <span>Fixed window, not updating.</span>
+            )}
+          </p>
+          {dataWindow?.from && dataWindow?.to && (
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span>
+                {format(new Date(dataWindow.from), 'MMM d, HH:mm')} to {format(new Date(dataWindow.to), 'MMM d, HH:mm')},
+                {' '}{pointCount.toLocaleString()} points
+              </span>
+              {!focusKey && historyData?.light_periods?.length > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-3.5 rounded border border-yellow-400/50 bg-yellow-400/30" />
+                  <span>Lights on ({historyData.light_periods.length})</span>
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Statistics: one compact row per sensor */}
       {/* Keep the detail text useful for a single reading, but let the chart and
           legend carry comparisons instead of adding another stats block per sensor. */}
-      {focusKey && focusEntities.length === 1 && focusData.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {focusData.map(entity => (
+      {showFocusStats && (
+        <div className="card divide-y divide-[#2d3a5c] py-1">
+          {focusData.map((entity, index) => (
             entity.kind === 'state' ? (
-              <StateStatsCard
+              <StateStatsRow
                 key={entity.entity_id}
                 label={entity.friendly_name || entity.entity_id}
                 stats={entity.stats}
+                color={FOCUS_COLORS[index % FOCUS_COLORS.length]}
               />
             ) : (
-              <StatsCard
+              <StatsRow
                 key={entity.entity_id}
                 label={entity.friendly_name || entity.entity_id}
                 stats={entity.stats}
                 unit={entity.unit ? ` ${entity.unit}` : ''}
+                color={FOCUS_COLORS[index % FOCUS_COLORS.length]}
               />
             )
           ))}
         </div>
       )}
 
-      {/* Statistics */}
-      {!focusKey && historyData?.stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {showTentStats && (
+        <div className="card divide-y divide-[#2d3a5c] py-1">
           {Object.entries(historyData.stats).map(([sensor, stats]) => {
             const config = SENSOR_CONFIG[sensor]
             return (
-              <StatsCard
+              <StatsRow
                 key={sensor}
                 label={config?.label || sensor}
                 stats={stats}
                 unit={config?.unit ?? getTempUnit()}
+                color={config?.color}
               />
             )
           })}
-        </div>
-      )}
-
-      {/* Main Chart */}
-      <div className="card">
-        {focusKey ? (
-          focusLoading ? (
-            <div className="h-96 flex items-center justify-center text-gray-400">
-              Loading chart data...
-            </div>
-          ) : focusChartOptions ? (
-            <ReactECharts
-              // Keyed on the selection, not the data. Changing what is charted remounts
-              // for a clean slate; a live refresh keeps the same instance so the view does
-              // not jump underneath whoever is reading it.
-              key={`focus:${focusSelection}`}
-              option={focusChartOptions}
-              style={{ height: '500px', touchAction: 'pan-y' }}
-              theme="dark"
-              opts={{ renderer: 'canvas' }}
-              onEvents={onChartEvents}
-            />
-          ) : (
-            <div className="h-96 flex items-center justify-center text-gray-400 text-center px-4">
-              Home Assistant has no recorded history for {focusEntities.join(', ')} in this range.
-            </div>
-          )
-        ) : loading ? (
-          <div className="h-96 flex items-center justify-center text-gray-400">
-            Loading chart data...
-          </div>
-        ) : chartOptions ? (
-          <ReactECharts
-            key={`tent:${tentSelection}`}
-            option={chartOptions}
-            style={{ height: '500px', touchAction: 'pan-y' }}
-            theme="dark"
-            opts={{ renderer: 'canvas' }}
-            onEvents={onChartEvents}
-          />
-        ) : (
-          <div className="h-96 flex items-center justify-center text-gray-400">
-            No data available for the selected time range
-          </div>
-        )}
-      </div>
-
-      {/* Data info */}
-      {focusKey && focusData.length > 0 && (
-        <div className="text-sm text-gray-500 text-center">
-          Showing data from {format(new Date(focusData[0].from), 'MMM d, yyyy HH:mm')} to{' '}
-          {format(new Date(focusData[0].to), 'MMM d, yyyy HH:mm')}
-          {' '}&bull;{' '}
-          {focusData.reduce((sum, e) => sum + (e.stats?.points || 0), 0)} data points
-        </div>
-      )}
-      {!focusKey && historyData && (
-        <div className="text-sm text-gray-500 text-center space-y-1">
-          <div>
-            Showing data from {format(new Date(historyData.from), 'MMM d, yyyy HH:mm')} to{' '}
-            {format(new Date(historyData.to), 'MMM d, yyyy HH:mm')}
-            {' '}&bull;{' '}
-            {Object.values(historyData.data).reduce((sum, d) => sum + d.length, 0)} data points
-          </div>
-          {historyData.light_periods?.length > 0 && (
-            <div className="flex items-center justify-center gap-2">
-              <span className="inline-block w-4 h-3 bg-yellow-400/30 border border-yellow-400/50 rounded"></span>
-              <span>Light On Periods ({historyData.light_periods.length})</span>
-            </div>
-          )}
         </div>
       )}
     </div>
