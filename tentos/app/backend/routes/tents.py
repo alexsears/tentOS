@@ -304,11 +304,14 @@ async def toggle_actuator(
 @router.get("/{tent_id}/history")
 async def get_tent_history(
     tent_id: str,
+    request: Request,
     range: str = "24h",  # 24h, 7d, 30d
     sensor: Optional[str] = None,
     state_manager: StateManager = Depends(get_state_manager)
 ):
-    """Get sensor history for a tent."""
+    """Get sensor history for a tent, plus the lights-on periods for chart shading."""
+    from routes.reports import fetch_light_periods, get_light_entity_ids
+
     tent = state_manager.get_tent(tent_id)
     if not tent:
         raise HTTPException(status_code=404, detail="Tent not found")
@@ -350,7 +353,21 @@ async def get_tent_history(
                 "value": record.value
             })
 
-        return {"tent_id": tent_id, "range": range, "history": history}
+        light_entities = get_light_entity_ids(tent)
+        light_periods = []
+        ha_client = getattr(request.app.state, "ha_client", None)
+        if ha_client is not None and light_entities:
+            light_periods = await fetch_light_periods(ha_client, light_entities, start_time, now)
+
+        return {
+            "tent_id": tent_id,
+            "range": range,
+            "from": start_time.isoformat(),
+            "to": now.isoformat(),
+            "history": history,
+            "light_entities": light_entities,
+            "light_periods": light_periods,
+        }
 
 
 @router.put("/{tent_id}/control-settings")

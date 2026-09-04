@@ -7,11 +7,13 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend
+  Legend,
+  ReferenceArea
 } from 'recharts'
 import { format } from 'date-fns'
 import { apiFetch } from '../utils/api'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
+import { useShadeLights, LIGHT_BAND_FILL, LIGHT_BAND_OPACITY } from '../utils/lightShading'
 
 const COLORS = {
   temperature: '#ef4444',
@@ -33,7 +35,9 @@ const LABELS = {
 
 export function SensorChart({ tentId, sensors = ['temperature', 'humidity'], range = '24h' }) {
   const [data, setData] = useState([])
+  const [lightPeriods, setLightPeriods] = useState([])
   const [loading, setLoading] = useState(true)
+  const [shadeLights] = useShadeLights()
   // History is stored in Celsius; the chart showed it raw and unlabelled while
   // the rest of the app followed the header's unit toggle.
   const { unit: tempUnit, getTempUnit } = useTemperatureUnit()
@@ -77,6 +81,7 @@ export function SensorChart({ tentId, sensors = ['temperature', 'humidity'], ran
           .sort((a, b) => a.time - b.time)
 
         setData(chartData)
+        setLightPeriods(response.light_periods || [])
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -104,17 +109,45 @@ export function SensorChart({ tentId, sensors = ['temperature', 'humidity'], ran
     )
   }
 
+  // The bands live on the same numeric time axis as the readings; clip them to the
+  // plotted span so a light that was on before the first reading does not push the
+  // axis out beyond the data.
+  const firstTime = data[0].time
+  const lastTime = data[data.length - 1].time
+  const bands = shadeLights
+    ? lightPeriods
+      .map(period => ({
+        start: Math.max(firstTime, new Date(period.start).getTime()),
+        end: Math.min(lastTime, new Date(period.end).getTime())
+      }))
+      .filter(band => Number.isFinite(band.start) && Number.isFinite(band.end) && band.end > band.start)
+    : []
+
   return (
     <ResponsiveContainer width="100%" height={300}>
       <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#2d3a5c" />
         <XAxis
           dataKey="time"
+          type="number"
+          scale="time"
+          domain={['dataMin', 'dataMax']}
           tickFormatter={formatTime}
           stroke="#6b7280"
           tick={{ fill: '#9ca3af', fontSize: 12 }}
         />
         <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af', fontSize: 12 }} />
+        {bands.map(band => (
+          <ReferenceArea
+            key={`${band.start}-${band.end}`}
+            x1={band.start}
+            x2={band.end}
+            ifOverflow="hidden"
+            fill={LIGHT_BAND_FILL}
+            fillOpacity={LIGHT_BAND_OPACITY}
+            stroke="none"
+          />
+        ))}
         <Tooltip
           contentStyle={{
             backgroundColor: '#16213e',

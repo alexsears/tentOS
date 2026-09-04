@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useTent, useTents } from '../hooks/useTents'
 import { SensorChart } from '../components/SensorChart'
+import { LightShadeToggle } from '../components/LightShadeToggle'
 import { EventLog } from '../components/EventLog'
 import { CameraFeed, CameraGrid } from '../components/CameraFeed'
 import { AutomationEditor } from '../components/AutomationEditor'
@@ -504,17 +505,22 @@ export default function TentDetail() {
       {/* Charts Tab */}
       {activeTab === 'charts' && (
         <div className="space-y-6">
-          <div className="flex justify-end gap-2">
-            {['24h', '7d', '30d'].map(range => (
-              <button
-                key={range}
-                type="button"
-                onClick={() => setChartRange(range)}
-                className={`btn btn-sm min-h-[44px] ${chartRange === range ? 'btn-primary' : 'btn-secondary'}`}
-              >
-                {range}
-              </button>
-            ))}
+          <div className="flex items-center justify-between gap-2">
+            {Object.keys(tent.actuators || {}).some(slot => slot === 'light' || slot.startsWith('light_'))
+              ? <LightShadeToggle />
+              : <span />}
+            <div className="flex gap-2">
+              {['24h', '7d', '30d'].map(range => (
+                <button
+                  key={range}
+                  type="button"
+                  onClick={() => setChartRange(range)}
+                  className={`btn btn-sm min-h-[44px] ${chartRange === range ? 'btn-primary' : 'btn-secondary'}`}
+                >
+                  {range}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="card">

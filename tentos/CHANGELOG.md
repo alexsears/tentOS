@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1
+- Lights option beside every history chart (Reports, tent Charts tab, Climate): shade the plot while the tent light was on; remembered between visits, on by default
+- Lights-on bands now also appear when a single entity is charted, using the light of the tent that entity belongs to
+- A tent with two lights shades once per photoperiod instead of twice, and a light with no recorded history shades from its live state
+
 ## 1.6.0
 - Make the dashboard a glance: compact tent cards with a stage chip, readings row, one alert line, a scrolling row of control pills and an overflow menu; three tents fit one phone screen and four share a desktop row
 - Replace every emoji in the app with a shared lucide icon vocabulary (src/utils/icons.jsx)

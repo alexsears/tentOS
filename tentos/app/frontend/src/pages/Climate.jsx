@@ -5,6 +5,8 @@ import { useTents } from '../hooks/useTents'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { apiFetch } from '../utils/api'
 import { stageIcon } from '../utils/icons'
+import { LightShadeToggle } from '../components/LightShadeToggle'
+import { useShadeLights, LIGHT_BAND_COLOR } from '../utils/lightShading'
 
 // VPD targets mirrored from backend state_manager.py:125-142
 const VPD_TARGETS = {
@@ -185,7 +187,7 @@ function VpdChart({ historyData, target, lightPeriods }) {
     const lightMarkAreas = (lightPeriods || []).map(period => ([
       {
         xAxis: new Date(period.start).getTime(),
-        itemStyle: { color: 'rgba(250, 204, 21, 0.08)' }
+        itemStyle: { color: LIGHT_BAND_COLOR }
       },
       { xAxis: new Date(period.end).getTime() }
     ]))
@@ -353,6 +355,7 @@ export default function Climate() {
   const [timeRange, setTimeRange] = useState('24h')
   const [historyData, setHistoryData] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [shadeLights] = useShadeLights()
   const refreshTimer = useRef(null)
 
   // Auto-select first tent
@@ -434,6 +437,7 @@ export default function Climate() {
   const vpdHistory = historyData?.data?.vpd || []
   const vpdStats = historyData?.stats?.vpd || null
   const lightPeriods = historyData?.light_periods || []
+  const hasLight = (historyData?.light_entities?.length || 0) > 0
 
   return (
     <div className="space-y-4">
@@ -459,7 +463,7 @@ export default function Climate() {
       <FlowerWeekTimeline stage={stage.stage || 'veg'} flowerWeek={stage.flower_week} />
 
       {/* Time range selector */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm text-gray-500">Range:</span>
         <div className="flex gap-1">
           {TIME_RANGES.map(r => (
@@ -477,10 +481,11 @@ export default function Climate() {
           ))}
         </div>
         {loading && <span className="text-xs text-gray-500 ml-2">Loading...</span>}
+        {hasLight && <LightShadeToggle periods={lightPeriods} className="ml-auto" />}
       </div>
 
       {/* VPD Chart */}
-      <VpdChart historyData={vpdHistory} target={vpdTarget} lightPeriods={lightPeriods} />
+      <VpdChart historyData={vpdHistory} target={vpdTarget} lightPeriods={shadeLights ? lightPeriods : []} />
 
       {/* Stats Footer */}
       <StatsFooter stats={vpdStats} />

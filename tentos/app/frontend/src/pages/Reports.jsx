@@ -6,6 +6,8 @@ import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
 import { similarSensorOptions } from '../utils/sensorComparison'
 import { format } from 'date-fns'
 import { ArrowLeft, Download } from 'lucide-react'
+import { LightShadeToggle } from '../components/LightShadeToggle'
+import { useShadeLights, lightMarkAreas } from '../utils/lightShading'
 
 const TIME_RANGES = [
   { value: '1h', label: '1h' },
@@ -111,6 +113,9 @@ function StatsRow({ label, stats, unit, color }) {
 export default function Reports() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { unit: tempUnit, getTempUnit } = useTemperatureUnit()
+  // Shade the plot while the tent light was on. Shared with every other chart and
+  // remembered between visits.
+  const [shadeLights] = useShadeLights()
   const [tents, setTents] = useState([])
   const [selectedTent, setSelectedTent] = useState(null)
   const timeRange = searchParams.get('range') || '24h'
@@ -361,16 +366,9 @@ export default function Reports() {
     const series = []
     const legend = []
 
-    // Build light period markArea data for overlay
-    const lightMarkAreas = (historyData.light_periods || []).map(period => ([
-      {
-        xAxis: new Date(period.start).getTime(),
-        itemStyle: { color: 'rgba(250, 204, 21, 0.15)' }
-      },
-      {
-        xAxis: new Date(period.end).getTime()
-      }
-    ]))
+    // Lights-on bands behind the lines. Always present on the first series, empty when
+    // the option is off, so a merged setOption clears the old bands instead of keeping them.
+    const lightBands = shadeLights ? lightMarkAreas(historyData.light_periods) : []
 
     Object.entries(historyData.data).forEach(([sensor, data], index) => {
       if (!data || data.length === 0) return
@@ -395,12 +393,8 @@ export default function Reports() {
         yAxisIndex
       }
 
-      // Add light overlay to the first series
-      if (index === 0 && lightMarkAreas.length > 0) {
-        seriesConfig.markArea = {
-          silent: true,
-          data: lightMarkAreas
-        }
+      if (index === 0) {
+        seriesConfig.markArea = { silent: true, data: lightBands }
       }
 
       series.push(seriesConfig)
@@ -523,7 +517,7 @@ export default function Reports() {
       ],
       series
     }
-  }, [historyData, coarsePointer, narrowChart, tempUnitLabel])
+  }, [historyData, coarsePointer, narrowChart, tempUnitLabel, shadeLights])
 
   // Chart for the focused entities. Numeric readings draw as lines; switches and
   // binary sensors draw as a 0/1 step so on/off runs are readable at a glance.
@@ -534,11 +528,14 @@ export default function Reports() {
     const legend = []
     const hasNumeric = focusData.some(d => d.kind === 'numeric')
     const hasState = focusData.some(d => d.kind === 'state')
+    // The lights of whichever tent the first entity belongs to
+    const lightBands = shadeLights ? lightMarkAreas(focusData[0].light_periods) : []
 
     focusData.forEach((entity, index) => {
       const color = FOCUS_COLORS[index % FOCUS_COLORS.length]
       const name = entity.friendly_name || entity.entity_id
       legend.push(name)
+      const markArea = index === 0 ? { silent: true, data: lightBands } : undefined
 
       if (entity.kind === 'numeric') {
         series.push({
@@ -549,6 +546,7 @@ export default function Reports() {
           lineStyle: { width: 2, color },
           itemStyle: { color },
           yAxisIndex: 0,
+          markArea,
           data: (entity.data || []).map(d => [new Date(d.timestamp).getTime(), d.value])
         })
       } else if (entity.kind === 'state') {
@@ -568,6 +566,7 @@ export default function Reports() {
           itemStyle: { color },
           areaStyle: { color, opacity: 0.15 },
           yAxisIndex: hasNumeric ? 1 : 0,
+          markArea,
           data: points
         })
       }
@@ -653,7 +652,7 @@ export default function Reports() {
       ],
       series
     }
-  }, [focusData, coarsePointer, narrowChart])
+  }, [focusData, coarsePointer, narrowChart, shadeLights])
 
   // Export data
   const handleExport = async (format) => {
@@ -722,6 +721,8 @@ export default function Reports() {
     ? focusData.reduce((sum, e) => sum + (e.stats?.points || 0), 0)
     : historyData ? Object.values(historyData.data || {}).reduce((sum, d) => sum + d.length, 0) : 0
   const dataWindow = focusKey ? focusData[0] : historyData
+  // The option only earns a place beside the chart when the subject has a light to shade by
+  const hasLight = (dataWindow?.light_entities?.length || 0) > 0
 
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -881,6 +882,11 @@ export default function Reports() {
 
       {/* Chart, first thing below the controls */}
       <div className="card">
+        {hasLight && (
+          <div className="mb-1 flex items-center justify-end">
+            <LightShadeToggle periods={dataWindow?.light_periods} />
+          </div>
+        )}
         <div className="h-[360px] sm:h-[500px]">
           {focusKey ? (
             focusLoading ? (
@@ -946,12 +952,6 @@ export default function Reports() {
                 {format(new Date(dataWindow.from), 'MMM d, HH:mm')} to {format(new Date(dataWindow.to), 'MMM d, HH:mm')},
                 {' '}{pointCount.toLocaleString()} points
               </span>
-              {!focusKey && historyData?.light_periods?.length > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2.5 w-3.5 rounded border border-yellow-400/50 bg-yellow-400/30" />
-                  <span>Lights on ({historyData.light_periods.length})</span>
-                </span>
-              )}
             </p>
           )}
         </div>

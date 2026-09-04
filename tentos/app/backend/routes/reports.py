@@ -57,33 +57,115 @@ def get_light_entity_ids(tent) -> list[str]:
     return entities
 
 
-def extract_light_periods(history_data: list) -> list[dict]:
-    """Convert light state history to on/off periods for chart overlay."""
+def _parse_ts(value: str):
+    """ISO timestamp -> aware datetime, or None when it will not parse."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def extract_light_periods(history_data: list, start_time=None, end_time=None) -> list[dict]:
+    """Convert one entity's HA state history into on periods for the chart shading.
+
+    The window bounds clamp the periods: HA reports the state at the start of the
+    window as its first row, so a light that was already on shades from the window
+    start, and a light still on at the end shades right up to the window end.
+    """
     if not history_data:
         return []
 
+    end_time = end_time or datetime.now(timezone.utc)
     periods = []
-    current_period = None
+    current_start = None
 
-    for state in sorted(history_data, key=lambda x: x.get("last_changed", "")):
-        timestamp = state.get("last_changed") or state.get("last_updated")
-        is_on = state.get("state", "").lower() in ("on", "true", "1", "playing")
+    for state in sorted(history_data, key=lambda x: x.get("last_changed") or x.get("last_updated") or ""):
+        timestamp = _parse_ts(state.get("last_changed") or state.get("last_updated"))
+        if timestamp is None:
+            continue
+        if start_time is not None and timestamp < start_time:
+            timestamp = start_time
+        raw = str(state.get("state") or "").lower()
+        if raw in ("unavailable", "unknown", ""):
+            # A dropout is not a switch-off; keep whatever the light was doing
+            continue
+        is_on = raw in ON_STATES
 
-        if is_on and current_period is None:
-            # Light turned on - start new period
-            current_period = {"start": timestamp, "end": None}
-        elif not is_on and current_period is not None:
-            # Light turned off - end current period
-            current_period["end"] = timestamp
-            periods.append(current_period)
-            current_period = None
+        if is_on and current_start is None:
+            current_start = timestamp
+        elif not is_on and current_start is not None:
+            if timestamp > current_start:
+                periods.append({"start": current_start, "end": timestamp})
+            current_start = None
 
-    # If light is still on, end period at current time
-    if current_period is not None:
-        current_period["end"] = datetime.now(timezone.utc).isoformat()
-        periods.append(current_period)
+    if current_start is not None and end_time > current_start:
+        periods.append({"start": current_start, "end": end_time})
 
     return periods
+
+
+def merge_light_periods(periods: list[dict]) -> list[dict]:
+    """Union overlapping on periods (a tent with two lights shades once, not twice)."""
+    ordered = sorted((p for p in periods if p.get("start") and p.get("end")), key=lambda p: p["start"])
+    merged: list[dict] = []
+    for period in ordered:
+        if merged and period["start"] <= merged[-1]["end"]:
+            if period["end"] > merged[-1]["end"]:
+                merged[-1]["end"] = period["end"]
+        else:
+            merged.append({"start": period["start"], "end": period["end"]})
+    return merged
+
+
+async def fetch_light_periods(ha_client, light_entities: list[str], start_time, end_time) -> list[dict]:
+    """On periods for a tent's lights across the window, as ISO strings.
+
+    Every light entity is queried; their periods are unioned so a two-light tent
+    gives one band per photoperiod. A light with no recorded history in the window
+    (never toggled, recorder excluded it) falls back to its current state, so a
+    light that is simply on all day still shades the whole chart.
+    """
+    entities = [e for e in (light_entities or []) if e]
+    if not entities:
+        return []
+
+    by_entity: dict[str, list] = {e: [] for e in entities}
+    try:
+        history = await ha_client.get_history(entities, start_time.isoformat(), end_time.isoformat())
+    except Exception as e:
+        logger.error(f"Failed to get light history for {entities}: {e}")
+        history = []
+
+    for entity_history in history or []:
+        if not entity_history:
+            continue
+        entity_id = entity_history[0].get("entity_id")
+        if entity_id in by_entity:
+            by_entity[entity_id] = entity_history
+
+    periods: list[dict] = []
+    for entity_id, entity_history in by_entity.items():
+        if entity_history:
+            periods.extend(extract_light_periods(entity_history, start_time, end_time))
+            continue
+        # No rows: use the live state for the whole window
+        try:
+            current = await ha_client.get_state(entity_id)
+        except Exception:
+            current = None
+        raw = str((current or {}).get("state") or "").lower()
+        if raw in ON_STATES:
+            periods.append({"start": start_time, "end": end_time})
+
+    return [
+        {"start": p["start"].isoformat(), "end": p["end"].isoformat()}
+        for p in merge_light_periods(periods)
+    ]
 
 
 RANGE_MAP = {
@@ -226,6 +308,17 @@ async def get_entity_history(
             stats["on_percent"] = round(100 * on_seconds / window, 1)
             stats["on_hours"] = round(on_seconds / 3600, 2)
 
+    # Lights-on shading: if this entity belongs to a tent, shade that tent's photoperiod
+    light_entities: list[str] = []
+    state_manager = getattr(request.app.state, "state_manager", None)
+    if state_manager is not None:
+        membership = getattr(state_manager, "entity_to_tent", {}).get(entity_id)
+        if membership:
+            tent = state_manager.get_tent(membership[0])
+            if tent:
+                light_entities = get_light_entity_ids(tent)
+    light_periods = await fetch_light_periods(ha_client, light_entities, start_time, end_time)
+
     return {
         "entity_id": entity_id,
         "friendly_name": friendly_name,
@@ -238,6 +331,8 @@ async def get_entity_history(
         "data": numeric if kind == "numeric" else [],
         "states": states if kind == "state" else [],
         "stats": stats,
+        "light_entities": light_entities,
+        "light_periods": light_periods,
         "source": "home_assistant",
     }
 
@@ -414,23 +509,9 @@ async def get_history(
         if extra not in sensor_list and extra in stats:
             del stats[extra]
 
-    # Fetch light state history for overlay
-    light_periods = []
+    # Lights-on periods for the chart shading, merged across every light in the tent
     light_entities = get_light_entity_ids(tent)
-    if light_entities:
-        try:
-            light_history = await ha_client.get_history(
-                light_entities,
-                start_time.isoformat(),
-                end_time.isoformat()
-            )
-            # Process light history to extract on/off periods
-            for entity_history in light_history:
-                if entity_history:
-                    periods = extract_light_periods(entity_history)
-                    light_periods.extend(periods)
-        except Exception as e:
-            logger.error(f"Failed to get light history: {e}")
+    light_periods = await fetch_light_periods(ha_client, light_entities, start_time, end_time)
 
     units = {}
     for sensor_type in result_data:
@@ -452,6 +533,7 @@ async def get_history(
         "to": end_time.isoformat(),
         "data": result_data,
         "stats": stats,
+        "light_entities": light_entities,
         "light_periods": light_periods,
         "source": "home_assistant"
     }
