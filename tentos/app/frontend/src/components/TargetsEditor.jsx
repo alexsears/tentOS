@@ -21,6 +21,8 @@ const DEFAULTS = {
   humidity_day_max: 70,
   humidity_night_min: 40,
   humidity_night_max: 70,
+  co2_day_target: 1000,
+  co2_max: 1500,
 }
 
 const ROWS = [
@@ -28,6 +30,7 @@ const ROWS = [
   { label: 'Night temp', min: 'temp_night_min', max: 'temp_night_max', temp: true },
   { label: 'Day humidity', min: 'humidity_day_min', max: 'humidity_day_max' },
   { label: 'Night humidity', min: 'humidity_night_min', max: 'humidity_night_max' },
+  { label: 'CO2 target / max', min: 'co2_day_target', max: 'co2_max', ppm: true },
 ]
 
 const round1 = (v) => Math.round(v * 10) / 10
@@ -110,11 +113,11 @@ export function TargetsEditor({ tentId, targets, onSaved }) {
         {ROWS.map(row => (
           <div key={row.label} className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
             <span className="text-sm text-gray-400">
-              {row.label} <span className="opacity-60">({row.temp ? getTempUnit() : '%'})</span>
+              {row.label} <span className="opacity-60">({row.temp ? getTempUnit() : row.ppm ? 'ppm' : '%'})</span>
             </span>
             <input
               type="number"
-              step="0.5"
+              step={row.ppm ? '50' : '0.5'}
               className="input w-24"
               placeholder={placeholder(row.min)}
               value={values[row.min] ?? ''}
@@ -123,7 +126,7 @@ export function TargetsEditor({ tentId, targets, onSaved }) {
             />
             <input
               type="number"
-              step="0.5"
+              step={row.ppm ? '50' : '0.5'}
               className="input w-24"
               placeholder={placeholder(row.max)}
               value={values[row.max] ?? ''}

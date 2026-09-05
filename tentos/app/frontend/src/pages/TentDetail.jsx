@@ -46,6 +46,7 @@ const DEFAULT_CONTROL_ORDER = [
   'humidifier', 'dehumidifier', 'heater', 'ac',
   'water_pump', 'water_pump_2', 'water_pump_3',
   'drain_pump',
+  'co2_injector',
 ]
 
 const CONTROL_LABELS = {
@@ -58,6 +59,7 @@ const CONTROL_LABELS = {
   ac: 'A/C',
   water_pump: 'Water pump',
   drain_pump: 'Drain pump',
+  co2_injector: 'CO2 injector',
 }
 
 function defaultControlLabel(slot) {

@@ -8,6 +8,7 @@ import {
   Camera,
   ChartLine,
   Cloud,
+  Cylinder,
   Droplet,
   Droplets,
   Fan,
@@ -45,6 +46,7 @@ export const ACTUATOR_ICONS = {
   ac: Snowflake,
   water_pump: Waves,
   drain_pump: ArrowDownToLine,
+  co2_injector: Cylinder,
 }
 
 export function actuatorBaseType(slot) {

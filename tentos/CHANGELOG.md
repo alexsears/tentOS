@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.0
+- CO2 supplementation: new CO2 Injector actuator slot (switch or valve) in the tent builder, shown as a control on the tent card and detail page
+- New automation template Low CO2 -> CO2 Injector: injects while the tent light is on and CO2 is below the day target, stops at target plus 150 ppm, when the light goes off, or after 10 minutes of continuous injection
+- CO2 targets per tent (day target and max, ppm) in the Targets editor and the automation chain editor; saved with the other targets
+- CO2 alerts: warning above the CO2 max (1500 ppm default, critical from 2000), info when a tent with a day target sits 200 ppm or more below it
+- Automations created from the CO2 template are grouped under CO2
+
 ## 1.6.1
 - Lights option beside every history chart (Reports, tent Charts tab, Climate): shade the plot while the tent light was on; remembered between visits, on by default
 - Lights-on bands now also appear when a single entity is charted, using the light of the tent that entity belongs to

@@ -659,6 +659,39 @@ class StateManager:
                             "range_max": hum_max
                         })
 
+                # CO2 alerts. The ceiling always applies when a CO2 sensor is
+                # configured (1500 ppm default); the low alert only when the
+                # tent has an explicit day target, otherwise every tent without
+                # supplementation would alert forever.
+                co2_data = tent.sensors.get("co2", {})
+                co2 = co2_data.get("value")
+                if co2 is not None and notifications.get("alert_co2_out_of_range", True):
+                    try:
+                        co2 = float(co2)
+                    except (ValueError, TypeError):
+                        co2 = None
+                if co2 is not None and notifications.get("alert_co2_out_of_range", True):
+                    co2_max = targets.get("co2_max", 1500)
+                    co2_target = targets.get("co2_day_target")
+                    if co2 > co2_max:
+                        alerts.append({
+                            "type": "co2_high",
+                            "severity": "critical" if co2 >= 2000 else "warning",
+                            "message": f"CO2 {round(co2)} ppm is above the {round(co2_max)} ppm ceiling",
+                            "value": round(co2),
+                            "unit": "ppm",
+                            "range_max": co2_max
+                        })
+                    elif co2_target is not None and co2 < co2_target - 200:
+                        alerts.append({
+                            "type": "co2_low",
+                            "severity": "info",
+                            "message": f"CO2 {round(co2)} ppm is below the {round(co2_target)} ppm target",
+                            "value": round(co2),
+                            "unit": "ppm",
+                            "range_min": co2_target
+                        })
+
                 # Leak sensor alert
                 leak_data = tent.sensors.get("leak_sensor", {})
                 if leak_data.get("value") in ["on", "wet", "detected", True]:

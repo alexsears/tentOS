@@ -271,7 +271,7 @@ function ControlCustomizer({ tent, onUpdate }) {
   const defaultLabels = {
     light: 'Light', exhaust_fan: 'Exhaust', circulation_fan: 'Circ Fan',
     humidifier: 'Humid', dehumidifier: 'Dehumid', heater: 'Heater',
-    ac: 'A/C', water_pump: 'Water', drain_pump: 'Drain'
+    ac: 'A/C', water_pump: 'Water', drain_pump: 'Drain', co2_injector: 'CO2'
   }
 
   if (configuredActuators.length === 0) return null

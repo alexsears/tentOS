@@ -103,6 +103,16 @@ const CHAIN_DEFS = [
     description: () => 'Watering schedule',
     unit: '',
   },
+  {
+    templateId: 'low_co2_injector',
+    sensorType: 'co2',
+    actuatorType: 'co2_injector',
+    condition: 'below',
+    defaultThreshold: 1000,
+    targetKey: 'co2_day_target',
+    description: (t) => 'CO2 < ' + t + ' ppm \u{2192} CO2 injector (lights on)',
+    unit: ' ppm',
+  },
 ]
 
 // Labels only; the glyph for each slot comes from the shared icon vocabulary.
@@ -116,6 +126,7 @@ const ACTUATOR_INFO = {
   ac: { label: 'A/C' },
   water_pump: { label: 'Water' },
   drain_pump: { label: 'Drain' },
+  co2_injector: { label: 'CO2' },
 }
 
 // A chain is drawn with the icon of the sensor that triggers it, or of the
@@ -257,6 +268,18 @@ function TargetsPanel({ tentConfig, onTargetChange, onScheduleChange, formatTemp
         <label className="text-xs text-gray-400">Day humidity max (%)</label>
         <input type="number" value={targets.humidity_day_max ?? 70}
           onChange={e => { const n = parseFloat(e.target.value); if (!isNaN(n)) onTargetChange('humidity_day_max', n) }}
+          className="input w-full text-sm py-1" />
+      </div>
+      <div>
+        <label className="text-xs text-gray-400">Day CO2 target (ppm)</label>
+        <input type="number" value={targets.co2_day_target ?? 1000} step="50"
+          onChange={e => { const n = parseFloat(e.target.value); if (!isNaN(n)) onTargetChange('co2_day_target', n) }}
+          className="input w-full text-sm py-1" />
+      </div>
+      <div>
+        <label className="text-xs text-gray-400">CO2 max (ppm)</label>
+        <input type="number" value={targets.co2_max ?? 1500} step="50"
+          onChange={e => { const n = parseFloat(e.target.value); if (!isNaN(n)) onTargetChange('co2_max', n) }}
           className="input w-full text-sm py-1" />
       </div>
       <div>

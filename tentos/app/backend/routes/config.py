@@ -145,6 +145,13 @@ SLOT_DEFINITIONS = {
             "domains": ["switch"],
             "device_classes": [None],
             "icon": "🔽"
+        },
+        "co2_injector": {
+            "label": "CO2 Injector",
+            "required": False,
+            "domains": ["switch", "valve"],
+            "device_classes": [None],
+            "icon": "🫧"
         }
     }
 }
@@ -365,7 +372,13 @@ TARGET_FIELDS = (
     "temp_night_min", "temp_night_max",
     "humidity_day_min", "humidity_day_max",
     "humidity_night_min", "humidity_night_max",
+    "co2_day_target", "co2_max",
 )
+
+# CO2 targets are in ppm. The day target is where supplementation aims while
+# the lights are on; the max is the safety ceiling that raises an alert.
+CO2_DEFAULT_TARGET = 1000
+CO2_DEFAULT_MAX = 1500
 
 
 class TargetsUpdate(BaseModel):
@@ -378,6 +391,8 @@ class TargetsUpdate(BaseModel):
     humidity_day_max: Optional[float] = None
     humidity_night_min: Optional[float] = None
     humidity_night_max: Optional[float] = None
+    co2_day_target: Optional[float] = None
+    co2_max: Optional[float] = None
 
 
 @router.put("/tents/{tent_id}/targets")
@@ -400,6 +415,13 @@ async def update_tent_targets(tent_id: str, targets: TargetsUpdate, request: Req
     for key in ("humidity_day_min", "humidity_day_max", "humidity_night_min", "humidity_night_max"):
         if key in values and not (0 <= values[key] <= 100):
             raise HTTPException(status_code=400, detail=f"{key} must be between 0 and 100")
+
+    for key in ("co2_day_target", "co2_max"):
+        if key in values and not (0 <= values[key] <= 5000):
+            raise HTTPException(status_code=400, detail=f"{key} must be between 0 and 5000 ppm")
+    co2_target, co2_max = values.get("co2_day_target"), values.get("co2_max")
+    if co2_target is not None and co2_max is not None and co2_target >= co2_max:
+        raise HTTPException(status_code=400, detail="CO2 day target must be below the CO2 max")
 
     config = load_config()
     for tent in config.tents:

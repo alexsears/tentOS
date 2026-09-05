@@ -151,6 +151,8 @@ def categorize_automation(automation: dict, config: dict = None) -> str:
             return "circulation"
         if "water" in entity_id or "pump" in entity_id:
             return "water"
+        if "co2" in entity_id:
+            return "co2"
 
     # Check config for target entities
     if config:
@@ -276,6 +278,19 @@ AUTOMATION_TEMPLATES = {
         "trigger_type": "numeric_state",
         "above": 28,
         "below": None,
+    },
+    "low_co2_injector": {
+        "name": "Low CO2 → CO2 Injector",
+        "icon": "🫧",
+        "description": "Inject CO2 while the lights are on and the level is below target; stops at target plus 150 ppm, when the lights go off, or after 10 minutes of continuous injection",
+        "sensor_type": "co2",
+        "actuator_type": "co2_injector",
+        "trigger_type": "numeric_state",
+        "above": None,
+        "below": 1000,
+        "hysteresis": 150,
+        "lights_on_only": True,
+        "max_run_minutes": 10,
     },
 }
 
@@ -598,26 +613,47 @@ async def apply_template(template_id: str, data: TemplateApply, request: Request
             "platform": "numeric_state",
             "entity_id": sensor_entity,
         }
-        hysteresis = 2 if template["sensor_type"] == "temperature" else 5
+        hysteresis = template.get("hysteresis") or (2 if template["sensor_type"] == "temperature" else 5)
         if template.get("above"):
             off_trigger["below"] = trigger["above"] - hysteresis
         else:
             off_trigger["above"] = trigger["below"] + hysteresis
+
+        triggers = [
+            {**trigger, "id": "on"},
+            {**off_trigger, "id": "off"},
+        ]
+        on_conditions = [{"condition": "trigger", "id": "on"}]
+
+        # Supplementation rules (CO2) only make sense while the plants are
+        # photosynthesising, so gate on the tent light when there is one and
+        # stop the moment the light goes off.
+        light_entity = get_entity(actuators, "light") if template.get("lights_on_only") else None
+        if light_entity:
+            on_conditions.append({"condition": "state", "entity_id": light_entity, "state": "on"})
+            triggers.append({"platform": "state", "entity_id": light_entity, "to": "off", "id": "off"})
+
+        # A hard runtime cutoff so a stuck sensor cannot leave the injector open.
+        max_run = template.get("max_run_minutes")
+        if max_run:
+            cutoff_entities = actuator_entity if isinstance(actuator_entity, list) else [actuator_entity]
+            for eid in cutoff_entities:
+                triggers.append({
+                    "platform": "state", "entity_id": eid, "to": "on",
+                    "for": {"minutes": int(max_run)}, "id": "off",
+                })
 
         config = {
             "id": auto_id,
             "alias": alias,
             "description": f"Created by TentOS: {template['description']}",
             "mode": "single",
-            "trigger": [
-                {**trigger, "id": "on"},
-                {**off_trigger, "id": "off"}
-            ],
+            "trigger": triggers,
             "action": [
                 {
                     "choose": [
                         {
-                            "conditions": [{"condition": "trigger", "id": "on"}],
+                            "conditions": on_conditions,
                             "sequence": [{"service": f"homeassistant.turn_on", "target": {"entity_id": actuator_entity}}]
                         },
                         {
@@ -996,8 +1032,8 @@ ENTITY_AUTOMATION_MAP = {
         "co2": {
             "label": "CO2 Sensor",
             "icon": "🫧",
-            "enables": [],
-            "description": "Monitor CO2 levels (coming soon: CO2 automations)"
+            "enables": ["low_co2_injector"],
+            "description": "Enable CO2 supplementation and the CO2 ceiling alert"
         },
     },
     "actuators": {
@@ -1042,6 +1078,12 @@ ENTITY_AUTOMATION_MAP = {
             "icon": "🚿",
             "enables": ["watering_schedule"],
             "description": "Automate watering on a schedule"
+        },
+        "co2_injector": {
+            "label": "CO2 Injector",
+            "icon": "🫧",
+            "enables": ["low_co2_injector"],
+            "description": "Supplement CO2 while the lights are on"
         },
     }
 }
