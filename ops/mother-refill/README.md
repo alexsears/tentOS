@@ -115,6 +115,12 @@ switch-on still works. Unavailable-to-on/reconnect is not treated as manual inte
 
 The queued watchdog serializes start/stop events. Both entry paths use deadline
 termination, with no sleeping automatic action left over to stop a later manual
-restart. Turning the relay off clears active state. Twenty-four template and
+restart. Turning the relay off clears active state. Twenty-seven template and
 control-structure checks cover manual start, automatic deadline preservation,
 manual cancellation and reconnect rejection in addition to earlier boundaries.
+
+The watchdog grants an unleased new on-state two seconds for its queued on event
+to establish the deadline; safety and restart stops have no grace. A queued old
+off event clears the previous run without powering off a newer on-state. The
+tests execute YAML action order for both races, rather than only testing isolated
+conditions.

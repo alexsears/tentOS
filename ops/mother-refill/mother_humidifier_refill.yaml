@@ -1,4 +1,4 @@
-# Mother refill pump is the repurposed Office heater relay. Old thermostat stays disabled.
+# Manual off/on events are serialized; a two-second grace lets the on event establish its timer.
 input_boolean:
   mother_refill_enabled:
     name: Mother automatic humidifier refill
@@ -100,6 +100,14 @@ automation:
   actions:
   - if:
     - condition: template
+      value_template: '{{ trigger.id | default('''') == ''pump_off'' }}'
+    then:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.mother_refill_active
+    - stop: Relay was switched off. Do not apply an old off event to a newer on-state.
+  - if:
+    - condition: template
       value_template: '{{ trigger.id | default('''') == ''pump_on'' and trigger.from_state is defined and trigger.from_state is not none and trigger.from_state.state == ''off'' and is_state(''switch.office_heater'', ''on'') and not is_state(''input_boolean.mother_refill_active'', ''on'') }}'
     then:
     - *id001
@@ -108,8 +116,8 @@ automation:
     - *id004
     - *id005
   - condition: template
-    value_template: "{{ trigger.id | default('') in ['restart', 'disabled', 'pump_off']\n   \n   or not is_state('input_boolean.mother_refill_active', 'on')\n   or as_timestamp(now()) >= as_timestamp(states('input_datetime.mother_refill_deadline'), 0)\n   or not is_number(states('sensor.moth_a_mother_humidity'))\n   or states('sensor.moth_a_mother_humidity') | float(100) >= 75\n   or not is_number(states('sensor.moth_a_mother_temperature'))\n   or states('sensor.moth_a_mother_temperature') | float(100) >= 94\n   or not is_number(states('sensor.moth_a_mother_co2'))\n   or states('sensor.moth_a_mother_co2') | float(2000) >= 1200\n   or not is_state('switch.mother_fan', 'off')\n   or not is_state('switch.mother_intake_fan', 'off')\n   or (now() - states.sensor.moth_a_mother_humidity.last_updated).total_seconds() >= 120\n   or (now() - states.sensor.moth_a_mother_temperature.last_updated).total_seconds() >= 120\n   or (now() - states.sensor.moth_a_mother_co2.last_updated).total_seconds() >=\
-      \ 120 }}"
+    value_template: "{{ trigger.id | default('') in ['restart', 'disabled']\n   \n   or (not is_state('input_boolean.mother_refill_active', 'on') and is_state('switch.office_heater', 'on') and (now() - states.switch.office_heater.last_changed).total_seconds() >= 2)\n   or (is_state('input_boolean.mother_refill_active', 'on') and as_timestamp(now()) >= as_timestamp(states('input_datetime.mother_refill_deadline'), 0))\n   or not is_number(states('sensor.moth_a_mother_humidity'))\n   or states('sensor.moth_a_mother_humidity') | float(100) >= 75\n   or not is_number(states('sensor.moth_a_mother_temperature'))\n   or states('sensor.moth_a_mother_temperature') | float(100) >= 94\n   or not is_number(states('sensor.moth_a_mother_co2'))\n   or states('sensor.moth_a_mother_co2') | float(2000) >= 1200\n   or not is_state('switch.mother_fan', 'off')\n   or not is_state('switch.mother_intake_fan', 'off')\n   or (now() - states.sensor.moth_a_mother_humidity.last_updated).total_seconds() >= 120\n   or\
+      \ (now() - states.sensor.moth_a_mother_temperature.last_updated).total_seconds() >= 120\n   or (now() - states.sensor.moth_a_mother_co2.last_updated).total_seconds() >= 120 }}"
   - variables:
       was_active: '{{ is_state(''input_boolean.mother_refill_active'', ''on'') }}'
       early_stop: '{{ as_timestamp(now()) < as_timestamp(states(''input_datetime.mother_refill_deadline''), 0) }}'
