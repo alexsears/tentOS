@@ -28,7 +28,7 @@ template:
       - name: Mother refill dry candidate
         unique_id: mother_refill_dry_candidate
         delay_on: "00:20:00"
-        # A door opening or safety vent restarts the whole qualification period.
+        # A failed sensor/fan guard or RH recovery restarts qualification.
         state: >-
           {% set rh = states('sensor.moth_a_mother_humidity') %}
           {% set temp = states('sensor.moth_a_mother_temperature') %}
@@ -55,7 +55,7 @@ template:
 automation:
   - id: mother_humidifier_auto_refill
     alias: Mother humidifier - refill after sustained dry air
-    description: One 10-minute refill after RH below 58 for 20 sealed minutes. Six-hour minimum between attempts and recovery latch prevent repeat pumping.
+    description: One 10-minute refill after RH below 58 for 20 minutes with both fans off. Six-hour minimum between attempts and recovery latch prevent repeat pumping.
     mode: single
     max_exceeded: silent
     triggers:

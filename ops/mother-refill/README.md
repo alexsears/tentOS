@@ -12,7 +12,7 @@ The YAML deliberately targets `switch.confirm_mother_refill_pump`.
   after RH is at least 65% for 20 minutes with the pump off. At least six hours
   between attempts even after recovery.
 - Independent deadline checks every 10 seconds and at the deadline. Stop on
-  restart/reload, disabling, ventilation, unsafe RH/temperature/CO2, or stale RH.
+  restart/reload, disabling, ventilation, unsafe RH/temperature/CO2, or stale sensors.
   Active state resets off on startup; the lock and last-start time are restored.
 - Keep current Mother humidifier/fan logic and low-humidity notifications.
   Humidity is an indirect dry-tank signal, not a water-level measurement. A long
