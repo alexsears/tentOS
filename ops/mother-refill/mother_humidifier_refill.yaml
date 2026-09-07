@@ -48,7 +48,7 @@ template:
         delay_on: "00:20:00"
         state: >-
           {% set rh = states('sensor.moth_a_mother_humidity') %}
-          {{ is_number(rh) and 65 <= rh | float <= 100
+          {{ is_number(rh) and 62 <= rh | float <= 100
              and (now() - states.sensor.moth_a_mother_humidity.last_updated).total_seconds() < 120
              and is_state('switch.office_heater', 'off') }}
 
@@ -114,7 +114,7 @@ automation:
               The ten-minute refill window completed.
             {% endif %}
             The pump is off. Another refill is locked until humidity recovers to
-            at least 65% for 20 minutes and six hours have passed. Check the
+            at least 62% for 20 minutes and six hours have passed. Check the
             distilled source and delivery if humidity stays low.
 
   - id: mother_humidifier_refill_watchdog

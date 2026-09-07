@@ -125,3 +125,12 @@ def test_recovery_does_not_automatically_repeat_or_cut_short_ten_minutes():
     assert 'initial' not in CONFIG['input_boolean']['mother_refill_locked']
     assert 'initial' not in CONFIG['input_datetime']['mother_refill_last_started']
     assert {'delay': '00:10:00'} in CONFIG['automation'][0]['actions']
+
+
+def test_rearm_accepts_normal_control_band_but_not_dry_or_stale_air():
+    recovery = CONFIG['template'][0]['binary_sensor'][1]['state']
+    assert render(recovery, {'sensor.moth_a_mother_humidity':'62'})
+    assert not render(recovery, {'sensor.moth_a_mother_humidity':'61.9'})
+    assert not render(recovery, {'sensor.moth_a_mother_humidity':'unknown'})
+    assert not render(recovery, {'sensor.moth_a_mother_humidity':'66'}, age=120)
+    assert not render(recovery, {'sensor.moth_a_mother_humidity':'66', PUMP:'on'})

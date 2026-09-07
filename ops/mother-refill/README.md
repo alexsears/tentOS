@@ -13,7 +13,7 @@ and remain unchanged.
 - RH below 58% continuously for 20 minutes, valid fresh sensors, both fans off,
   and the existing humidifier controller in normal operation.
 - A 10-minute refill, at most one attempt per low-humidity episode. Rearm only
-  after RH is at least 65% for 20 minutes with the pump off. At least six hours
+  after RH is at least 62% for 20 minutes with the pump off. At least six hours
   between attempts even after recovery.
 - Independent deadline checks every 10 seconds and at the deadline. Stop on
   restart/reload, disabling, ventilation, unsafe RH/temperature/CO2, or stale sensors.
@@ -66,3 +66,8 @@ HA documents that trigger `for` windows reset on restart/reload, so qualificatio
 starts fresh; the independent deadline and startup stop cover an interrupted run:
 https://www.home-assistant.io/docs/automation/trigger/
 https://www.home-assistant.io/integrations/input_datetime/
+
+Recovery calibration: live twelve-hour history had only a 17.2-minute longest
+continuous interval at or above 65%, but 713.6 minutes at or above 62%. Therefore
+recovery uses 62% for twenty minutes, preserving hysteresis above the 58% start
+threshold without permanently locking out a normally cycling humidifier.
