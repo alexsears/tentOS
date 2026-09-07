@@ -1,0 +1,176 @@
+# Incubator refill. Keep existing misting, weekly targets and short ventilation.
+input_boolean:
+  incubator_refill_enabled:
+    name: Incubator automatic humidifier refill
+  incubator_refill_locked:
+    name: Incubator refill waiting for humidity recovery
+  incubator_refill_aborted:
+    name: Incubator refill stopped early
+    initial: false
+  incubator_refill_active:
+    name: Incubator humidifier refill running
+    initial: false
+input_datetime:
+  incubator_refill_last_started:
+    name: Incubator last humidifier refill
+    has_date: true
+    has_time: true
+  incubator_refill_deadline:
+    name: Incubator humidifier refill stop time
+    has_date: true
+    has_time: true
+template:
+- binary_sensor:
+  - name: Incubator refill dry candidate
+    unique_id: incubator_refill_dry_candidate
+    delay_on: 00:20:00
+    state: "{% set rh = states('sensor.pot_scale_air_humidity') %}\n{% set temp = states('sensor.pot_scale_air_temperature') %}\n{% set co2 = states('sensor.pot_scale_co2') %}\n{% set target = states('sensor.incubator_target_rh') %}\n{% set band = states('input_number.incubator_rh_band') %}\n{{ is_number(rh) and is_number(temp) and is_number(co2) and is_number(target) and is_number(band)\n   and 40 <= target | float <= 99 and 0 <= band | float <= 10\n   and 0.5 < rh | float < target | float - band | float - 7\n   and 40 <= temp | float < 95 and 0 <= co2 | float < 1200\n   and (now() - states.sensor.pot_scale_air_humidity.last_updated).total_seconds() < 240\n   and (now() - states.sensor.pot_scale_air_temperature.last_updated).total_seconds() < 240\n   and (now() - states.sensor.pot_scale_co2.last_updated).total_seconds() < 240\n   and (is_state('switch.incubator_fan','off') or (is_state('switch.incubator_fan','on') and (now() - states.switch.incubator_fan.last_changed).total_seconds() <\
+      \ 60))\n   and is_state('automation.incubator_humidity_band','on')\n   and is_state('input_boolean.incubator_paused','off')\n   and is_state('input_boolean.incubator_blind_burst','off')\n   and states('switch.incubator_humidifier') in ['on','off'] }}"
+  - name: Incubator refill humidity recovered
+    unique_id: incubator_refill_humidity_recovered
+    delay_on: 00:10:00
+    state: "{% set rh = states('sensor.pot_scale_air_humidity') %}\n{% set target = states('sensor.incubator_target_rh') %}\n{% set band = states('input_number.incubator_rh_band') %}\n{{ is_number(rh) and is_number(target) and is_number(band)\n   and 40 <= target | float <= 99 and 0 <= band | float <= 10\n   and target | float - band | float - 2 <= rh | float <= 100\n   and (now() - states.sensor.pot_scale_air_humidity.last_updated).total_seconds() < 240\n   and is_state('switch.incubator_humifier_refill','off') }}"
+automation:
+- id: incubator_humidifier_auto_refill
+  alias: Incubator humidifier - refill after sustained dry air
+  description: Refill for up to ten minutes after RH remains seven points below the normal misting threshold for twenty minutes. Routine short ventilation is allowed; six-hour cooldown and recovery latch prevent repeat attempts.
+  mode: single
+  max_exceeded: silent
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.incubator_refill_dry_candidate
+    to: 'on'
+  - trigger: time_pattern
+    minutes: /1
+  actions:
+  - condition: template
+    value_template: "{{ is_state('input_boolean.incubator_refill_enabled', 'on')\n   and is_state('input_boolean.incubator_refill_locked', 'off')\n   and is_state('input_boolean.incubator_refill_active', 'off')\n   and is_state('binary_sensor.incubator_refill_dry_candidate', 'on')\n   and is_state('switch.incubator_humifier_refill', 'off') and is_state('switch.incubator_fan', 'off')\n   and as_timestamp(now()) - as_timestamp(states('input_datetime.incubator_refill_last_started'), 0) >= 21600 }}"
+  - &id001
+    action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.incubator_refill_aborted
+  - &id002
+    action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.incubator_refill_locked
+  - &id003
+    action: input_datetime.set_datetime
+    target:
+      entity_id: input_datetime.incubator_refill_last_started
+    data:
+      timestamp: '{{ as_timestamp(now()) }}'
+  - &id004
+    action: input_datetime.set_datetime
+    target:
+      entity_id: input_datetime.incubator_refill_deadline
+    data:
+      timestamp: '{{ as_timestamp(now()) + 600 }}'
+  - &id005
+    action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.incubator_refill_active
+  - action: switch.turn_on
+    target:
+      entity_id: switch.incubator_humifier_refill
+- id: incubator_humidifier_refill_watchdog
+  alias: Incubator humidifier refill - independent stop
+  mode: queued
+  triggers:
+  - trigger: time_pattern
+    seconds: /10
+  - trigger: time
+    at: input_datetime.incubator_refill_deadline
+  - trigger: homeassistant
+    event: start
+    id: restart
+  - trigger: event
+    event_type: automation_reloaded
+    id: restart
+  - trigger: state
+    entity_id: input_boolean.incubator_refill_enabled
+    to: 'off'
+    id: disabled
+  - trigger: state
+    entity_id: switch.incubator_humifier_refill
+    to: 'on'
+    id: pump_on
+  - trigger: state
+    entity_id: switch.incubator_humifier_refill
+    to: 'off'
+    id: pump_off
+  actions:
+  - if:
+    - condition: template
+      value_template: '{{ trigger.id | default('''') == ''pump_off'' }}'
+    then:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.incubator_refill_active
+    - stop: Relay was switched off. Do not apply an old off event to a newer on-state.
+  - if:
+    - condition: template
+      value_template: '{{ trigger.id | default('''') == ''pump_on'' and trigger.from_state is defined and trigger.from_state is not none and trigger.from_state.state == ''off'' and is_state(''switch.incubator_humifier_refill'', ''on'') and not is_state(''input_boolean.incubator_refill_active'', ''on'') }}'
+    then:
+    - *id001
+    - *id002
+    - *id003
+    - *id004
+    - *id005
+  - condition: template
+    value_template: "{{ trigger.id | default('') in ['restart', 'disabled']\n   \n   or (not is_state('input_boolean.incubator_refill_active', 'on') and is_state('switch.incubator_humifier_refill', 'on') and (now() - states.switch.incubator_humifier_refill.last_changed).total_seconds() >= 2)\n   or (is_state('input_boolean.incubator_refill_active', 'on') and as_timestamp(now()) >= as_timestamp(states('input_datetime.incubator_refill_deadline'), 0))\n   or not is_number(states('sensor.pot_scale_air_humidity'))\n   or states('sensor.pot_scale_air_humidity') | float(100) >= 99 or states('sensor.pot_scale_air_humidity') | float(0) <= 0.5\n   or not is_number(states('sensor.pot_scale_air_temperature'))\n   or states('sensor.pot_scale_air_temperature') | float(100) >= 95 or states('sensor.pot_scale_air_temperature') | float(0) < 40\n   or not is_number(states('sensor.pot_scale_co2'))\n   or states('sensor.pot_scale_co2') | float(2000) >= 1200 or states('sensor.pot_scale_co2') | float(-1) < 0\n\
+      \   or states('switch.incubator_fan') not in ['on','off'] or (is_state('switch.incubator_fan','on') and (now() - states.switch.incubator_fan.last_changed).total_seconds() >= 60)\n   or (now() - states.sensor.pot_scale_air_humidity.last_updated).total_seconds() >= 240\n   or (now() - states.sensor.pot_scale_air_temperature.last_updated).total_seconds() >= 240\n   or (now() - states.sensor.pot_scale_co2.last_updated).total_seconds() >= 240 }}"
+  - variables:
+      was_active: '{{ is_state(''input_boolean.incubator_refill_active'', ''on'') }}'
+      early_stop: '{{ as_timestamp(now()) < as_timestamp(states(''input_datetime.incubator_refill_deadline''), 0) }}'
+  - if:
+    - condition: state
+      entity_id: switch.incubator_humifier_refill
+      state: 'on'
+    then:
+    - action: switch.turn_off
+      target:
+        entity_id: switch.incubator_humifier_refill
+  - if:
+    - condition: template
+      value_template: '{{ was_active }}'
+    then:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.incubator_refill_active
+    - if:
+      - condition: template
+        value_template: '{{ early_stop }}'
+      then:
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.incubator_refill_aborted
+    - action: persistent_notification.create
+      data:
+        notification_id: incubator_humidifier_refill
+        title: Incubator humidifier refill stopped
+        message: '{% if early_stop %}The refill stopped before ten minutes, by a manual stop, disable/reload, or safety check.{% else %}The ten-minute refill timer completed.{% endif %} Automatic refills remain locked until RH recovers to two points below the normal misting threshold for ten minutes and six hours pass. A manual switch-on starts a new ten-minute timer; safety checks still apply.'
+  max: 10
+  max_exceeded: silent
+- id: incubator_humidifier_refill_rearm
+  alias: Incubator humidifier refill - rearm after recovery
+  mode: single
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.incubator_refill_humidity_recovered
+    to: 'on'
+  - trigger: time_pattern
+    minutes: /1
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.incubator_refill_humidity_recovered
+    state: 'on'
+  - condition: state
+    entity_id: input_boolean.incubator_refill_locked
+    state: 'on'
+  - condition: state
+    entity_id: input_boolean.incubator_refill_active
+    state: 'off'
+  actions:
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.incubator_refill_locked
