@@ -16,7 +16,7 @@ NOW = datetime(2026, 9, 7, tzinfo=timezone.utc)
 PUMP = 'switch.office_heater'
 
 
-def render(template, changes=None, age=0, trigger='tick'):
+def render(template, changes=None, age=0, trigger='tick', source='off'):
     values = {
         'sensor.moth_a_mother_humidity': '55',
         'sensor.moth_a_mother_temperature': '90',
@@ -60,14 +60,15 @@ def render(template, changes=None, age=0, trigger='tick'):
     result = env.from_string(template).render(
         states=States(), is_state=lambda k, v: values.get(k)==v,
         is_number=number, now=lambda: NOW, as_timestamp=timestamp,
-        trigger=SimpleNamespace(id=trigger),
+        trigger=SimpleNamespace(id=trigger, from_state=SimpleNamespace(state=source)),
     )
     return result.strip() == 'True'
 
 
 DRY = CONFIG['template'][0]['binary_sensor'][0]['state']
 START = CONFIG['automation'][0]['actions'][0]['value_template']
-STOP = CONFIG['automation'][1]['actions'][0]['value_template']
+STOP = CONFIG['automation'][1]['actions'][1]['value_template']
+MANUAL = CONFIG['automation'][1]['actions'][0]['if'][0]['value_template']
 
 
 def test_short_opening_requires_fresh_twenty_minute_window():
@@ -113,7 +114,8 @@ def test_deadline_and_restart_stop_without_delay_completion():
     assert render(STOP, active, trigger='restart')
     assert render(STOP, {**active, 'input_datetime.mother_refill_deadline': NOW.isoformat()})
     assert render(STOP, {**active, 'input_datetime.mother_refill_deadline': 'unavailable'})
-    assert render(STOP, {**active, 'input_boolean.mother_refill_enabled': 'off'})
+    assert render(STOP, active, trigger='disabled')
+    assert not render(STOP, {**active, 'input_boolean.mother_refill_enabled':'off'})
     assert render(STOP, {**active, 'switch.mother_fan': 'on'})
     assert render(STOP, active, age=120)
 
@@ -124,7 +126,7 @@ def test_recovery_does_not_automatically_repeat_or_cut_short_ten_minutes():
     assert CONFIG['input_boolean']['mother_refill_active']['initial'] is False
     assert 'initial' not in CONFIG['input_boolean']['mother_refill_locked']
     assert 'initial' not in CONFIG['input_datetime']['mother_refill_last_started']
-    assert {'delay': '00:10:00'} in CONFIG['automation'][0]['actions']
+    assert not any('delay' in action for action in CONFIG['automation'][0]['actions'])
 
 
 def test_rearm_accepts_normal_control_band_but_not_dry_or_stale_air():
@@ -134,3 +136,22 @@ def test_rearm_accepts_normal_control_band_but_not_dry_or_stale_air():
     assert not render(recovery, {'sensor.moth_a_mother_humidity':'unknown'})
     assert not render(recovery, {'sensor.moth_a_mother_humidity':'66'}, age=120)
     assert not render(recovery, {'sensor.moth_a_mother_humidity':'66', PUMP:'on'})
+
+
+def test_manual_on_gets_timer_without_low_humidity_or_auto_enable():
+    assert render(MANUAL, {PUMP:'on', 'input_boolean.mother_refill_enabled':'off',
+                           'binary_sensor.mother_refill_dry_candidate':'off'}, trigger='pump_on')
+    assert CONFIG['automation'][1]['mode']=='queued'
+    setup=CONFIG['automation'][1]['actions'][0]['then']
+    deadline=next(x for x in setup if x.get('target',{}).get('entity_id')=='input_datetime.mother_refill_deadline')
+    assert '+ 600' in deadline['data']['timestamp']
+
+
+@pytest.mark.parametrize('source',['unknown','unavailable'])
+def test_reconnect_never_looks_like_manual_start(source):
+    assert not render(MANUAL, {PUMP:'on'}, trigger='pump_on', source=source)
+
+
+def test_automatic_on_keeps_existing_deadline_and_manual_off_cancels():
+    assert not render(MANUAL, {PUMP:'on','input_boolean.mother_refill_active':'on'}, trigger='pump_on')
+    assert render(STOP, {PUMP:'off','input_boolean.mother_refill_active':'on'}, trigger='pump_off')

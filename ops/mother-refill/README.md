@@ -102,3 +102,19 @@ Rollback: turn off `input_boolean.mother_refill_enabled`, verify
 `switch.office_heater` off, then remove only the new named package include and
 reload its domains. Keep the old thermostat disabled while the plug operates a
 water pump. Do not restore the entire old configuration over later changes.
+
+## Manual refill correction (2026-09-06)
+
+Alex reported the relay turning off immediately when he switched it on. The
+original watchdog only accepted an active run created by the automatic flow.
+A real off-to-on transition now opens its own ten-minute deadline, records the
+attempt and recovery lock, and preserves all sensor/ventilation safety stops.
+Manual operation does not require low RH or automatic enablement. Turning the
+automatic enable helper off cancels a current run; a later deliberate manual
+switch-on still works. Unavailable-to-on/reconnect is not treated as manual intent.
+
+The queued watchdog serializes start/stop events. Both entry paths use deadline
+termination, with no sleeping automatic action left over to stop a later manual
+restart. Turning the relay off clears active state. Twenty-four template and
+control-structure checks cover manual start, automatic deadline preservation,
+manual cancellation and reconnect rejection in addition to earlier boundaries.
