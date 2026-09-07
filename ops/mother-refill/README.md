@@ -71,3 +71,34 @@ Recovery calibration: live twelve-hour history had only a 17.2-minute longest
 continuous interval at or above 65%, but 713.6 minutes at or above 62%. Therefore
 recovery uses 62% for twenty minutes, preserving hysteresis above the 58% start
 threshold without permanently locking out a normally cycling humidifier.
+
+## Live commissioning result (2026-09-06)
+
+Enabled on HA after PR 21 merged as `0a0c494`. Package is
+`/config/packages/mother_humidifier_refill.yaml`, named under homeassistant
+packages in configuration.yaml. Original configuration backup:
+`/config/configuration.yaml.bak-20260906-mother-refill`.
+
+- `ha core check` passed before and after the final change. Loaded through
+  input_boolean, input_datetime, template and automation reloads; no HA core
+  restart or TentOS add-on deployment was needed.
+- Actual automations are `automation.mother_humidifier_refill_after_sustained_dry_air`,
+  `automation.mother_humidifier_refill_independent_stop`, and
+  `automation.mother_humidifier_refill_rearm_after_recovery`.
+- Enabled helper is on; active and lock are off; pump is off; dry candidate off.
+  All three sensors were 6.4 seconds fresh during validation.
+- Invoking the start automation with normal humidity did not turn on the pump
+  or change last-start/lock state. A helper-only 20-second simulated active
+  window cleared at its actual scheduled deadline (+0.4 seconds), with the
+  physical relay off throughout. This proves deadline execution, not pumping.
+- Thermostat config-entry readback is disabled_by=user, state=not_loaded.
+  Plug power-on setting is Off. No watering-pump limiter was modified.
+- Twenty local template tests and required independent review passed.
+- First real-cycle verification is Asana `1218218324487567`, due Sep 7. Check
+  actual runtime, stop, humidity recovery and delivered volume before claiming
+  refill calibration complete. No pump-on or water delivery was forced here.
+
+Rollback: turn off `input_boolean.mother_refill_enabled`, verify
+`switch.office_heater` off, then remove only the new named package include and
+reload its domains. Keep the old thermostat disabled while the plug operates a
+water pump. Do not restore the entire old configuration over later changes.
