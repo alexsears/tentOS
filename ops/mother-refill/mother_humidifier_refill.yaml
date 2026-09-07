@@ -1,5 +1,5 @@
-# NOT INSTALLED: replace switch.confirm_mother_refill_pump only after Alex
-# identifies the physical peristaltic pump. Never guess between watering pumps.
+# Mother humidifier refill: Alex repurposed and renamed the Office heater plug.
+# Its physical relay entity remains switch.office_heater. Old thermostat disabled.
 input_boolean:
   mother_refill_enabled:
     name: Mother automatic humidifier refill
@@ -50,7 +50,7 @@ template:
           {% set rh = states('sensor.moth_a_mother_humidity') %}
           {{ is_number(rh) and 65 <= rh | float <= 100
              and (now() - states.sensor.moth_a_mother_humidity.last_updated).total_seconds() < 120
-             and is_state('switch.confirm_mother_refill_pump', 'off') }}
+             and is_state('switch.office_heater', 'off') }}
 
 automation:
   - id: mother_humidifier_auto_refill
@@ -72,7 +72,7 @@ automation:
              and is_state('input_boolean.mother_refill_locked', 'off')
              and is_state('input_boolean.mother_refill_active', 'off')
              and is_state('binary_sensor.mother_refill_dry_candidate', 'on')
-             and is_state('switch.confirm_mother_refill_pump', 'off')
+             and is_state('switch.office_heater', 'off')
              and as_timestamp(now()) - as_timestamp(states('input_datetime.mother_refill_last_started'), 0) >= 21600 }}
       - action: input_boolean.turn_off
         target:
@@ -95,11 +95,11 @@ automation:
           entity_id: input_boolean.mother_refill_active
       - action: switch.turn_on
         target:
-          entity_id: switch.confirm_mother_refill_pump
+          entity_id: switch.office_heater
       - delay: "00:10:00"
       - action: switch.turn_off
         target:
-          entity_id: switch.confirm_mother_refill_pump
+          entity_id: switch.office_heater
       - action: input_boolean.turn_off
         target:
           entity_id: input_boolean.mother_refill_active
@@ -135,7 +135,7 @@ automation:
         entity_id: input_boolean.mother_refill_enabled
         to: "off"
       - trigger: state
-        entity_id: switch.confirm_mother_refill_pump
+        entity_id: switch.office_heater
         to: "on"
     actions:
       - condition: template
@@ -157,12 +157,12 @@ automation:
              or (now() - states.sensor.moth_a_mother_co2.last_updated).total_seconds() >= 120 }}
       - if:
           - condition: state
-            entity_id: switch.confirm_mother_refill_pump
+            entity_id: switch.office_heater
             state: "on"
         then:
           - action: switch.turn_off
             target:
-              entity_id: switch.confirm_mother_refill_pump
+              entity_id: switch.office_heater
       - if:
           - condition: template
             value_template: >-

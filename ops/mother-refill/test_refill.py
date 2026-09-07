@@ -13,7 +13,7 @@ import yaml
 
 CONFIG = yaml.safe_load(Path(__file__).with_name('mother_humidifier_refill.yaml').read_text())
 NOW = datetime(2026, 9, 7, tzinfo=timezone.utc)
-PUMP = 'switch.confirm_mother_refill_pump'
+PUMP = 'switch.office_heater'
 
 
 def render(template, changes=None, age=0, trigger='tick'):

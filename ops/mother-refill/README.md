@@ -1,10 +1,14 @@
 # Mother humidifier refill
 
-Prepared 2026-09-06; **not installed or enabled**. Alex authorized automatic
-refilling but the physical pump has not been identified in Home Assistant.
-The YAML deliberately targets `switch.confirm_mother_refill_pump`.
+Alex identified the renamed Office heater plug on 2026-09-06. Its friendly name
+is Mother humidifier refill and its relay remains `switch.office_heater`.
+The attached generic thermostat was still in heat mode: it was turned off and
+its config entry `01KCW3156CYMQY5R564ACGZNJN` disabled through the HA API
+(no restart required). The physical switch remains available. The plug already
+uses Off power-on behavior. Existing Mother watering pump limiters are unrelated
+and remain unchanged.
 
-## Proposed starting behavior
+## Starting behavior
 
 - RH below 58% continuously for 20 minutes, valid fresh sensors, both fans off,
   and the existing humidifier controller in normal operation.
@@ -19,30 +23,29 @@ The YAML deliberately targets `switch.confirm_mother_refill_pump`.
   open tent can still qualify; the delay excludes short disturbances, not all
   openings. No door or tank-level sensor was found in the Mother entity set.
 
-## Live findings and blocker
+## Live findings
 
 Home Assistant 2026.7.3 at 192.168.77.50. The last 24 hours sampled on Sep 6 had
 RH 59.96-70.61%, never below 58%. The existing alert package uses 58% for ten
 minutes. The current controller holds 65-68%, has 94/92 F heat vent hysteresis,
 90-second humidifier pulses, and a separate 120-second humidifier cutoff.
 
-No entity currently has the name Mother humidifier refill. Available candidates
-are `switch.mother_water`, `switch.mother_water_2`, and `switch.water_refill`.
-`automation.water_pump_limiters` caps the first two at 30 seconds and the last
-at 20 minutes. Do not remove or extend a cutoff on an unconfirmed watering pump.
-An older Asana suggestion named mother_water, but that is not hardware evidence.
+The earlier name search missed this device because its entity ID remained
+`switch.office_heater`. The user confirmed the repurposed plug. Do not rename
+other watering switches or extend their unrelated 30-second/20-minute limiters.
+The office-heater generic thermostat must remain disabled to prevent cold office
+temperature from powering the refill pump.
 
 All 96 automation entities were scanned through UI config routes. The limiter
 and Mother humidity controller were the relevant matches. YAML packages and
 scripts were inspected for pump references; no additional matching controller
-was found there. Finish the controller inventory once the real entity is known.
+was found there. The new identity was then scanned across all UI automations and YAML packages/scripts; no additional office_heater reference was found outside its thermostat.
 
-## Commissioning after exact pump confirmation
+## Commissioning
 
-1. Verify entity/device identity and confirm existing limiter ownership. Replace
-   the placeholder everywhere. Align only this pump's legacy limiter to the new
-   ten-minute limit and set its power-on behavior to Off if supported. Leave
-   other watering pumps unchanged. Runtime protection depends on HA and switch
+1. Identity and power-on behavior are verified. Keep the old thermostat disabled.
+   The dedicated refill watchdog owns this relay; unrelated watering pump
+   cutoffs remain unchanged. Runtime protection depends on HA and switch
    communications; an independent device timeout is preferable if available.
 2. Back up the affected HA files. Install as a new named package in
    `configuration.yaml` alongside the existing mother_humidity_alert package.
