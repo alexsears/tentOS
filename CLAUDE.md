@@ -229,6 +229,6 @@ You have a persistent memory file at `MEMORY.md` in this project root. It surviv
 - Date entries when relevant: `- (2026-02-15) Switched from REST to WebSocket for X`
 
 ### After updating MEMORY.md
-Run: `git add MEMORY.md && git commit -m "memory: <brief description>"`
-
-A background process also auto-commits every 5 minutes as a safety net.
+Commit MEMORY.md on the current task branch, never directly on main/master (the global
+pre-commit hook blocks that), and it goes out with that branch's PR:
+`git add MEMORY.md && git commit -m "memory: <brief description>"`
