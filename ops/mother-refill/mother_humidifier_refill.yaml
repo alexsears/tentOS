@@ -1,0 +1,206 @@
+# Mother humidifier refill: Alex repurposed and renamed the Office heater plug.
+# Its physical relay entity remains switch.office_heater. Old thermostat disabled.
+input_boolean:
+  mother_refill_enabled:
+    name: Mother automatic humidifier refill
+    # Restore operator choice across restarts; enable only after commissioning.
+  mother_refill_locked:
+    name: Mother refill waiting for humidity recovery
+  mother_refill_aborted:
+    name: Mother refill stopped early
+    initial: false
+  mother_refill_active:
+    name: Mother humidifier refill running
+    initial: false
+
+input_datetime:
+  mother_refill_last_started:
+    name: Mother last humidifier refill
+    has_date: true
+    has_time: true
+  mother_refill_deadline:
+    name: Mother humidifier refill stop time
+    has_date: true
+    has_time: true
+
+template:
+  - binary_sensor:
+      - name: Mother refill dry candidate
+        unique_id: mother_refill_dry_candidate
+        delay_on: "00:20:00"
+        # A failed sensor/fan guard or RH recovery restarts qualification.
+        state: >-
+          {% set rh = states('sensor.moth_a_mother_humidity') %}
+          {% set temp = states('sensor.moth_a_mother_temperature') %}
+          {% set co2 = states('sensor.moth_a_mother_co2') %}
+          {{ is_number(rh) and is_number(temp) and is_number(co2)
+             and 0 < rh | float < 58 and temp | float < 94 and co2 | float < 1200
+             and (now() - states.sensor.moth_a_mother_humidity.last_updated).total_seconds() < 120
+             and (now() - states.sensor.moth_a_mother_temperature.last_updated).total_seconds() < 120
+             and (now() - states.sensor.moth_a_mother_co2.last_updated).total_seconds() < 120
+             and is_state('switch.mother_fan', 'off')
+             and is_state('switch.mother_intake_fan', 'off')
+             and is_state('automation.mother_humidifier_pulse_control', 'on')
+             and states('switch.mother_humidifier') in ['on', 'off']
+             and states('input_select.mother_humidity_control_state') in ['Humidifying', 'Settling', 'Holding'] }}
+      - name: Mother refill humidity recovered
+        unique_id: mother_refill_humidity_recovered
+        delay_on: "00:20:00"
+        state: >-
+          {% set rh = states('sensor.moth_a_mother_humidity') %}
+          {{ is_number(rh) and 62 <= rh | float <= 100
+             and (now() - states.sensor.moth_a_mother_humidity.last_updated).total_seconds() < 120
+             and is_state('switch.office_heater', 'off') }}
+
+automation:
+  - id: mother_humidifier_auto_refill
+    alias: Mother humidifier - refill after sustained dry air
+    description: One 10-minute refill after RH below 58 for 20 minutes with both fans off. Six-hour minimum between attempts and recovery latch prevent repeat pumping.
+    mode: single
+    max_exceeded: silent
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.mother_refill_dry_candidate
+        to: "on"
+      - trigger: time_pattern
+        minutes: "/1"
+    # Conditions are inside actions too: manual automation.trigger cannot bypass them.
+    actions:
+      - condition: template
+        value_template: >-
+          {{ is_state('input_boolean.mother_refill_enabled', 'on')
+             and is_state('input_boolean.mother_refill_locked', 'off')
+             and is_state('input_boolean.mother_refill_active', 'off')
+             and is_state('binary_sensor.mother_refill_dry_candidate', 'on')
+             and is_state('switch.office_heater', 'off')
+             and as_timestamp(now()) - as_timestamp(states('input_datetime.mother_refill_last_started'), 0) >= 21600 }}
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.mother_refill_aborted
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.mother_refill_locked
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.mother_refill_last_started
+        data:
+          timestamp: "{{ as_timestamp(now()) }}"
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.mother_refill_deadline
+        data:
+          timestamp: "{{ as_timestamp(now()) + 600 }}"
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.mother_refill_active
+      - action: switch.turn_on
+        target:
+          entity_id: switch.office_heater
+      - delay: "00:10:00"
+      - action: switch.turn_off
+        target:
+          entity_id: switch.office_heater
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.mother_refill_active
+      - action: persistent_notification.create
+        data:
+          notification_id: mother_humidifier_refill
+          title: Mother humidifier refill window ended
+          message: >-
+            {% if is_state('input_boolean.mother_refill_aborted', 'on') %}
+              Safety checks stopped this refill before ten minutes.
+            {% else %}
+              The ten-minute refill window completed.
+            {% endif %}
+            The pump is off. Another refill is locked until humidity recovers to
+            at least 62% for 20 minutes and six hours have passed. Check the
+            distilled source and delivery if humidity stays low.
+
+  - id: mother_humidifier_refill_watchdog
+    alias: Mother humidifier refill - independent stop
+    mode: restart
+    triggers:
+      - trigger: time_pattern
+        seconds: "/10"
+      - trigger: time
+        at: input_datetime.mother_refill_deadline
+      - trigger: homeassistant
+        event: start
+        id: restart
+      - trigger: event
+        event_type: automation_reloaded
+        id: restart
+      - trigger: state
+        entity_id: input_boolean.mother_refill_enabled
+        to: "off"
+      - trigger: state
+        entity_id: switch.office_heater
+        to: "on"
+    actions:
+      - condition: template
+        value_template: >-
+          {{ trigger.id | default('') == 'restart'
+             or not is_state('input_boolean.mother_refill_enabled', 'on')
+             or not is_state('input_boolean.mother_refill_active', 'on')
+             or as_timestamp(now()) >= as_timestamp(states('input_datetime.mother_refill_deadline'), 0)
+             or not is_number(states('sensor.moth_a_mother_humidity'))
+             or states('sensor.moth_a_mother_humidity') | float(100) >= 75
+             or not is_number(states('sensor.moth_a_mother_temperature'))
+             or states('sensor.moth_a_mother_temperature') | float(100) >= 94
+             or not is_number(states('sensor.moth_a_mother_co2'))
+             or states('sensor.moth_a_mother_co2') | float(2000) >= 1200
+             or not is_state('switch.mother_fan', 'off')
+             or not is_state('switch.mother_intake_fan', 'off')
+             or (now() - states.sensor.moth_a_mother_humidity.last_updated).total_seconds() >= 120
+             or (now() - states.sensor.moth_a_mother_temperature.last_updated).total_seconds() >= 120
+             or (now() - states.sensor.moth_a_mother_co2.last_updated).total_seconds() >= 120 }}
+      - if:
+          - condition: state
+            entity_id: switch.office_heater
+            state: "on"
+        then:
+          - action: switch.turn_off
+            target:
+              entity_id: switch.office_heater
+      - if:
+          - condition: template
+            value_template: >-
+              {{ is_state('input_boolean.mother_refill_active', 'on')
+                 and as_timestamp(now()) < as_timestamp(states('input_datetime.mother_refill_deadline'), 0) }}
+        then:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.mother_refill_aborted
+          - action: persistent_notification.create
+            data:
+              notification_id: mother_humidifier_refill
+              title: Mother refill stopped early
+              message: A safety condition interrupted this refill. It remains locked until sustained humidity recovery; inspect the source, tubing and pump before retrying.
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.mother_refill_active
+
+  - id: mother_humidifier_refill_rearm
+    alias: Mother humidifier refill - rearm after recovery
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.mother_refill_humidity_recovered
+        to: "on"
+      - trigger: time_pattern
+        minutes: "/1"
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.mother_refill_humidity_recovered
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.mother_refill_locked
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.mother_refill_active
+        state: "off"
+    actions:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.mother_refill_locked
