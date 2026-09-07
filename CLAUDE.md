@@ -202,33 +202,12 @@ The Dockerfile:
 - Config priority: config.json (Tent Builder UI) > options.json (HA add-on config)
 - Multi-entity actuators: arrays are expanded into numbered slots (`exhaust_fan`, `exhaust_fan_2`) via `TentState._build_actuator_slots()`. Use `tent.slot_to_entity` to resolve slot -> entity_id, NOT `tent.config.actuators.get()`
 
-## Memory System (Voz)
+## Project memory
 
-You have a persistent memory file at `MEMORY.md` in this project root. It survives across sessions. **Read it at the start of every conversation.**
+Use `notes/context.md` and `notes/decisions.md` as the project decision record when
+present. Otherwise use the existing `MEMORY.md`. Read relevant sections when the
+task needs them; update concise durable facts once at a meaningful task boundary.
+Do not auto-commit per discovery or start a background memory committer. Commit
+notes with the scoped task change on its branch. Global preferences belong in
+`C:/Users/asear/.codex/AGENTS.md`; Obsidian links/summarizes project decisions.
 
-### When to Write to MEMORY.md (do this automatically, never ask)
-
-**Always save immediately when:**
-- You make or discover an architectural decision ("we use X because Y")
-- You fix a bug that took effort to diagnose (save the root cause)
-- You learn how a non-obvious part of the codebase works
-- You discover a dependency, config, or environment quirk
-- The user states a preference or convention ("always use X", "never do Y")
-- You complete a feature or milestone (save what was built and where)
-- You discover something is broken or fragile
-- You establish a pattern that future sessions should follow
-
-**Never save:**
-- Temporary debugging state
-- Things already documented in README or inline comments
-- Obvious or generic knowledge
-
-### Format
-- Bullet points, not paragraphs
-- Include file paths when referencing code
-- Date entries when relevant: `- (2026-02-15) Switched from REST to WebSocket for X`
-
-### After updating MEMORY.md
-Run: `git add MEMORY.md && git commit -m "memory: <brief description>"`
-
-A background process also auto-commits every 5 minutes as a safety net.
