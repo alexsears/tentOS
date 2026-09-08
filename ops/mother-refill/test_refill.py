@@ -72,8 +72,8 @@ STOP = CONFIG['automation'][1]['actions'][2]['value_template']
 MANUAL = CONFIG['automation'][1]['actions'][1]['if'][0]['value_template']
 
 
-def test_short_opening_requires_fresh_twenty_minute_window():
-    assert CONFIG['template'][0]['binary_sensor'][0]['delay_on'] == '00:20:00'
+def test_short_opening_requires_fresh_ten_minute_window():
+    assert CONFIG['template'][0]['binary_sensor'][0]['delay_on'] == '00:10:00'
     assert render(DRY)
     assert not render(DRY, {'sensor.moth_a_mother_humidity': '58'})
     assert not render(START, {'binary_sensor.mother_refill_dry_candidate': 'off'})
@@ -215,3 +215,19 @@ def test_orphaned_on_is_bounded_and_grace_does_not_suppress_safety():
     assert run_watch(values,'tick',relay_age=2)==[PUMP]
     values={PUMP:'on','input_boolean.mother_refill_active':'off','switch.mother_fan':'on'}
     assert run_watch(values,'tick',relay_age=0.1)==[PUMP]
+
+
+@pytest.mark.parametrize('phase', ['Humidifying', 'Settling', 'Holding', 'Refilling', 'Refill Rest'])
+def test_normal_misting_phases_qualify_without_resetting_dry_window(phase):
+    assert render(DRY, {'input_select.mother_humidity_control_state': phase})
+    assert not render(DRY, {'input_select.mother_humidity_control_state': phase,
+                            'switch.mother_fan': 'on'})
+    assert not render(DRY, {'input_select.mother_humidity_control_state': phase,
+                            'switch.mother_intake_fan': 'on'})
+
+
+@pytest.mark.parametrize('phase', ['Hourly Purge', 'Critical Cooling', 'Heat Hold',
+    'Humidity Vent', 'CO2 Vent', 'Sensor Fault', 'Safety Cutoff', 'Initializing',
+    'unknown', 'unavailable'])
+def test_non_normal_controller_states_never_qualify(phase):
+    assert not render(DRY, {'input_select.mother_humidity_control_state': phase})

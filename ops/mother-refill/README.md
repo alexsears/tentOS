@@ -10,7 +10,7 @@ and remain unchanged.
 
 ## Starting behavior
 
-- RH below 58% continuously for 20 minutes, valid fresh sensors, both fans off,
+- RH below 58% continuously for 10 minutes, valid fresh sensors, both fans off,
   and the existing humidifier controller in normal operation.
 - A 10-minute refill, at most one attempt per low-humidity episode. Rearm only
   after RH is at least 62% for 20 minutes with the pump off. At least six hours
@@ -124,3 +124,38 @@ to establish the deadline; safety and restart stops have no grace. A queued old
 off event clears the previous run without powering off a newer on-state. The
 tests execute YAML action order for both races, rather than only testing isolated
 conditions.
+
+
+## Hourly controller compatibility (2026-09-07)
+
+The hourly mist controller uses `Refilling` and `Refill Rest` for normal sealed
+misting. These states must qualify for the water-reservoir dry-air window, along
+with the legacy `Humidifying`, `Settling` and `Holding` states. Both fans must
+still be off. Hourly purges and safety states reset qualification.
+
+The package mirrors the live ten-minute dry-air delay verified on September 7;
+the repository previously retained the older twenty-minute delay. This repair
+adds only the two normal state names to the live template. It preserves all
+other live configuration, including the six-hour cooldown, recovery latch,
+ten-minute pump deadline and independent stop logic.
+
+Apply only after production authorization: compare the current live package
+with the reviewed file, back up the live package, and patch only the two allowed
+state names. Run `ha core check` and reload template entities. Do not restart HA
+or reload automations/helpers for this template-only repair. A template reload
+starts a fresh qualification window. Observe the next naturally qualified
+start and its stop, or retain an explicit monitoring task until both occur.
+
+
+Deployment after explicit approval: the live file was compared byte-for-byte
+against the reviewed package with only the state-list replacement. Backup:
+`/config/packages/mother_humidifier_refill.yaml.before-state-fix-20260908`.
+`ha core check` passed and `template.reload` completed at approximately
+21:05 CDT on September 7. No pump command, helper reload or automation reload
+was issued. Readback confirmed the saved patch. Natural start/stop observation
+remains in Asana task 1218246480879898 while heat/ventilation may reset the window.
+
+`monitor.py --log <private-local-log> --minutes 30` polls relevant HA states
+without changing equipment or sending messages. It records errors as unknown
+observations and stops after the requested bounded window or an observed relay
+on/off cycle. Relay state does not prove delivered water volume.
