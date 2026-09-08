@@ -16,7 +16,9 @@ and remain unchanged.
   after RH is at least 62% for 20 minutes with the pump off. At least six hours
   between attempts even after recovery.
 - Independent deadline checks every 10 seconds and at the deadline. Stop on
-  restart/reload, disabling, ventilation, unsafe RH/temperature/CO2, or stale sensors.
+  restart/reload, disabling, unsafe RH/CO2, invalid or stale sensors, or misting
+  during an active fill. Heat and ventilation stop an unprotected pump; an
+  active timed refill may continue with cooling only while mist is confirmed off.
   Active state resets off on startup; the lock and last-start time are restored.
 - Keep current Mother humidifier/fan logic and low-humidity notifications.
   Humidity is an indirect dry-tank signal, not a water-level measurement. A long
@@ -159,3 +161,46 @@ remains in Asana task 1218246480879898 while heat/ventilation may reset the wind
 without changing equipment or sending messages. It records errors as unknown
 observations and stops after the requested bounded window or an observed relay
 on/off cycle. Relay state does not prove delivered water volume.
+
+
+## Refill with mist off (2026-09-07)
+
+Alex explicitly directed keeping the humidifier off to refill the tank. The
+controller now suppresses every mist-on action whenever the reservoir refill
+is active or its pump is on. It immediately requests mist off on either state
+change. Existing thermal, CO2 and hourly fan control remains operational.
+
+Both automatic and manual refill setup turn mist off and wait up to two seconds
+for confirmation. A failed confirmation stops the pump and does not establish a
+new refill lease. The watchdog permits heat/fan cycling during a timed refill
+only with mist confirmed off. Misting on or unavailable during active refill
+aborts it. Deadline, reload/restart, disabling, stale/fault sensors, RH/CO2 limits,
+six-hour cooldown and recovery latch remain in force. Automatic dry-air start
+qualification is unchanged; this run was explicitly commanded by Alex.
+
+`build_mist_off.py` generates the package and controller from captured live
+preimages. The before files are rollback references without credentials. The
+live package backup is
+`/config/packages/mother_humidifier_refill.yaml.before-mist-off-20260908`.
+Deployment compares both live configurations with those preimages, backs up the
+package, checks HA configuration, saves the controller, reloads automations and
+verifies readback before any pump command. Deployment and start succeeded:
+mist was verified off before the pump started at 21:22:22 CDT, with a deadline
+of 21:32:22. The full-cycle result is tracked in Asana 1218246480879898.
+
+Validation: 45 tests passed and an independent physical-control review found no
+blockers. Controller tests check all mist-on paths and unchanged fan actions;
+watchdog tests cover heat/fan continuation with mist off, mist faults, deadline,
+restart, disabling, sensor failures and stale readings. Do not equate a timed
+relay cycle with measured delivered water or a full tank.
+
+
+The first commanded cycle stopped automatically at 21:32:22.076 CDT after
+599.4 seconds of relay-on time. Misting stayed off during that interval and the
+pump continued through a thermal fan cycle. The aborted flag stayed off and
+the recovery lock remained on. Alex then reported the tank was far from full.
+That is a delivery-calibration gap, not a successful full-tank result. Do not
+increase automatic duration from this observation alone. The refill task remains
+open for tank-level feedback and a bounded continuation. Misting was temporarily
+paused and cooling kept on while awaiting that feedback; restore the normal
+controller after the requested fill is complete.
