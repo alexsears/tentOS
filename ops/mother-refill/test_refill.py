@@ -22,7 +22,7 @@ def render(template, changes=None, age=0, trigger='tick', source='off', relay_ag
         'sensor.moth_a_mother_temperature': '90',
         'sensor.moth_a_mother_co2': '700',
         'switch.mother_fan': 'off', 'switch.mother_intake_fan': 'off',
-        'switch.mother_humidifier': 'on', PUMP: 'off',
+        'switch.mother_humidifier': 'off', PUMP: 'off',
         'automation.mother_humidifier_pulse_control': 'on',
         'input_select.mother_humidity_control_state': 'Humidifying',
         'input_boolean.mother_refill_enabled': 'on',
@@ -117,7 +117,7 @@ def test_deadline_and_restart_stop_without_delay_completion():
     assert render(STOP, {**active, 'input_datetime.mother_refill_deadline': 'unavailable'})
     assert render(STOP, active, trigger='disabled')
     assert not render(STOP, {**active, 'input_boolean.mother_refill_enabled':'off'})
-    assert render(STOP, {**active, 'switch.mother_fan': 'on'})
+    assert not render(STOP, {**active, 'switch.mother_fan': 'on'})
     assert render(STOP, active, age=120)
 
 
@@ -194,7 +194,7 @@ def test_tick_before_manual_event_does_not_recreate_immediate_shutoff():
     values={PUMP:'on','input_boolean.mother_refill_active':'off',
             'input_datetime.mother_refill_deadline':(NOW-timedelta(hours=1)).isoformat()}
     assert run_watch(values,'tick',relay_age=0.1)==[]
-    assert run_watch(values,'pump_on',relay_age=0.2)==[]
+    assert run_watch(values,'pump_on',relay_age=0.2)==['switch.mother_humidifier']
     assert values['input_boolean.mother_refill_active']=='on'
     assert values['input_datetime.mother_refill_deadline']==(NOW+timedelta(seconds=600)).isoformat()
     assert run_watch(values,'tick',relay_age=10)==[]
@@ -206,7 +206,7 @@ def test_queued_old_off_then_new_on_never_switches_off_new_run():
     values={PUMP:'on','input_boolean.mother_refill_active':'on'}
     assert run_watch(values,'pump_off',relay_age=0.1)==[]
     assert values['input_boolean.mother_refill_active']=='off'
-    assert run_watch(values,'pump_on',relay_age=0.2)==[]
+    assert run_watch(values,'pump_on',relay_age=0.2)==['switch.mother_humidifier']
     assert values['input_boolean.mother_refill_active']=='on'
 
 
@@ -231,3 +231,51 @@ def test_normal_misting_phases_qualify_without_resetting_dry_window(phase):
     'unknown', 'unavailable'])
 def test_non_normal_controller_states_never_qualify(phase):
     assert not render(DRY, {'input_select.mother_humidity_control_state': phase})
+
+
+@pytest.mark.parametrize('changes', [
+    {'sensor.moth_a_mother_temperature': '95'},
+    {'switch.mother_fan': 'on', 'switch.mother_intake_fan': 'on'},
+])
+def test_timed_refill_can_continue_cooling_only_with_mist_off(changes):
+    active = {'input_boolean.mother_refill_active': 'on', PUMP: 'on', **changes}
+    assert not render(STOP, active)
+    assert render(STOP, {**active, 'switch.mother_humidifier': 'on'})
+    assert render(STOP, {**active, 'switch.mother_humidifier': 'unavailable'})
+    assert render(STOP, {**active, 'input_datetime.mother_refill_deadline': NOW.isoformat()})
+    assert render(STOP, active, trigger='restart')
+    assert render(STOP, active, trigger='disabled')
+    assert render(STOP, active, age=120)
+    for sensor, value in [('sensor.moth_a_mother_temperature', 'unknown'),
+                          ('sensor.moth_a_mother_humidity', '75'),
+                          ('sensor.moth_a_mother_co2', '1200')]:
+        assert render(STOP, {**active, sensor: value})
+
+
+def test_controller_guards_all_mist_on_actions_without_changing_fan_actions():
+    import json
+    before = json.loads(Path(__file__).with_name('controller-before-mist-off.json').read_text())
+    after = json.loads(Path(__file__).with_name('controller-mist-off.json').read_text())
+    def actions(node):
+        if isinstance(node, dict):
+            if 'action' in node: yield node
+            for value in node.values(): yield from actions(value)
+        elif isinstance(node, list):
+            for value in node: yield from actions(value)
+    fans = lambda doc: [a for a in actions(doc) if a.get('target', {}).get('entity_id') in ['switch.mother_fan','switch.mother_intake_fan']]
+    assert fans(before) == fans(after)
+    guards = []
+    def inspect(node, parent=None):
+        if isinstance(node, dict):
+            if node.get('action') == 'switch.turn_on' and node.get('target', {}).get('entity_id') == 'switch.mother_humidifier':
+                guards.append(parent['if'][0]['value_template'])
+            for value in node.values(): inspect(value, node)
+        elif isinstance(node, list):
+            for value in node: inspect(value, parent)
+    inspect(after)
+    assert len(guards) == len([a for a in actions(before) if a.get('action') == 'switch.turn_on' and a.get('target', {}).get('entity_id') == 'switch.mother_humidifier'])
+    assert guards
+    for guard in guards:
+        assert render(guard)
+        assert not render(guard, {'input_boolean.mother_refill_active': 'on'})
+        assert not render(guard, {PUMP: 'on'})

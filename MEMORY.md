@@ -49,3 +49,5 @@
 - (2026-07-24) android-app v1.2.0 (versionCode 3): server.url now https://tentos.alexsears.org (was LAN IP) so the app works remotely; APK published on GitHub release android-v1.1.0 (asset clobbered on rebuilds).
 
 - (2026-09-07) Mother water-refill qualification must accept hourly mist controller states Refilling and Refill Rest as normal sealed operation. Patch in ops/mother-refill passed 42 tests and independent review, then was deployed after explicit approval. HA core check and template reload passed; the reviewed package was read back. Natural refill observation remains tracked in Asana 1218246480879898. Live ten-minute dry-air delay was verified and mirrored without changing cooldown or stop safeguards.
+
+- (2026-09-07) User authorized tank refill with mist off. ops/mother-refill/build_mist_off.py adds active/pump mist inhibition while retaining fan control and deadline/fault watchdog protections. Manual refill began 21:22:22 CDT with deadline 21:32:22; follow-up is in Asana 1218246480879898.
