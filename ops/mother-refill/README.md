@@ -193,3 +193,14 @@ blockers. Controller tests check all mist-on paths and unchanged fan actions;
 watchdog tests cover heat/fan continuation with mist off, mist faults, deadline,
 restart, disabling, sensor failures and stale readings. Do not equate a timed
 relay cycle with measured delivered water or a full tank.
+
+
+The first commanded cycle stopped automatically at 21:32:22.076 CDT after
+599.4 seconds of relay-on time. Misting stayed off during that interval and the
+pump continued through a thermal fan cycle. The aborted flag stayed off and
+the recovery lock remained on. Alex then reported the tank was far from full.
+That is a delivery-calibration gap, not a successful full-tank result. Do not
+increase automatic duration from this observation alone. The refill task remains
+open for tank-level feedback and a bounded continuation. Misting was temporarily
+paused and cooling kept on while awaiting that feedback; restore the normal
+controller after the requested fill is complete.
