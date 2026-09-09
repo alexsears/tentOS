@@ -80,11 +80,11 @@ def test_short_opening_requires_fresh_ten_minute_window():
 
 
 @pytest.mark.parametrize('changes', [
-    {'switch.mother_fan': 'on'}, {'switch.mother_intake_fan': 'unavailable'},
+    {'switch.mother_fan': 'unavailable'}, {'switch.mother_intake_fan': 'unavailable'},
     {'sensor.moth_a_mother_humidity': 'unknown'}, {'sensor.moth_a_mother_humidity': '0'},
-    {'sensor.moth_a_mother_temperature': '94'}, {'sensor.moth_a_mother_co2': '1200'},
+    {'sensor.moth_a_mother_temperature': 'unknown'}, {'sensor.moth_a_mother_co2': '1200'},
     {'automation.mother_humidifier_pulse_control': 'off'},
-    {'input_select.mother_humidity_control_state': 'Critical Cooling'},
+    {'input_select.mother_humidity_control_state': 'unavailable'},
 ])
 def test_vent_and_sensor_faults_never_qualify(changes):
     assert not render(DRY, changes)
@@ -217,16 +217,16 @@ def test_orphaned_on_is_bounded_and_grace_does_not_suppress_safety():
     assert run_watch(values,'tick',relay_age=0.1)==[PUMP]
 
 
-@pytest.mark.parametrize('phase', ['Humidifying', 'Settling', 'Holding', 'Refilling', 'Refill Rest'])
+@pytest.mark.parametrize('phase', ['Humidifying', 'Settling', 'Holding', 'Refilling', 'Refill Rest', 'Hourly Purge', 'Critical Cooling'])
 def test_normal_misting_phases_qualify_without_resetting_dry_window(phase):
     assert render(DRY, {'input_select.mother_humidity_control_state': phase})
-    assert not render(DRY, {'input_select.mother_humidity_control_state': phase,
+    assert render(DRY, {'input_select.mother_humidity_control_state': phase,
                             'switch.mother_fan': 'on'})
-    assert not render(DRY, {'input_select.mother_humidity_control_state': phase,
+    assert render(DRY, {'input_select.mother_humidity_control_state': phase,
                             'switch.mother_intake_fan': 'on'})
 
 
-@pytest.mark.parametrize('phase', ['Hourly Purge', 'Critical Cooling', 'Heat Hold',
+@pytest.mark.parametrize('phase', ['Heat Hold',
     'Humidity Vent', 'CO2 Vent', 'Sensor Fault', 'Safety Cutoff', 'Initializing',
     'unknown', 'unavailable'])
 def test_non_normal_controller_states_never_qualify(phase):
@@ -279,3 +279,15 @@ def test_controller_guards_all_mist_on_actions_without_changing_fan_actions():
         assert render(guard)
         assert not render(guard, {'input_boolean.mother_refill_active': 'on'})
         assert not render(guard, {PUMP: 'on'})
+
+
+def test_cooling_does_not_reset_dry_window_but_hot_start_waits():
+    cooling = {'sensor.moth_a_mother_temperature': '94.4',
+               'switch.mother_fan': 'on', 'switch.mother_intake_fan': 'on',
+               'input_select.mother_humidity_control_state': 'Critical Cooling'}
+    assert render(DRY, cooling)
+    assert not render(START, cooling)
+    cooling['sensor.moth_a_mother_temperature'] = '93.9'
+    assert render(DRY, cooling)
+    assert render(START, cooling)
+    assert render(DRY, {'input_select.mother_humidity_control_state': 'Hourly Purge'})

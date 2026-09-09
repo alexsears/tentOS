@@ -204,3 +204,35 @@ increase automatic duration from this observation alone. The refill task remains
 open for tank-level feedback and a bounded continuation. Misting was temporarily
 paused and cooling kept on while awaiting that feedback; restore the normal
 controller after the requested fill is complete.
+
+
+## Cooling qualification repair (2026-09-08)
+
+Live evening history shows cooling repeatedly interrupting the ten-minute
+both-fans-off qualification while RH remains below 58%. The automatic dry
+candidate stays off. A later manually initiated reservoir cycle runs for its
+bounded ten-minute interval; that does not prove a full tank.
+
+The candidate now measures sustained low RH through normal cooling and hourly
+purge phases. Both fans must report a known state but can remain on. Sensor
+freshness, RH/CO2 limits and controller availability still apply. The start action
+checks temperature below 94 F, then confirms mist off before granting a lease.
+The existing watchdog, fan control, six-hour spacing, recovery latch and
+10-minute deadline are unchanged. Do not reset the recovery lock to force a run.
+
+Validation: 46 template/action tests pass, including cooling continuity and the
+instantaneous temperature start boundary. Prepared for review, not deployed.
+Deploy only after authorization, compare against the current live package, run
+HA configuration validation, reload affected domains, then verify the next
+qualified cycle and actual stop. If the recovery latch is still on, monitor its
+natural recovery first rather than defeating it.
+
+Alex identifies the watering control previously called Flower water as
+`switch.mother_water_2`, whose live name is Mother water 2. This is separate from
+`switch.office_heater` (humidifier reservoir refill) and `switch.lab_water_2`.
+The inspected UI automations give Mother water 2 a 30-second cutoff; the Lab
+08:00 daily schedule targets the different Lab switch. Increased watering is
+pending Alex's requested interval and duration. No watering relay was actuated
+or schedule changed in this repair.
+
+Task: 1218303916634426.
