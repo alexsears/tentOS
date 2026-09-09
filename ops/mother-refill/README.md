@@ -236,3 +236,24 @@ pending Alex's requested interval and duration. No watering relay was actuated
 or schedule changed in this repair.
 
 Task: 1218303916634426.
+
+
+## Misting during reservoir refill (2026-09-09)
+
+Alex requested normal misting during pump operation. `controller-during-refill.json`
+removes the four refill-only mist-on guards and the forced mist-off action from
+current live control. `allow_mist.py` performs that narrow transformation and fails
+if the expected interlocks differ. Normal pulses, humidity targets, fan actions,
+heat limits and the separate runtime cutoff remain in control.
+
+Both automatic and manual pump startup now leave mist alone. The watchdog accepts
+mist on or off during a timed refill; unknown mist state still stops the pump.
+Cooling fans may run with an active refill. The existing hot-temperature exception
+still requires mist off; hot mist-on stops pumping. The ten-minute deadline,
+six-hour cooldown, recovery latch, reload/disable stops and sensor checks remain.
+
+Apply only after comparing both live configurations, backing them up and independent
+review. Validate HA configuration and reload automations while the pump is off.
+Observe the next naturally needed refill; do not force water into a recovered tank
+just to test concurrent operation. Historical mist-off builders/snapshots are for
+rollback reference and do not represent the current deployment target.
