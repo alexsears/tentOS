@@ -23,7 +23,7 @@ template:
   - name: Mother refill dry candidate
     unique_id: mother_refill_dry_candidate
     delay_on: 00:10:00
-    state: "{% set rh = states('sensor.moth_a_mother_humidity') %} {% set temp = states('sensor.moth_a_mother_temperature') %} {% set co2 = states('sensor.moth_a_mother_co2') %} {{ is_number(rh) and is_number(temp) and is_number(co2)\n   and 0 < rh | float < 58 and temp | float < 94 and co2 | float < 1200\n   and (now() - states.sensor.moth_a_mother_humidity.last_updated).total_seconds() < 120\n   and (now() - states.sensor.moth_a_mother_temperature.last_updated).total_seconds() < 120\n   and (now() - states.sensor.moth_a_mother_co2.last_updated).total_seconds() < 120\n   and is_state('switch.mother_fan', 'off')\n   and is_state('switch.mother_intake_fan', 'off')\n   and is_state('automation.mother_humidifier_pulse_control', 'on')\n   and states('switch.mother_humidifier') in ['on', 'off']\n   and states('input_select.mother_humidity_control_state') in ['Humidifying', 'Settling', 'Holding', 'Refilling', 'Refill Rest'] }}"
+    state: "{% set rh = states('sensor.moth_a_mother_humidity') %} {% set temp = states('sensor.moth_a_mother_temperature') %} {% set co2 = states('sensor.moth_a_mother_co2') %} {{ is_number(rh) and is_number(temp) and is_number(co2)\n   and 0 < rh | float < 58 and co2 | float < 1200\n   and (now() - states.sensor.moth_a_mother_humidity.last_updated).total_seconds() < 120\n   and (now() - states.sensor.moth_a_mother_temperature.last_updated).total_seconds() < 120\n   and (now() - states.sensor.moth_a_mother_co2.last_updated).total_seconds() < 120\n   and states('switch.mother_fan') in ['on', 'off']\n   and states('switch.mother_intake_fan') in ['on', 'off']\n   and is_state('automation.mother_humidifier_pulse_control', 'on')\n   and states('switch.mother_humidifier') in ['on', 'off']\n   and states('input_select.mother_humidity_control_state') in ['Humidifying', 'Settling', 'Holding', 'Refilling', 'Refill Rest', 'Critical Cooling', 'Hourly Purge'] }}"
   - name: Mother refill humidity recovered
     unique_id: mother_refill_humidity_recovered
     delay_on: 00:20:00
@@ -31,7 +31,7 @@ template:
 automation:
 - id: mother_humidifier_auto_refill
   alias: Mother humidifier - refill after sustained dry air
-  description: One 10-minute refill after RH below 58 for 10 minutes (was 20 until 2026-09-07; the alert sensor proved 10 min at the same floor gives no false starts) with both fans off. Six-hour minimum between attempts and recovery latch prevent repeat pumping.
+  description: One 10-minute refill after RH below 58 for 10 minutes (was 20 until 2026-09-07; the alert sensor proved 10 min at the same floor gives no false starts) with cooling available. The pump starts below 94 F after mist is confirmed off. Six-hour minimum between attempts and recovery latch prevent repeat pumping.
   mode: single
   max_exceeded: silent
   triggers:
@@ -42,7 +42,7 @@ automation:
     minutes: /1
   actions:
   - condition: template
-    value_template: "{{ is_state('input_boolean.mother_refill_enabled', 'on')\n   and is_state('input_boolean.mother_refill_locked', 'off')\n   and is_state('input_boolean.mother_refill_active', 'off')\n   and is_state('binary_sensor.mother_refill_dry_candidate', 'on')\n   and is_state('switch.office_heater', 'off')\n   and as_timestamp(now()) - as_timestamp(states('input_datetime.mother_refill_last_started'), 0) >= 21600 }}"
+    value_template: "{{ is_state('input_boolean.mother_refill_enabled', 'on')\n   and is_state('input_boolean.mother_refill_locked', 'off')\n   and is_state('input_boolean.mother_refill_active', 'off')\n   and is_state('binary_sensor.mother_refill_dry_candidate', 'on')\n   and states('sensor.moth_a_mother_temperature') | float(100) < 94\n   and is_state('switch.office_heater', 'off')\n   and as_timestamp(now()) - as_timestamp(states('input_datetime.mother_refill_last_started'), 0) >= 21600 }}"
   - action: switch.turn_off
     target:
       entity_id: switch.mother_humidifier
