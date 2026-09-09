@@ -194,7 +194,7 @@ def test_tick_before_manual_event_does_not_recreate_immediate_shutoff():
     values={PUMP:'on','input_boolean.mother_refill_active':'off',
             'input_datetime.mother_refill_deadline':(NOW-timedelta(hours=1)).isoformat()}
     assert run_watch(values,'tick',relay_age=0.1)==[]
-    assert run_watch(values,'pump_on',relay_age=0.2)==['switch.mother_humidifier']
+    assert run_watch(values,'pump_on',relay_age=0.2)==[]
     assert values['input_boolean.mother_refill_active']=='on'
     assert values['input_datetime.mother_refill_deadline']==(NOW+timedelta(seconds=600)).isoformat()
     assert run_watch(values,'tick',relay_age=10)==[]
@@ -206,7 +206,7 @@ def test_queued_old_off_then_new_on_never_switches_off_new_run():
     values={PUMP:'on','input_boolean.mother_refill_active':'on'}
     assert run_watch(values,'pump_off',relay_age=0.1)==[]
     assert values['input_boolean.mother_refill_active']=='off'
-    assert run_watch(values,'pump_on',relay_age=0.2)==['switch.mother_humidifier']
+    assert run_watch(values,'pump_on',relay_age=0.2)==[]
     assert values['input_boolean.mother_refill_active']=='on'
 
 
@@ -237,10 +237,10 @@ def test_non_normal_controller_states_never_qualify(phase):
     {'sensor.moth_a_mother_temperature': '95'},
     {'switch.mother_fan': 'on', 'switch.mother_intake_fan': 'on'},
 ])
-def test_timed_refill_can_continue_cooling_only_with_mist_off(changes):
+def test_timed_refill_keeps_heat_safety_without_blocking_normal_mist(changes):
     active = {'input_boolean.mother_refill_active': 'on', PUMP: 'on', **changes}
     assert not render(STOP, active)
-    assert render(STOP, {**active, 'switch.mother_humidifier': 'on'})
+    assert render(STOP, {**active, 'switch.mother_humidifier': 'on'}) == ('sensor.moth_a_mother_temperature' in changes)
     assert render(STOP, {**active, 'switch.mother_humidifier': 'unavailable'})
     assert render(STOP, {**active, 'input_datetime.mother_refill_deadline': NOW.isoformat()})
     assert render(STOP, active, trigger='restart')
@@ -291,3 +291,37 @@ def test_cooling_does_not_reset_dry_window_but_hot_start_waits():
     assert render(DRY, cooling)
     assert render(START, cooling)
     assert render(DRY, {'input_select.mother_humidity_control_state': 'Hourly Purge'})
+
+
+def test_active_refill_allows_mist_and_preserves_deadline():
+    active = {'input_boolean.mother_refill_active': 'on', PUMP: 'on',
+              'switch.mother_humidifier': 'on'}
+    assert not render(STOP, active)
+    assert run_watch(dict(active), 'tick') == []
+    assert run_watch({PUMP: 'on', 'switch.mother_humidifier': 'on'}, 'pump_on') == []
+    assert render(STOP, {**active, 'input_datetime.mother_refill_deadline': NOW.isoformat()})
+    for sensor, value in [('sensor.moth_a_mother_humidity', '75'),
+                          ('sensor.moth_a_mother_co2', '1200'),
+                          ('sensor.moth_a_mother_temperature', '94'),
+                          ('switch.mother_humidifier', 'unavailable')]:
+        assert render(STOP, {**active, sensor: value})
+
+
+def test_controller_removes_only_refill_mist_interlock():
+    import json
+    from allow_mist import allow_mist
+    before = json.loads(Path(__file__).with_name('controller-mist-off.json').read_text())
+    after = json.loads(Path(__file__).with_name('controller-during-refill.json').read_text())
+    assert allow_mist(before) == after
+    text = json.dumps(after['actions'])
+    assert 'mother_refill_active' not in text
+    assert 'office_heater' not in text
+    assert 'Safety Cutoff' in text and 'Critical Cooling' in text
+
+
+@pytest.mark.parametrize('fan', ['switch.mother_fan', 'switch.mother_intake_fan'])
+@pytest.mark.parametrize('state', ['unknown', 'unavailable'])
+@pytest.mark.parametrize('mist', ['on', 'off'])
+def test_unknown_fan_stops_active_refill(fan, state, mist):
+    assert render(STOP, {'input_boolean.mother_refill_active': 'on', PUMP: 'on',
+                         'switch.mother_humidifier': mist, fan: state})

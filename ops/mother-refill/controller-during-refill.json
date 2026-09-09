@@ -1,0 +1,1097 @@
+{
+  "id": "mother_humidifier_pulse_control",
+  "alias": "Mother Humidity - Hourly Air Exchange Trial",
+  "description": "Hourly two-minute timed air exchange, then refill to 68% RH. Normal dry-back starts below 60%, latched to 68%. Refill uses 90-second pulses and 30-second rests; independent 120-second cutoff remains. Existing sensor, CO2, 94F heat and 75% RH safety overrides abort the current cycle. Reservoir refill allows normal misting; humidity, runtime and safety controls still apply.",
+  "triggers": [
+    {
+      "trigger": "time_pattern",
+      "seconds": "/15"
+    },
+    {
+      "trigger": "homeassistant",
+      "event": "start"
+    },
+    {
+      "trigger": "numeric_state",
+      "entity_id": "sensor.moth_a_mother_co2",
+      "above": 1200
+    },
+    {
+      "trigger": "state",
+      "entity_id": "sensor.moth_a_mother_humidity",
+      "to": "unavailable"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "sensor.moth_a_mother_humidity",
+      "to": "unknown"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "sensor.moth_a_mother_temperature",
+      "to": "unavailable"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "sensor.moth_a_mother_temperature",
+      "to": "unknown"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "switch.mother_humidifier",
+      "to": "on"
+    },
+    {
+      "trigger": "numeric_state",
+      "entity_id": "sensor.moth_a_mother_temperature",
+      "above": 94
+    },
+    {
+      "trigger": "numeric_state",
+      "entity_id": "sensor.moth_a_mother_temperature",
+      "below": 91
+    },
+    {
+      "trigger": "numeric_state",
+      "entity_id": "sensor.moth_a_mother_humidity",
+      "below": 60
+    },
+    {
+      "trigger": "numeric_state",
+      "entity_id": "sensor.moth_a_mother_humidity",
+      "above": 68
+    },
+    {
+      "trigger": "numeric_state",
+      "entity_id": "sensor.moth_a_mother_humidity",
+      "above": 75
+    },
+    {
+      "trigger": "time_pattern",
+      "minutes": "0",
+      "seconds": "0",
+      "id": "hourly"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "input_boolean.mother_refill_active"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "switch.office_heater",
+      "to": "on"
+    }
+  ],
+  "conditions": [],
+  "actions": [
+    {
+      "variables": {
+        "rh": "{{ states('sensor.moth_a_mother_humidity') }}",
+        "temp": "{{ states('sensor.moth_a_mother_temperature') }}",
+        "co2": "{{ states('sensor.moth_a_mother_co2') }}",
+        "control_state": "{{ states('input_select.mother_humidity_control_state') }}",
+        "state_age": "{{ (now() - states.input_select.mother_humidity_control_state.last_changed).total_seconds() if states.input_select.mother_humidity_control_state is not none else 9999 }}",
+        "humidifier_age": "{{ (now() - states.switch.mother_humidifier.last_changed).total_seconds() if states.switch.mother_humidifier is not none else 9999 }}"
+      }
+    },
+    {
+      "choose": [
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ not is_number(rh) or not is_number(temp) or not is_number(co2) }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_humidifier','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "action": "input_select.select_option",
+              "target": {
+                "entity_id": "input_select.mother_humidity_control_state"
+              },
+              "data": {
+                "option": "Sensor Fault"
+              }
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ (co2 | float) >= 1200 or (control_state == 'CO2 Vent' and (co2 | float) > 900) }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_humidifier','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "action": "input_select.select_option",
+              "target": {
+                "entity_id": "input_select.mother_humidity_control_state"
+              },
+              "data": {
+                "option": "CO2 Vent"
+              }
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ (temp | float) >= 94 or (control_state == 'Critical Cooling' and (temp | float) > 92) }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ is_state('switch.mother_humidifier','off') and (rh | float) < 65 and (humidifier_age | float) >= 30 }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ is_state('switch.mother_humidifier','on') and (humidifier_age | float) >= 90 }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "action": "input_select.select_option",
+              "target": {
+                "entity_id": "input_select.mother_humidity_control_state"
+              },
+              "data": {
+                "option": "Critical Cooling"
+              }
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ control_state == 'Safety Cutoff' and (state_age | float) < 120 }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_humidifier','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ (rh | float) >= 75 or (control_state == 'Humidity Vent' and (rh | float) > 72) }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_humidifier','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "action": "input_select.select_option",
+              "target": {
+                "entity_id": "input_select.mother_humidity_control_state"
+              },
+              "data": {
+                "option": "Humidity Vent"
+              }
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ trigger is defined and trigger.id is defined and trigger.id == 'hourly' and control_state != 'Hourly Purge' }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_humidifier','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            },
+            {
+              "action": "input_select.select_option",
+              "target": {
+                "entity_id": "input_select.mother_humidity_control_state"
+              },
+              "data": {
+                "option": "Hourly Purge"
+              }
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ control_state == 'Hourly Purge' and (state_age | float) < 120 }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_humidifier','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ control_state == 'Hourly Purge' }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_humidifier','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "choose": [
+                {
+                  "conditions": [
+                    {
+                      "condition": "template",
+                      "value_template": "{{ (rh | float) < 68 }}"
+                    }
+                  ],
+                  "sequence": [
+                    {
+                      "if": [
+                        {
+                          "condition": "template",
+                          "value_template": "{{ not is_state('switch.mother_fan','off') }}"
+                        }
+                      ],
+                      "then": [
+                        {
+                          "action": "switch.turn_off",
+                          "target": {
+                            "entity_id": "switch.mother_fan"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "if": [
+                        {
+                          "condition": "template",
+                          "value_template": "{{ not is_state('switch.mother_intake_fan','off') }}"
+                        }
+                      ],
+                      "then": [
+                        {
+                          "action": "switch.turn_off",
+                          "target": {
+                            "entity_id": "switch.mother_intake_fan"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "action": "input_select.select_option",
+                      "target": {
+                        "entity_id": "input_select.mother_humidity_control_state"
+                      },
+                      "data": {
+                        "option": "Refilling"
+                      }
+                    },
+                    {
+                      "if": [
+                        {
+                          "condition": "template",
+                          "value_template": "{{ not is_state('switch.mother_humidifier','on') }}"
+                        }
+                      ],
+                      "then": [
+                        {
+                          "action": "switch.turn_on",
+                          "target": {
+                            "entity_id": "switch.mother_humidifier"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "default": [
+                {
+                  "action": "input_select.select_option",
+                  "target": {
+                    "entity_id": "input_select.mother_humidity_control_state"
+                  },
+                  "data": {
+                    "option": "Holding"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ (rh | float) >= 68 }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_humidifier','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "action": "input_select.select_option",
+              "target": {
+                "entity_id": "input_select.mother_humidity_control_state"
+              },
+              "data": {
+                "option": "Holding"
+              }
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ control_state == 'Refill Rest' and (state_age | float) < 30 }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_humidifier','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ control_state == 'Refilling' and is_state('switch.mother_humidifier','on') and (humidifier_age | float) >= 90 }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_humidifier','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "action": "input_select.select_option",
+              "target": {
+                "entity_id": "input_select.mother_humidity_control_state"
+              },
+              "data": {
+                "option": "Refill Rest"
+              }
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ control_state in ['Refilling', 'Refill Rest'] }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "action": "input_select.select_option",
+              "target": {
+                "entity_id": "input_select.mother_humidity_control_state"
+              },
+              "data": {
+                "option": "Refilling"
+              }
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_humidifier','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ (rh | float) < 60 }}"
+            }
+          ],
+          "sequence": [
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_intake_fan','off') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_off",
+                  "target": {
+                    "entity_id": "switch.mother_intake_fan"
+                  }
+                }
+              ]
+            },
+            {
+              "action": "input_select.select_option",
+              "target": {
+                "entity_id": "input_select.mother_humidity_control_state"
+              },
+              "data": {
+                "option": "Refilling"
+              }
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ not is_state('switch.mother_humidifier','on') }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "switch.turn_on",
+                  "target": {
+                    "entity_id": "switch.mother_humidifier"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "default": [
+        {
+          "if": [
+            {
+              "condition": "template",
+              "value_template": "{{ not is_state('switch.mother_humidifier','off') }}"
+            }
+          ],
+          "then": [
+            {
+              "action": "switch.turn_off",
+              "target": {
+                "entity_id": "switch.mother_humidifier"
+              }
+            }
+          ]
+        },
+        {
+          "if": [
+            {
+              "condition": "template",
+              "value_template": "{{ not is_state('switch.mother_fan','off') }}"
+            }
+          ],
+          "then": [
+            {
+              "action": "switch.turn_off",
+              "target": {
+                "entity_id": "switch.mother_fan"
+              }
+            }
+          ]
+        },
+        {
+          "if": [
+            {
+              "condition": "template",
+              "value_template": "{{ not is_state('switch.mother_intake_fan','off') }}"
+            }
+          ],
+          "then": [
+            {
+              "action": "switch.turn_off",
+              "target": {
+                "entity_id": "switch.mother_intake_fan"
+              }
+            }
+          ]
+        },
+        {
+          "action": "input_select.select_option",
+          "target": {
+            "entity_id": "input_select.mother_humidity_control_state"
+          },
+          "data": {
+            "option": "Holding"
+          }
+        }
+      ]
+    }
+  ],
+  "mode": "queued",
+  "max_exceeded": "silent",
+  "max": 10
+}

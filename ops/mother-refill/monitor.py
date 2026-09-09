@@ -14,8 +14,8 @@ def main():
     parser.add_argument('--log', required=True)
     parser.add_argument('--minutes', type=int, default=90)
     args = parser.parse_args()
-    if not 1 <= args.minutes <= 120:
-        parser.error('Monitoring must last between one and 120 minutes')
+    if not 1 <= args.minutes <= 1440:
+        parser.error('Monitoring must last between one and 1440 minutes')
     key = subprocess.check_output([
         shutil.which('gcloud') or shutil.which('gcloud.cmd'),
         'secrets', 'versions', 'access', 'latest',
@@ -27,7 +27,7 @@ def main():
     started = None
     previous = None
     result = 'No complete refill relay cycle observed within the monitoring window.'
-    ids = ['switch.office_heater', 'input_boolean.mother_refill_active',
+    ids = ['switch.office_heater', 'switch.mother_humidifier', 'input_boolean.mother_refill_active',
         'input_boolean.mother_refill_aborted', 'input_boolean.mother_refill_locked',
         'binary_sensor.mother_refill_dry_candidate', 'input_datetime.mother_refill_deadline',
         'input_select.mother_humidity_control_state', 'switch.mother_fan',
