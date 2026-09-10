@@ -1,0 +1,72 @@
+{
+  "id": "water_pump_limiters",
+  "alias": "Water Pump Limiters",
+  "description": "Auto-off water pumps after a per-pump cap to prevent flooding. Plain state triggers (the old device triggers pointed at the same switches). switch.lab_water_2 is not here on purpose - lab_water_runtime_cutoff owns its 5.5 minute cap.",
+  "triggers": [
+    {
+      "trigger": "state",
+      "entity_id": "switch.mother_water_2",
+      "to": "on",
+      "for": {
+        "seconds": 30
+      },
+      "id": "mini_water"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "switch.mister",
+      "to": "on",
+      "for": {
+        "seconds": 30
+      },
+      "id": "mister"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "switch.mother_water",
+      "to": "on",
+      "for": {
+        "seconds": 30
+      },
+      "id": "mother_water"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "switch.water_refill",
+      "to": "on",
+      "for": "00:20:00",
+      "id": "water_refill"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "switch.pot_scale_pump",
+      "to": "on",
+      "for": "00:01:00",
+      "id": "pot_scale_pump"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "switch.roborock_water",
+      "to": "on",
+      "for": "00:00:20",
+      "id": "roborock_water"
+    }
+  ],
+  "actions": [
+    {
+      "action": "switch.turn_off",
+      "target": {
+        "entity_id": "{{ trigger.entity_id }}"
+      }
+    },
+    {
+      "action": "notify.mobile_app_alex_s25_ultra",
+      "data": {
+        "title": "Pump forced off",
+        "message": "{{ trigger.entity_id }} had been on for {{ trigger.for.total_seconds() | int }} s and was switched off by the pump limiter."
+      }
+    }
+  ],
+  "mode": "parallel",
+  "max": 10
+}
