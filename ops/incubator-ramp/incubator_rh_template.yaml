@@ -1,0 +1,159 @@
+# Target relative humidity for the incubator, as a weaning ramp.
+#
+# Cuttings have no roots for the first week, so they cannot replace anything they
+# transpire and the air has to do the work for them. As roots form they can start
+# drinking, and holding them at saturation from then on is actively harmful: at the
+# ~83F this incubator runs, air held near 100% condenses on the dome and drips onto
+# the leaves, which is how a tray rots instead of rooting.
+#
+# So the target steps down rather than sitting at one number:
+#   week 1  87%   no roots, keep them from wilting
+#   week 2  85%   roots forming, start asking them to work
+#   week 3  70%   hardening off begins
+#   week 4  70%   a week at each step, Alex's standard from 2026-09-04
+#   week 5+ 60%   held from here; the tray is weaned
+#
+# 2026-09-04: the tail was "80 from week 3 on", and a batch cut 2026-08-22 had
+# sat at 80-85 for two weeks with roots. Alex: take it down to 70 and then 60,
+# a week each, and make that the standard for every new cut date. The steps
+# stay weekly rather than gliding because that is what he asked for; a step of
+# ten points lands on a box that decays by itself, so it is a lower mist
+# threshold, not a shock.
+#
+# Low targets have the opposite problem from high ones. Nothing chases them,
+# but a sealed dome over a wet tray at 83F will not fall to 60 by itself on
+# an 8 second vent every 20 minutes. incubator_high_rh_vent (in
+# incubator_exchange_automations.yaml) runs extra short vents while the box
+# reads more than 5 points above target, so a lower target is actually reached.
+#
+# Week 1 was 99% until 2026-08-23, then 90% until 2026-08-24. The box reaches
+# neither. A target a system cannot reach is not a target, it is a permanently
+# lit warning light - and at the ~80F this box runs, air that close to saturation
+# condenses on the dome and drips onto the leaves anyway.
+#
+# 90 was still too high, and the cost was not just a lit warning light. Measured
+# over three hours with the replacement sensor, RH held 82.8 to 87.7 and averaged
+# 85.8 - it never once reached 90. So the humidifier never got to stop chasing,
+# and cycled its relay 13 times an hour, about 313 times a day. At roughly 100k
+# cycles of relay life that is under a year for a plug doing nothing useful with
+# most of those operations.
+#
+# 87 is what this box actually holds. The threshold that matters is target minus
+# the 5-point band, so this moves the trigger from 85 to 82, widening the decay
+# window from about 2 points to 5 and cutting expected cycling to around 5/hour.
+# Alex chose this over widening the band, because an unreachable target is what
+# caused the problem twice and this makes the number honest.
+#
+# Week 2 stays at 85 even though that is only two points below. The steps are
+# uneven because the ceiling is physical, not because the schedule wants them
+# that way.
+#
+# The ramp is anchored on input_datetime.incubator_batch_start. Set that to the day
+# the cuttings went in. With no date set the sensor reports 90, the week-one value:
+# a fresh unrooted cutting is what suffers most from a wrong guess, so an unset date
+# errs toward the wettest setting rather than the driest.
+#
+# It holds 60 after week five rather than switching off: a weaned tray at 60 is
+# fine, an unmisted tray at lab humidity is not.
+sensor:
+  - name: "Incubator target RH"
+    unique_id: incubator_target_rh
+    unit_of_measurement: "%"
+    state_class: measurement
+    icon: mdi:water-percent
+    state: >
+      {# A manual hold wins over the ramp, so the slider on the incubator page and
+         the ESP display can both take control without anyone editing YAML. #}
+      {% if is_state('input_boolean.incubator_rh_manual', 'on') %}
+        {{ states('input_number.incubator_rh_setpoint') | float(87) | round(0) }}
+      {% else %}
+        {% set start = states('input_datetime.incubator_batch_start') %}
+        {% if start in ['unknown', 'unavailable', 'none', ''] %}
+          87
+        {% else %}
+          {% set days = (now().date() - strptime(start[:10], '%Y-%m-%d').date()).days %}
+          {% if days < 7 %}87
+          {% elif days < 14 %}85
+          {% elif days < 21 %}70
+          {% elif days < 28 %}70
+          {% else %}60{% endif %}
+        {% endif %}
+      {% endif %}
+    attributes:
+      days_in: >
+        {% set start = states('input_datetime.incubator_batch_start') %}
+        {% if start in ['unknown', 'unavailable', 'none', ''] %}
+          unset
+        {% else %}
+          {{ (now().date() - strptime(start[:10], '%Y-%m-%d').date()).days }}
+        {% endif %}
+      source: >
+        {{ 'manual hold' if is_state('input_boolean.incubator_rh_manual', 'on')
+           else 'weaning ramp' }}
+      stage: >
+        {% if is_state('input_boolean.incubator_rh_manual', 'on') %}
+          held by hand
+        {% else %}
+          {% set start = states('input_datetime.incubator_batch_start') %}
+          {% if start in ['unknown', 'unavailable', 'none', ''] %}
+            no batch date set, holding week 1
+          {% else %}
+            {% set days = (now().date() - strptime(start[:10], '%Y-%m-%d').date()).days %}
+            {% if days < 7 %}week 1, rooting
+            {% elif days < 14 %}week 2, roots forming
+            {% elif days < 21 %}week 3, hardening off at 70
+            {% elif days < 28 %}week 4, hardening off at 70
+            {% else %}week 5+, weaned at 60{% endif %}
+          {% endif %}
+        {% endif %}
+
+  # Who is actually in charge of the humidifier right now. This is the single
+  # most important thing to show, because "80%" means something completely
+  # different depending on whether anything is measuring it.
+  - name: "Incubator control mode"
+    unique_id: incubator_control_mode
+    icon: mdi:state-machine
+    state: >
+      {% set rh = states('sensor.pot_scale_air_humidity') %}
+      {% set t  = states('sensor.pot_scale_air_temperature') %}
+      {% set s  = states.sensor.pot_scale_air_humidity %}
+      {% set age = (now() - s.last_updated).total_seconds() if s else 99999 %}
+      {% set blind = rh in ['unknown','unavailable','none','']
+                     or t in ['unknown','unavailable','none','']
+                     or rh | float(-1) <= 0.5
+                     or rh | float(-1) > 100
+                     or t | float(-999) < 40
+                     or t | float(999) > 120
+                     or age > 240 %}
+      {% if blind %}blind
+      {% elif is_state('input_boolean.incubator_rh_manual','on') %}manual
+      {% else %}ramp{% endif %}
+
+  # Human-readable version of the same thing, sized for a 480px panel.
+  - name: "Incubator status line"
+    unique_id: incubator_status_line
+    icon: mdi:information-outline
+    state: >
+      {% set mode = states('sensor.incubator_control_mode') %}
+      {% if mode == 'blind' %}
+        SENSOR DOWN - timed misting
+      {% elif is_state('switch.incubator_humidifier','on') %}
+        misting
+      {% elif is_state('switch.incubator_fan','on') %}
+        venting
+      {% else %}
+        holding {{ states('sensor.incubator_target_rh') }}%
+      {% endif %}
+
+  # Seconds since the climate sensor last said anything. The display shows this
+  # directly: a number that keeps climbing is the clearest possible signal that
+  # what is on screen is history, not the present.
+  - name: "Incubator sensor age"
+    unique_id: incubator_sensor_age
+    unit_of_measurement: "s"
+    state_class: measurement
+    icon: mdi:timer-alert-outline
+    state: >
+      {% set s = states.sensor.pot_scale_air_humidity %}
+      {% if s is none %}99999
+      {% else %}{{ (now() - s.last_updated).total_seconds() | round(0) }}{% endif %}
