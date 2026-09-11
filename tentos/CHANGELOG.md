@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.2
+- VPD is now leaf VPD, the thing every target band and every published VPD chart means: SVP(leaf) - SVP(air) x RH, with the leaf 2 C below air. It was air VPD, SVP(air) x (1 - RH), which reads 0.3 to 0.5 kPa high in tent conditions, so a tent sitting correctly inside its band looked permanently too dry. Mother read 1.7 against a 0.8-1.0 flower band when its real leaf VPD was 1.19
+- VPD now carries two decimals, as its own docstring always said
+- New: TentOS publishes the humidity window a tent's VPD band implies, recomputed every minute from the live temperature, into input_number.tentos_<tent>_rh_floor and _rh_target. A VPD band is not a fixed humidity setpoint, the RH that satisfies it moves with temperature, so Home Assistant humidity control can follow the band instead of carrying RH numbers that were right at one temperature
+- The publisher is inert until those helpers exist, and never asks for more than 75% RH whatever the band wants
+
 ## 1.7.1
 - Flipping a tent to flower now moves the photoperiod the scheduler actually enforces. The flip wrote the growth stage and the lights-on/off times but left schedules.light_cycle on the previous mode, so the light scheduler kept running the old photoperiod and fought the automation the flip created until it backed off
 - Reset to veg returns the light to an 18 hour photoperiod at the same lights-on time instead of leaving the tent on its flower 12/12

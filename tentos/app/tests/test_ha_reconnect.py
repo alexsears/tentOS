@@ -111,6 +111,10 @@ def test_ha_dependents_start_once_after_delayed_connection(monkeypatch):
         async def start(self):
             calls.append("scheduler")
 
+    class Publisher:
+        async def start(self):
+            calls.append("publisher")
+
     async def recover(_client):
         calls.append("watering")
 
@@ -122,9 +126,9 @@ def test_ha_dependents_start_once_after_delayed_connection(monkeypatch):
     monkeypatch.setattr(telemetry, "ping_install", ping)
 
     async def run_startup():
-        await main.start_ha_services_when_ready(Client(), Manager(), Scheduler())
+        await main.start_ha_services_when_ready(Client(), Manager(), Scheduler(), Publisher())
         await asyncio.sleep(0)
 
     asyncio.run(run_startup())
 
-    assert calls == ["ready", "manager", "scheduler", "watering", "warmer", "ping"]
+    assert calls == ["ready", "manager", "scheduler", "publisher", "watering", "warmer", "ping"]

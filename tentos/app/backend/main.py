@@ -37,6 +37,7 @@ def get_version():
 from database import init_db, get_db
 from ha_client import HAClient
 from light_scheduler import LightScheduler
+from vpd_targets import VpdTargetPublisher
 import watering
 from routes.automations import start_config_warmer, stop_config_warmer
 from routes import tents, events, alerts, system, config, automations, reports, updates, camera, chat, assistant
@@ -52,12 +53,14 @@ logger = logging.getLogger(__name__)
 ha_client: HAClient | None = None
 state_manager: StateManager | None = None
 light_scheduler: LightScheduler | None = None
+vpd_publisher: VpdTargetPublisher | None = None
 
 
 async def start_ha_services_when_ready(
     client: HAClient,
     manager: StateManager,
     scheduler: LightScheduler,
+    publisher: VpdTargetPublisher,
 ):
     """Start HA-dependent services once, retrying partial startup safely."""
     while not client._stopping:
@@ -65,6 +68,7 @@ async def start_ha_services_when_ready(
         try:
             await manager.start()
             await scheduler.start()
+            await publisher.start()
 
             # A watering run that was in flight when the add-on stopped has
             # lost its timer, so stop those pumps before anything else runs.
@@ -88,7 +92,7 @@ async def start_ha_services_when_ready(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle."""
-    global ha_client, state_manager, light_scheduler
+    global ha_client, state_manager, light_scheduler, vpd_publisher
 
     logger.info("Initializing Tent Garden Manager...")
 
@@ -107,10 +111,15 @@ async def lifespan(app: FastAPI):
     light_scheduler = LightScheduler(ha_client, state_manager)
     app.state.light_scheduler = light_scheduler
 
+    # Publishes the humidity window each tent's VPD band implies, so Home
+    # Assistant humidity control follows the band instead of fixed RH numbers.
+    vpd_publisher = VpdTargetPublisher(ha_client, state_manager)
+    app.state.vpd_publisher = vpd_publisher
+
     # Start dependents in one guarded task. It waits through an initial HA
     # outage and is also safe if a connection drops partway through startup.
     ha_services_task = asyncio.create_task(
-        start_ha_services_when_ready(ha_client, state_manager, light_scheduler)
+        start_ha_services_when_ready(ha_client, state_manager, light_scheduler, vpd_publisher)
     )
 
     # Connect to Home Assistant. HAClient owns retrying both initial failures
@@ -130,6 +139,8 @@ async def lifespan(app: FastAPI):
         await ha_services_task
     await stop_config_warmer()
     await watering.stop_all()
+    if vpd_publisher:
+        await vpd_publisher.stop()
     if light_scheduler:
         await light_scheduler.stop()
     if state_manager:

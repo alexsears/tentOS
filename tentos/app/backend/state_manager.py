@@ -30,19 +30,33 @@ def is_temperature_sensor_type(sensor_type: str) -> bool:
     )
 
 
+# Leaf surface runs cooler than the air it sits in, because the plant is
+# transpiring. Every published VPD target chart, and every band in this app, is
+# LEAF VPD at this offset. 2.0 C is the standard assumption for a tent with
+# airflow over the canopy.
+LEAF_TEMP_OFFSET_C = 2.0
+
+
 def calculate_vpd(temp: float, humidity: float) -> float:
     """
-    Calculate Vapor Pressure Deficit (VPD) in kPa.
+    Calculate leaf Vapor Pressure Deficit (VPD) in kPa.
 
-    Formula: VPD = SVP * (1 - RH/100)
+    Formula: VPD = SVP(T_leaf) - SVP(T_air) * RH/100
     Where SVP (Saturation Vapor Pressure) = 0.6108 * exp(17.27 * T / (T + 237.3))
+    and T_leaf = T_air - LEAF_TEMP_OFFSET_C.
+
+    This used to return AIR VPD, SVP(T_air) * (1 - RH/100), while the growth
+    stage targets it is compared against are leaf VPD. That reads roughly 0.3 to
+    0.5 kPa high in tent conditions, so a tent sitting correctly inside its band
+    looked permanently too dry. At 32.9 C and 65.6% RH the Mother tent read 1.7
+    against a 0.8-1.0 flower band; its actual leaf VPD was 1.19.
 
     Args:
         temp: Temperature (auto-detects if Fahrenheit and converts)
         humidity: Relative humidity (0-100)
 
     Returns:
-        VPD in kPa (typical range 0.4-1.6 for plants)
+        Leaf VPD in kPa (typical range 0.4-1.6 for plants)
     """
     if humidity <= 0 or humidity > 100:
         return 0.0
@@ -53,13 +67,15 @@ def calculate_vpd(temp: float, humidity: float) -> float:
     if temp > 50:
         temp_c = fahrenheit_to_celsius(temp)
 
-    # Saturation vapor pressure (Tetens formula)
-    svp = 0.6108 * math.exp((17.27 * temp_c) / (temp_c + 237.3))
+    # Saturation vapor pressure (Tetens formula), at the leaf and in the air
+    svp_air = 0.6108 * math.exp((17.27 * temp_c) / (temp_c + 237.3))
+    leaf_c = temp_c - LEAF_TEMP_OFFSET_C
+    svp_leaf = 0.6108 * math.exp((17.27 * leaf_c) / (leaf_c + 237.3))
 
-    # VPD calculation
-    vpd = svp * (1 - humidity / 100)
+    # Actual vapour pressure is set by the air; the deficit is against the leaf.
+    vpd = svp_leaf - svp_air * (humidity / 100)
 
-    return round(vpd, 1)
+    return round(max(vpd, 0.0), 2)
 
 
 def infer_growth_stage(schedules: dict, growth_stage_config: dict = None) -> dict:
