@@ -426,18 +426,21 @@ async def update_control_settings(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{tent_id}/light-cycle")
-async def update_light_cycle(
+async def apply_light_cycle(
     tent_id: str,
     cycle: LightCycleRequest,
     request: Request,
-    state_manager: StateManager = Depends(get_state_manager)
+    state_manager: StateManager,
 ):
-    """Set a tent's light cycle: veg/flower mode, photoperiod hours, lights-on time.
+    """The one place a tent's photoperiod is changed.
 
-    Persists photoperiod_on/photoperiod_off (plus the light_cycle block) into the
-    tent's schedules and syncs growth_stage. When enabled, the backend
-    LightScheduler switches the tent's light entities to match.
+    Writes schedules.light_cycle (what the LightScheduler enforces) alongside
+    photoperiod_on/off and growth_stage, then applies it and syncs the backup HA
+    automations. Every caller that changes a stage or a schedule must come through
+    here. flip-to-flower and reset-to-veg used to write growth_stage and
+    photoperiod_on/off only, leaving light_cycle on the previous mode, so the
+    scheduler kept enforcing the old photoperiod and fought whatever automation the
+    flip created until its own fight detector backed off.
     """
     tent = state_manager.get_tent(tent_id)
     if not tent:
@@ -550,6 +553,39 @@ async def update_light_cycle(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.put("/{tent_id}/light-cycle")
+async def update_light_cycle(
+    tent_id: str,
+    cycle: LightCycleRequest,
+    request: Request,
+    state_manager: StateManager = Depends(get_state_manager)
+):
+    """Set a tent's light cycle: veg/flower mode, photoperiod hours, lights-on time.
+
+    Persists photoperiod_on/photoperiod_off (plus the light_cycle block) into the
+    tent's schedules and syncs growth_stage. When enabled, the backend
+    LightScheduler switches the tent's light entities to match.
+    """
+    return await apply_light_cycle(tent_id, cycle, request, state_manager)
+
+
+async def drop_legacy_flower_automation(request: Request, tent_id: str):
+    """Remove the one-off flower automation older flips created.
+
+    flip-to-flower used to write its own `tentos_{tent}_flower_light` entry beside
+    the managed `tentos_light_cycle_{tent}_on`/`_off` pair, so a tent ended up with
+    two owners of the same switch. The pair is now the only owner. Never fatal.
+    """
+    try:
+        ha_client = request.app.state.ha_client
+        auto_id = f"tentos_{tent_id}_flower_light"
+        if await ha_client.get_automation_config(auto_id):
+            await ha_client.delete_automation(auto_id)
+            logger.info(f"Removed legacy flower automation {auto_id}")
+    except Exception as e:
+        logger.warning(f"Could not remove legacy flower automation: {e}")
+
+
 @router.post("/{tent_id}/flip-to-flower")
 async def flip_to_flower(
     tent_id: str,
@@ -557,126 +593,35 @@ async def flip_to_flower(
     request: Request,
     state_manager: StateManager = Depends(get_state_manager)
 ):
-    """Flip a tent from veg to flower stage."""
+    """Flip a tent from veg to flower stage.
+
+    Delegates to apply_light_cycle so the photoperiod the scheduler enforces and
+    the stage the dashboard reports are written in the same place.
+    """
     tent = state_manager.get_tent(tent_id)
     if not tent:
         raise HTTPException(status_code=404, detail="Tent not found")
 
+    from light_scheduler import duration_hours_from_times
+
     try:
-        from config import load_addon_config, save_addon_config
-        config = load_addon_config()
-        ha_client = request.app.state.ha_client
+        hours = duration_hours_from_times(flip_request.light_on_time, flip_request.light_off_time)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-        # Find the tent in config
-        tent_idx = None
-        for i, t in enumerate(config.get("tents", [])):
-            if t.get("name") == tent.config.name:
-                tent_idx = i
-                break
-
-        if tent_idx is None:
-            raise HTTPException(status_code=404, detail="Tent not found in config")
-
-        # Update growth_stage
-        if "growth_stage" not in config["tents"][tent_idx]:
-            config["tents"][tent_idx]["growth_stage"] = {}
-
-        now = datetime.now(timezone.utc)
-        config["tents"][tent_idx]["growth_stage"]["stage"] = "flower"
-        config["tents"][tent_idx]["growth_stage"]["flower_start_date"] = now.isoformat()
-
-        # Update schedules for 12/12
-        if "schedules" not in config["tents"][tent_idx]:
-            config["tents"][tent_idx]["schedules"] = {}
-
-        config["tents"][tent_idx]["schedules"]["photoperiod_on"] = flip_request.light_on_time
-        config["tents"][tent_idx]["schedules"]["photoperiod_off"] = flip_request.light_off_time
-
-        # Save config
-        save_addon_config(config)
-
-        # Create light automation if requested
-        automation_id = None
-        if flip_request.create_light_automation:
-            # Collect ALL light entities (light, light_2, light_3, ...)
-            light_entities = [
-                eid for slot, eid in tent.slot_to_entity.items()
-                if slot == "light" or slot.startswith("light_")
-            ]
-
-            if light_entities:
-                auto_id = f"tentos_{tent_id}_flower_light"
-                # Use single entity string if only one, else list
-                target_ids = light_entities[0] if len(light_entities) == 1 else light_entities
-                # Determine service domain from first entity
-                svc_domain = "light" if "light." in light_entities[0] else "switch"
-
-                # Create automation config
-                auto_config = {
-                    "id": auto_id,
-                    "alias": f"{tent.config.name} Flower Light Schedule (12/12)",
-                    "description": f"Auto-created by TentOS for flower stage - 12 hours on",
-                    "mode": "single",
-                    "trigger": [
-                        {
-                            "platform": "time",
-                            "at": flip_request.light_on_time + ":00"
-                        },
-                        {
-                            "platform": "time",
-                            "at": flip_request.light_off_time + ":00"
-                        }
-                    ],
-                    "action": [
-                        {
-                            "choose": [
-                                {
-                                    "conditions": [
-                                        {
-                                            "condition": "time",
-                                            "after": flip_request.light_on_time + ":00",
-                                            "before": flip_request.light_off_time + ":00"
-                                        }
-                                    ],
-                                    "sequence": [
-                                        {
-                                            "service": f"{svc_domain}.turn_on",
-                                            "target": {"entity_id": target_ids}
-                                        }
-                                    ]
-                                }
-                            ],
-                            "default": [
-                                {
-                                    "service": f"{svc_domain}.turn_off",
-                                    "target": {"entity_id": target_ids}
-                                }
-                            ]
-                        }
-                    ]
-                }
-
-                try:
-                    await ha_client.create_automation(auto_config)
-                    automation_id = auto_id
-                except Exception as e:
-                    logger.warning(f"Failed to create light automation: {e}")
-
-        # Reload config in state manager
-        await state_manager.reload_config()
-
-        return {
-            "success": True,
-            "message": "Flipped to flower stage",
-            "flower_start_date": now.isoformat(),
-            "automation_created": automation_id
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to flip to flower: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    result = await apply_light_cycle(
+        tent_id,
+        LightCycleRequest(
+            mode="flower",
+            photoperiod_hours=hours,
+            on_time=flip_request.light_on_time,
+            enabled=flip_request.create_light_automation,
+        ),
+        request,
+        state_manager,
+    )
+    await drop_legacy_flower_automation(request, tent_id)
+    return dict(result, message="Flipped to flower stage")
 
 
 @router.post("/{tent_id}/reset-to-veg")
@@ -685,42 +630,26 @@ async def reset_to_veg(
     request: Request,
     state_manager: StateManager = Depends(get_state_manager)
 ):
-    """Reset a tent back to veg stage."""
+    """Reset a tent back to veg stage.
+
+    Returns the light to an 18 hour veg photoperiod at the same lights-on time.
+    Before this went through apply_light_cycle a reset left the tent on its flower
+    12/12 while the dashboard said veg.
+    """
     tent = state_manager.get_tent(tent_id)
     if not tent:
         raise HTTPException(status_code=404, detail="Tent not found")
 
-    try:
-        from config import load_addon_config, save_addon_config
-        config = load_addon_config()
+    schedules = tent.config.schedules or {}
+    existing = schedules.get("light_cycle") or {}
+    on_time = existing.get("on_time") or schedules.get("photoperiod_on") or "06:00"
+    enabled = existing.get("enabled", True)
 
-        # Find the tent in config
-        tent_idx = None
-        for i, t in enumerate(config.get("tents", [])):
-            if t.get("name") == tent.config.name:
-                tent_idx = i
-                break
-
-        if tent_idx is None:
-            raise HTTPException(status_code=404, detail="Tent not found in config")
-
-        # Update growth_stage
-        if "growth_stage" not in config["tents"][tent_idx]:
-            config["tents"][tent_idx]["growth_stage"] = {}
-
-        config["tents"][tent_idx]["growth_stage"]["stage"] = "veg"
-        config["tents"][tent_idx]["growth_stage"]["flower_start_date"] = None
-
-        # Save config
-        save_addon_config(config)
-
-        # Reload config in state manager
-        await state_manager.reload_config()
-
-        return {"success": True, "message": "Reset to veg stage"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to reset to veg: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    result = await apply_light_cycle(
+        tent_id,
+        LightCycleRequest(mode="veg", photoperiod_hours=18, on_time=on_time, enabled=enabled),
+        request,
+        state_manager,
+    )
+    await drop_legacy_flower_automation(request, tent_id)
+    return dict(result, message="Reset to veg stage")

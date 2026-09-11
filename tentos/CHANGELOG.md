@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.1
+- Flipping a tent to flower now moves the photoperiod the scheduler actually enforces. The flip wrote the growth stage and the lights-on/off times but left schedules.light_cycle on the previous mode, so the light scheduler kept running the old photoperiod and fought the automation the flip created until it backed off
+- Reset to veg returns the light to an 18 hour photoperiod at the same lights-on time instead of leaving the tent on its flower 12/12
+- Flip and reset both go through the same code path as the light cycle editor, so one place owns a tent's photoperiod
+- The one-off `tentos_<tent>_flower_light` automation older flips created is removed on the next flip or reset; the managed on/off pair is the only owner of the light
+- Backup automation updates use POST. Home Assistant's automation config API rejects PUT with 405, so a saved schedule change never reached the backup automations
+
 ## 1.7.0
 - CO2 supplementation: new CO2 Injector actuator slot (switch or valve) in the tent builder, shown as a control on the tent card and detail page
 - New automation template Low CO2 -> CO2 Injector: injects while the tent light is on and CO2 is below the day target, stops at target plus 150 ppm, when the light goes off, or after 10 minutes of continuous injection
