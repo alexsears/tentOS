@@ -38,4 +38,13 @@ include to `/config/configuration.yaml`. Run `ha core check`, reload
 Observe future clock boundaries and humidity response before claiming behavior
 verified. Back up live configuration and avoid unrelated changes.
 
+September 11 commissioning: 13 tests and HA configuration validation passed.
+Independent physical-control review completed; missing entity and relay failure
+handling were corrected. HA history confirms exhaust off at 20:10:30 UTC,
+mist on at 20:10:45.396 UTC, and automatic mist off at 20:13:45.468 UTC
+(180.07 seconds). RH rose from about 50.3% to 52.8% during the first cycle;
+the target humidity band has not yet been reached or proven maintainable.
+Water remains off pending confirmation of destination and filled/connected
+reservoir/tubing. Implementation task: 1218415080996693; PR: 36.
+
 Shared operating/writing guidance: [workspace rules](C:/code/CLAUDE.md).
