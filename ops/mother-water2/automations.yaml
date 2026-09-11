@@ -1,0 +1,38 @@
+# Version 2026.09.10.1. Times use Home Assistant's America/Chicago time zone.
+- id: mother_water_2_overnight
+  alias: Mother Water 2 - five nightly 20-second runs
+  description: Runs at 9pm, 10pm, 11pm, midnight and 1am every night. The independent Water Pump Limiters automation retains its 30-second cap.
+  triggers:
+  - trigger: time
+    at:
+    - '21:00:00'
+    - '22:00:00'
+    - '23:00:00'
+    - '00:00:00'
+    - '01:00:00'
+  conditions:
+  - condition: state
+    entity_id: switch.mother_water_2
+    state: 'off'
+  actions:
+  - action: switch.turn_on
+    target:
+      entity_id: switch.mother_water_2
+  - delay: '00:00:20'
+  - action: switch.turn_off
+    target:
+      entity_id: switch.mother_water_2
+  mode: single
+- id: mother_water_2_restart_stop
+  alias: Mother Water 2 - stop interrupted watering
+  description: Stops this pump after Home Assistant restarts or automations reload, when an in-progress delayed shutoff may have been lost.
+  triggers:
+  - trigger: homeassistant
+    event: start
+  - trigger: event
+    event_type: automation_reloaded
+  actions:
+  - action: switch.turn_off
+    target:
+      entity_id: switch.mother_water_2
+  mode: single
