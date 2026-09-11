@@ -491,8 +491,12 @@ class HAClient:
         }
         url = f"{self.rest_url}/config/automation/config/{automation_id}"
 
+        # POST, not PUT. Home Assistant's automation config API exposes only GET,
+        # POST and DELETE on this path, and POST is an upsert. PUT returned
+        # "405: Method Not Allowed" on every update, so a schedule change saved in
+        # TentOS while its backup automations kept the previous times.
         async with aiohttp.ClientSession() as session:
-            async with session.put(url, headers=headers, json=config) as resp:
+            async with session.post(url, headers=headers, json=config) as resp:
                 if resp.status == 200:
                     await self.call_service("automation", "reload")
                     return {"success": True}
