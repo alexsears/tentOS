@@ -1,0 +1,103 @@
+# Incubator daily RH ramp, anchored to the batch date.
+# Day 0: 87%, day 7: 85%, day 20: 70%, day 28 onward: 60%.
+# Interpolate between anchors once per local calendar day; retain manual hold.
+# Approved September 11, 2026: 70% today, then 1.25 points/day to September 19.
+sensor:
+  - name: "Incubator target RH"
+    unique_id: incubator_target_rh
+    unit_of_measurement: "%"
+    state_class: measurement
+    icon: mdi:water-percent
+    state: >
+      {# A manual hold wins over the ramp, so the slider on the incubator page and
+         the ESP display can both take control without anyone editing YAML. #}
+      {% if is_state('input_boolean.incubator_rh_manual', 'on') %}
+        {{ states('input_number.incubator_rh_setpoint') | float(87) | round(0) }}
+      {% else %}
+        {% set start = states('input_datetime.incubator_batch_start') %}
+        {% if start in ['unknown', 'unavailable', 'none', ''] %}
+          87
+        {% else %}
+          {% set days = (now().date() - strptime(start[:10], '%Y-%m-%d').date()).days %}
+          {% if days <= 0 %}87
+          {% elif days < 7 %}{{ (87 - 2 * days / 7) | round(2) }}
+          {% elif days < 20 %}{{ (85 - 15 * (days - 7) / 13) | round(2) }}
+          {% elif days < 28 %}{{ (70 - 10 * (days - 20) / 8) | round(2) }}
+          {% else %}60{% endif %}
+        {% endif %}
+      {% endif %}
+    attributes:
+      days_in: >
+        {% set start = states('input_datetime.incubator_batch_start') %}
+        {% if start in ['unknown', 'unavailable', 'none', ''] %}
+          unset
+        {% else %}
+          {{ (now().date() - strptime(start[:10], '%Y-%m-%d').date()).days }}
+        {% endif %}
+      source: >
+        {{ 'manual hold' if is_state('input_boolean.incubator_rh_manual', 'on')
+           else 'daily weaning ramp' }}
+      stage: >
+        {% if is_state('input_boolean.incubator_rh_manual', 'on') %}
+          held by hand
+        {% else %}
+          {% set start = states('input_datetime.incubator_batch_start') %}
+          {% if start in ['unknown', 'unavailable', 'none', ''] %}
+            no batch date set, holding 87%
+          {% else %}
+            {% set days = (now().date() - strptime(start[:10], '%Y-%m-%d').date()).days %}
+            {% if days < 28 %}day {{ [days, 0] | max }}, daily weaning
+            {% else %}day {{ days }}, holding 60%{% endif %}
+          {% endif %}
+        {% endif %}
+
+  # Who is actually in charge of the humidifier right now. This is the single
+  # most important thing to show, because "80%" means something completely
+  # different depending on whether anything is measuring it.
+  - name: "Incubator control mode"
+    unique_id: incubator_control_mode
+    icon: mdi:state-machine
+    state: >
+      {% set rh = states('sensor.pot_scale_air_humidity') %}
+      {% set t  = states('sensor.pot_scale_air_temperature') %}
+      {% set s  = states.sensor.pot_scale_air_humidity %}
+      {% set age = (now() - s.last_updated).total_seconds() if s else 99999 %}
+      {% set blind = rh in ['unknown','unavailable','none','']
+                     or t in ['unknown','unavailable','none','']
+                     or rh | float(-1) <= 0.5
+                     or rh | float(-1) > 100
+                     or t | float(-999) < 40
+                     or t | float(999) > 120
+                     or age > 240 %}
+      {% if blind %}blind
+      {% elif is_state('input_boolean.incubator_rh_manual','on') %}manual
+      {% else %}ramp{% endif %}
+
+  # Human-readable version of the same thing, sized for a 480px panel.
+  - name: "Incubator status line"
+    unique_id: incubator_status_line
+    icon: mdi:information-outline
+    state: >
+      {% set mode = states('sensor.incubator_control_mode') %}
+      {% if mode == 'blind' %}
+        SENSOR DOWN - timed misting
+      {% elif is_state('switch.incubator_humidifier','on') %}
+        misting
+      {% elif is_state('switch.incubator_fan','on') %}
+        venting
+      {% else %}
+        holding {{ states('sensor.incubator_target_rh') }}%
+      {% endif %}
+
+  # Seconds since the climate sensor last said anything. The display shows this
+  # directly: a number that keeps climbing is the clearest possible signal that
+  # what is on screen is history, not the present.
+  - name: "Incubator sensor age"
+    unique_id: incubator_sensor_age
+    unit_of_measurement: "s"
+    state_class: measurement
+    icon: mdi:timer-alert-outline
+    state: >
+      {% set s = states.sensor.pot_scale_air_humidity %}
+      {% if s is none %}99999
+      {% else %}{{ (now() - s.last_updated).total_seconds() | round(0) }}{% endif %}
