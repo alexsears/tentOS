@@ -62,4 +62,13 @@ includes, exclusions and retention. Run `ha core check`, then restart HA to appl
 the recorder configuration. New reports begin when recording starts; there is no
 historical climate data to backfill from HA for the excluded period.
 
+Correction verified September 11: 15 tests and HA configuration validation pass.
+Deployed YAML/configuration hashes match the reviewed files. The humidifier
+remained on from 20:33:48.986 UTC through a 198-second observation with no off
+event, passing the old three-minute cutoff. The reports page displayed 33 points
+across temperature, humidity, CO2 and VPD; RH rose from 54.1% to about 58.7%.
+The unrelated incubator humidity sensor continued recording (10 new readings),
+while C3 weight history contained only its pre-window initial state. Water stays
+off until the future tray pump is installed and commissioned.
+
 Shared operating/writing guidance: [workspace rules](C:/code/CLAUDE.md).
