@@ -1,27 +1,30 @@
-# Incubator humidity ramp
+﻿# Incubator daily humidity ramp
 
-Alex requested 70% RH now on September 11, 2026. Batch start remains August 22.
-The ramp now uses 87%, 85%, 70%, 70%, then 60% for weeks one through five.
-Week five starts September 19. Manual override remains off, so the later drop
-still occurs automatically. This changes the week-three target only.
+Alex requested daily decreases on September 11, 2026, replacing weekly steps.
+The batch date remains August 22. The target is 70% today, 68.75% September 12,
+then 1.25 percentage points lower each midnight until 60% on September 19.
+It holds 60% afterward. Actual humidity can lag the requested target.
 
-Deploy `incubator_rh_template.yaml` to `/config/incubator_rh_template.yaml`,
-already included under `template` in configuration.yaml. Back up the live file,
-run `ha core check`, reload templates, and verify `sensor.incubator_target_rh`.
-Existing humidity and high-RH ventilation automations read that entity.
+For future batches, interpolate daily between these age anchors: day 0 at 87%,
+day 7 at 85%, day 20 at 70%, day 28 at 60%. Future or unset batch dates hold
+87%. Manual override still takes precedence. Existing ventilation, humidifier,
+sensor and refill controls continue reading sensor.incubator_target_rh.
 
-Run `python -m pytest ops/incubator-ramp/test_ramp.py -q` to verify week
-boundaries and manual-override behavior. Confirm the next natural vent cycle;
-the requested setpoint is not proof actual humidity has reached it.
+Deploy incubator_rh_template.yaml to /config/incubator_rh_template.yaml, already
+included under template in configuration.yaml. Back up the live file, run
+ha core check, reload templates, and verify the target and source. HA refreshes
+now() templates each minute; local calendar dates determine the daily step.
 
-September 11 deployment: 11 boundary/override tests and HA configuration check
-passed. Live target is 70%, source is weaning ramp, manual override remains off.
-Actual RH was 84.3%, humidifier off. The existing high-RH vent runs at minute
-boundaries when RH exceeds target by five points and the fan has rested for more
-than five minutes; its pulse remains eight seconds. A five-minute read-only
-monitor was arranged in `C:/code/artifacts/tomato-commissioning/monitor-incubator.py`
-with observations in `incubator-70-observations.jsonl` to capture the next cycle.
-TentOS humidity display/alert limits are now 67–73%, matching the current 70%
-target and three-point band. These display limits are separate from the HA ramp.
+Run python -m pytest ops/incubator-ramp/test_ramp.py -q. All 14 boundary,
+monotonicity and override tests passed, as did independent control review.
 
+A read-only check for September 12 at 00:02 CDT runs
+C:/code/artifacts/tomato-commissioning/check-daily-ramp.py and writes
+ daily-ramp-midnight-result.json in that directory. It depends on Windows
+remaining awake; the future midnight boundary is not yet verified.
+
+TentOS display/alert limits remain 67-73%. These static limits are separate
+from the active HA daily ramp and do not automatically follow it.
+
+Tracking: Asana 1218416275728789; https://github.com/alexsears/tentOS/pull/37.
 Shared operating/writing rules: [workspace guidance](C:/code/CLAUDE.md).
