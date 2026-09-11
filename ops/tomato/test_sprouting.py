@@ -78,3 +78,9 @@ def test_no_water_or_light_actuation():
     text=Path(__file__).with_name('tomato_sprouting.yaml').read_text()
     assert 'switch.tomato_water' not in text
     assert 'switch.garage_tomato_light' not in text
+
+def test_missing_humidifier_entity_does_not_abort_controller():
+    template=CONFIG['automation'][0]['actions'][0]['variables']['mist_age']
+    env=jinja2.Environment(undefined=jinja2.StrictUndefined)
+    for domain in [SimpleNamespace(),SimpleNamespace(garage_tomato_humidifier=None)]:
+        assert env.from_string(template).render(states=SimpleNamespace(switch=domain)).strip() == '0'

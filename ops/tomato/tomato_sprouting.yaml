@@ -38,7 +38,8 @@ automation:
             {{ enabled and (recovering or (now().minute % 10 == 0 and now().second < 30)) }}
           mist_age: >-
             {{ as_timestamp(now()) - as_timestamp(states.switch.garage_tomato_humidifier.last_changed, 0)
-               if states.switch.garage_tomato_humidifier is defined else 0 }}
+               if states.switch.garage_tomato_humidifier is defined
+                  and states.switch.garage_tomato_humidifier is not none else 0 }}
           mist: >-
             {{ enabled and fresh and not vent and temp_f < 85
                and is_state('switch.tomato_exhaust', 'off')
