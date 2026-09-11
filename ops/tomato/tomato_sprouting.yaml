@@ -36,16 +36,12 @@ automation:
             {{ temp_f >= 85 or rh >= 85 or not fresh }}
           vent: >-
             {{ enabled and (recovering or (now().minute % 10 == 0 and now().second < 30)) }}
-          mist_age: >-
-            {{ as_timestamp(now()) - as_timestamp(states.switch.garage_tomato_humidifier.last_changed, 0)
-               if states.switch.garage_tomato_humidifier is defined
-                  and states.switch.garage_tomato_humidifier is not none else 0 }}
           mist: >-
             {{ enabled and fresh and not vent and temp_f < 85
                and is_state('switch.tomato_exhaust', 'off')
                and is_state('switch.garage_tomato_fan', 'on')
-               and ((is_state('switch.garage_tomato_humidifier', 'on') and rh < 80 and mist_age < 180)
-                    or (is_state('switch.garage_tomato_humidifier', 'off') and rh < 75 and mist_age >= 60)) }}
+               and ((is_state('switch.garage_tomato_humidifier', 'on') and rh < 80)
+                    or (is_state('switch.garage_tomato_humidifier', 'off') and rh < 75)) }}
           circulate: >-
             {{ enabled and (vent or rh < 75 or is_state('switch.garage_tomato_humidifier', 'on')
                             or mist or now().minute % 10 < 2) }}
@@ -75,16 +71,3 @@ automation:
           - action: switch.turn_on
             target:
               entity_id: switch.garage_tomato_humidifier
-
-  - id: tomato_sprouting_mist_cutoff
-    alias: Tomato mist runtime cutoff
-    mode: single
-    triggers:
-      - trigger: state
-        entity_id: switch.garage_tomato_humidifier
-        to: 'on'
-        for: '00:03:00'
-    actions:
-      - action: switch.turn_off
-        target:
-          entity_id: switch.garage_tomato_humidifier

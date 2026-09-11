@@ -52,13 +52,13 @@ def test_bad_sensor_stops_mist_and_ventilates(kwargs):
     assert not r['mist']
     assert r['vent'] and r['circulate']
 
-def test_band_runtime_rest_and_temperature():
+def test_band_has_no_routine_runtime_limit_or_rest():
     assert evaluate(rh='77',mist='on')['mist']
     assert not evaluate(rh='77')['mist']
     assert not evaluate(rh='80',mist='on')['mist']
-    assert not evaluate(mist='on',mist_age=180)['mist']
-    assert not evaluate(mist_age=59)['mist']
-    assert evaluate(mist_age=60)['mist']
+    for age in [0, 59, 60, 180, 3600]:
+        assert evaluate(mist='on',mist_age=age)['mist']
+        assert evaluate(mist='off',mist_age=age)['mist']
     assert not evaluate(temp='85')['mist']
     assert evaluate(temp='85')['vent']
     assert evaluate(temp='24',unit='°C')['mist']
@@ -80,7 +80,13 @@ def test_no_water_or_light_actuation():
     assert 'switch.garage_tomato_light' not in text
 
 def test_missing_humidifier_entity_does_not_abort_controller():
-    template=CONFIG['automation'][0]['actions'][0]['variables']['mist_age']
-    env=jinja2.Environment(undefined=jinja2.StrictUndefined)
-    for domain in [SimpleNamespace(),SimpleNamespace(garage_tomato_humidifier=None)]:
-        assert env.from_string(template).render(states=SimpleNamespace(switch=domain)).strip() == '0'
+    assert not evaluate(mist='unknown')['mist']
+    assert not evaluate(mist='unavailable')['mist']
+
+def test_legacy_runtime_cutoff_is_removed():
+    assert all(a['id'] != 'tomato_sprouting_mist_cutoff' for a in CONFIG['automation'])
+
+def test_high_humidity_still_stops_mist():
+    result=evaluate(rh='85',mist='on')
+    assert not result['mist']
+    assert result['vent']

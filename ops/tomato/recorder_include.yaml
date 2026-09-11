@@ -1,0 +1,9 @@
+# Merge these exact entities into recorder.include.entities in configuration.yaml.
+# Exact includes override the existing sensor.pot_scale_weight_c3_* exclusion,
+# preserving the exclusion for high-rate weight and diagnostic telemetry.
+recorder:
+  include:
+    entities:
+      - sensor.pot_scale_weight_c3_temperature
+      - sensor.pot_scale_weight_c3_humidity
+      - sensor.pot_scale_weight_c3_co2
