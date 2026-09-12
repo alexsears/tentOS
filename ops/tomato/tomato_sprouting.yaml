@@ -33,7 +33,7 @@ automation:
                and (as_timestamp(now()) - as_timestamp(states.sensor.pot_scale_weight_c3_humidity.last_reported, 0)) < 120
                and (as_timestamp(now()) - as_timestamp(states.sensor.pot_scale_weight_c3_temperature.last_reported, 0)) < 120 }}
           recovering: >-
-            {{ temp_f >= 85 or rh >= 85 or not fresh }}
+            {{ temp_f >= 85 or rh >= 90 or not fresh }}
           vent: >-
             {{ enabled and (recovering or (now().minute % 30 == 0 and now().second < 30)) }}
           mist: >-

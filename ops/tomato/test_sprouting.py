@@ -87,7 +87,7 @@ def test_legacy_runtime_cutoff_is_removed():
     assert all(a['id'] != 'tomato_sprouting_mist_cutoff' for a in CONFIG['automation'])
 
 def test_high_humidity_still_stops_mist():
-    result=evaluate(rh='85',mist='on')
+    result=evaluate(rh='90',mist='on')
     assert not result['mist']
     assert result['vent']
 
@@ -97,5 +97,16 @@ def test_former_ten_minute_windows_are_idle():
         result = evaluate(rh='78', minute=minute)
         assert not result['vent']
         assert not result['circulate']
-        assert evaluate(rh='85', minute=minute)['vent']
+        assert evaluate(rh='90', minute=minute)['vent']
         assert evaluate(rh='70', minute=minute)['circulate']
+
+
+@pytest.mark.parametrize('rh', ['85', '86', '89.9'])
+def test_humidity_below_ninety_does_not_request_exhaust(rh):
+    for exhaust in ['off', 'on']:
+        result = evaluate(rh=rh, exhaust=exhaust, mist='on')
+        assert not result['vent']
+        assert not result['mist']
+    assert evaluate(rh=rh, temp='85')['vent']
+    assert evaluate(rh=rh, sensor_age=120)['vent']
+    assert evaluate(rh=rh, minute=30)['vent']

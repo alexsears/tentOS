@@ -14,7 +14,7 @@ on first installation it is off. The controller checks every 15 seconds.
 - Exhaust for the first 30 seconds of each thirty-minute clock interval.
 - Circulate for the first two minutes of each thirty-minute interval, whenever
   humidity is below target, during misting, and during recovery ventilation.
-- At 85 F or 85% RH, stop mist and ventilate until below those thresholds.
+- At 85 F or 90% RH, stop mist and ventilate until below those thresholds.
 - Missing, invalid or older-than-two-minute sensor reports stop mist and
   ventilate. Both Celsius and Fahrenheit HA temperature units are supported.
 - Disabling the helper stops all three climate outputs. No light or water
@@ -85,3 +85,14 @@ and automations were reloaded. A 40-minute read-only monitor is running from
 are in its adjacent `.jsonl` file. Natural boundary behavior remains pending
 until that evidence is reviewed. Live rollback backup:
 `/config/packages/tomato_sprouting.yaml.before-less-often-20260912`.
+
+## Exhaust humidity threshold correction, September 12
+
+Alex clarified that the exhaust should not trip at 86% RH. Raise only its
+humidity recovery threshold to 90%; the 85 F temperature trigger, stale-sensor
+response, scheduled ventilation, and 80% mist cutoff remain. All 19 tests pass,
+independent review found no material gaps, and HA core check passed. Live
+package hashes match after reload. HA reports exhaust off at 86.75% RH across
+two natural controller ticks. Evidence is in
+`C:/code/artifacts/tomato-commissioning/exhaust90-observed.json`. Backup:
+`/config/packages/tomato_sprouting.yaml.before-exhaust90-20260912`.
