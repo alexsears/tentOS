@@ -575,3 +575,24 @@ async def export_data(
         )
     else:
         return history
+
+
+@router.get('/standard/{tent_id}')
+async def standard_report(tent_id: str, request: Request, range: str = '24h',
+                          from_time: Optional[str] = None, to_time: Optional[str] = None):
+    from standard_report import build_standard_report
+    tent = request.app.state.state_manager.get_tent(tent_id)
+    if not tent:
+        raise HTTPException(status_code=404, detail='Tent not found')
+    start, end = _resolve_window(range, from_time, to_time)
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+    if end <= start or end - start > timedelta(days=90):
+        raise HTTPException(status_code=400, detail='Choose a window between zero and 90 days')
+    try:
+        return await build_standard_report(tent, request.app.state.ha_client, start, end)
+    except Exception as error:
+        logger.error('Standard report history unavailable: %s', type(error).__name__)
+        raise HTTPException(status_code=502, detail='History is temporarily unavailable') from error
