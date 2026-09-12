@@ -95,7 +95,8 @@ export default function StandardTentReport() {
       }))
     })
     rows.forEach((row, i) => {
-      const subtitle = row.missing ? 'Not configured for this tent' : `${duration(row.on_seconds)} on${row.unknown_seconds ? ` · ${duration(row.unknown_seconds)} unknown` : ''}`
+      const noHistory = row.unknown_seconds >= (to - from) / 1000
+      const subtitle = row.missing ? 'Not configured for this tent' : noHistory ? 'Unknown history' : `${row.changes} times switched${row.unknown_seconds ? ' · Partial history' : ''}`
       const axis = addGrid(534 + i * 66, 20, equipmentLabel(row), subtitle, false)
       series.push({ name: row.label, type: 'custom', xAxisIndex: axis, yAxisIndex: axis,
         renderItem: (params, api) => {
@@ -135,14 +136,13 @@ export default function StandardTentReport() {
     {report && rows.some(row => isFan(row) && !row.missing) && <div className="card">
       <h3 className="mb-2 font-semibold">Fan activity</h3>
       <table className="w-full text-sm tabular-nums">
-        <thead className="text-xs text-gray-400"><tr><th scope="col" className="py-2 text-left">Fan</th><th scope="col" className="text-right">Starts</th><th scope="col" className="text-right">On/off changes</th></tr></thead>
+        <thead className="text-xs text-gray-400"><tr><th scope="col" className="py-2 text-left">Fan</th><th scope="col" className="text-right">Times switched</th></tr></thead>
         <tbody>{rows.filter(row => isFan(row) && !row.missing).map(row => <tr key={row.slot} className="border-t border-[#334155]">
           <th scope="row" className="py-2 text-left font-normal">{equipmentLabel(row)}{row.unknown_seconds > 0 && <span className="block text-xs text-purple-300">Partial history</span>}</th>
-          <td className="text-right">{row.unknown_seconds >= (Date.parse(report.to) - Date.parse(report.from)) / 1000 ? 'Unknown' : row.starts}</td>
           <td className="text-right">{row.unknown_seconds >= (Date.parse(report.to) - Date.parse(report.from)) / 1000 ? 'Unknown' : row.changes}</td>
         </tr>)}</tbody>
       </table>
-      <p className="mt-2 text-xs text-gray-400">Counts cover the selected time range. Starts are recorded off-to-on changes. A fan already on at the start and transitions across unknown history are excluded.</p>
+      <p className="mt-2 text-xs text-gray-400">Each on or off transition counts once within the selected time range. The initial state and transitions across unknown history are excluded.</p>
     </div>}
     {report && <div className="card !px-2 sm:!px-4">
       <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-3 text-xs text-gray-400">
