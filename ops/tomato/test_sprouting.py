@@ -64,11 +64,11 @@ def test_band_has_no_routine_runtime_limit_or_rest():
     assert evaluate(temp='24',unit='°C')['mist']
 
 def test_natural_schedule_boundaries():
-    assert evaluate(rh='78',minute=10,second=0)['vent']
-    assert evaluate(rh='78',minute=10,second=15)['vent']
-    assert not evaluate(rh='78',minute=10,second=30)['vent']
-    assert evaluate(rh='78',minute=11)['circulate']
-    assert not evaluate(rh='78',minute=12)['circulate']
+    assert evaluate(rh='78',minute=30,second=0)['vent']
+    assert evaluate(rh='78',minute=30,second=15)['vent']
+    assert not evaluate(rh='78',minute=30,second=30)['vent']
+    assert evaluate(rh='78',minute=31)['circulate']
+    assert not evaluate(rh='78',minute=32)['circulate']
 
 def test_disabled_stops_all_climate_outputs():
     r=evaluate(enabled=False,mist='on',temp='90')
@@ -87,6 +87,26 @@ def test_legacy_runtime_cutoff_is_removed():
     assert all(a['id'] != 'tomato_sprouting_mist_cutoff' for a in CONFIG['automation'])
 
 def test_high_humidity_still_stops_mist():
-    result=evaluate(rh='85',mist='on')
+    result=evaluate(rh='90',mist='on')
     assert not result['mist']
     assert result['vent']
+
+
+def test_former_ten_minute_windows_are_idle():
+    for minute in [10, 11, 20, 21, 40, 41, 50, 51]:
+        result = evaluate(rh='78', minute=minute)
+        assert not result['vent']
+        assert not result['circulate']
+        assert evaluate(rh='90', minute=minute)['vent']
+        assert evaluate(rh='70', minute=minute)['circulate']
+
+
+@pytest.mark.parametrize('rh', ['85', '86', '89.9'])
+def test_humidity_below_ninety_does_not_request_exhaust(rh):
+    for exhaust in ['off', 'on']:
+        result = evaluate(rh=rh, exhaust=exhaust, mist='on')
+        assert not result['vent']
+        assert not result['mist']
+    assert evaluate(rh=rh, temp='85')['vent']
+    assert evaluate(rh=rh, sensor_age=120)['vent']
+    assert evaluate(rh=rh, minute=30)['vent']
