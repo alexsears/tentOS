@@ -102,7 +102,7 @@ export default function StandardTentReport() {
         },
         encode: { x: [0, 1], y: -1 },
         data: row.intervals.map(p => [Date.parse(p.start), Date.parse(p.end), p.state]),
-        tooltip: { trigger: 'item', formatter: p => `<b>${escape(row.name)}: ${escape(p.value[2])}</b><br/>${clock(p.value[0])} – ${clock(p.value[1])}<br/>${duration((p.value[1]-p.value[0])/1000)}` },
+        tooltip: { trigger: 'item', formatter: p => `<b>${escape(row.label)}: ${escape(p.value[2])}</b><br/>${clock(p.value[0])} – ${clock(p.value[1])}<br/>${duration((p.value[1]-p.value[0])/1000)}` },
       })
     })
     axes[axes.length - 1].axisLabel.show = true
