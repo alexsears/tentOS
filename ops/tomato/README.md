@@ -11,8 +11,8 @@ on first installation it is off. The controller checks every 15 seconds.
 - Humidify below 75% RH and stop at 80%. There is no routine runtime limit or
   forced rest while humidity is below target. Exhaust and fault cutoffs remain.
 - Confirm circulation on and exhaust off before starting mist.
-- Exhaust for the first 30 seconds of each ten-minute clock interval.
-- Circulate for the first two minutes of each ten-minute interval, whenever
+- Exhaust for the first 30 seconds of each thirty-minute clock interval.
+- Circulate for the first two minutes of each thirty-minute interval, whenever
   humidity is below target, during misting, and during recovery ventilation.
 - At 85 F or 85% RH, stop mist and ventilate until below those thresholds.
 - Missing, invalid or older-than-two-minute sensor reports stop mist and
@@ -72,3 +72,16 @@ while C3 weight history contained only its pre-window initial state. Water stays
 off until the future tray pump is installed and commissioned.
 
 Shared operating/writing guidance: [workspace rules](C:/code/CLAUDE.md).
+
+## Reduced routine fan frequency, September 12
+
+Alex requested fewer fan starts. Routine exhaust and circulation now start every
+thirty minutes instead of ten; durations remain thirty seconds and two minutes.
+Misting and climate recovery still request airflow as needed. All 16 controller
+tests pass, independent physical-control review found no material gaps, and HA
+configuration validation passed. The deployed package hash matches this version
+and automations were reloaded. A 40-minute read-only monitor is running from
+`C:/code/artifacts/tomato-commissioning/fan-less-often-monitor.py`; observations
+are in its adjacent `.jsonl` file. Natural boundary behavior remains pending
+until that evidence is reviewed. Live rollback backup:
+`/config/packages/tomato_sprouting.yaml.before-less-often-20260912`.

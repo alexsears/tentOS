@@ -35,7 +35,7 @@ automation:
           recovering: >-
             {{ temp_f >= 85 or rh >= 85 or not fresh }}
           vent: >-
-            {{ enabled and (recovering or (now().minute % 10 == 0 and now().second < 30)) }}
+            {{ enabled and (recovering or (now().minute % 30 == 0 and now().second < 30)) }}
           mist: >-
             {{ enabled and fresh and not vent and temp_f < 85
                and is_state('switch.tomato_exhaust', 'off')
@@ -44,7 +44,7 @@ automation:
                     or (is_state('switch.garage_tomato_humidifier', 'off') and rh < 75)) }}
           circulate: >-
             {{ enabled and (vent or rh < 75 or is_state('switch.garage_tomato_humidifier', 'on')
-                            or mist or now().minute % 10 < 2) }}
+                            or mist or now().minute % 30 < 2) }}
       # Request moisture shutdown first; recovery airflow must still run if
       # that relay fails. Fan confirmation above means
       # a newly started fan must report on before misting can start next tick.
