@@ -12,6 +12,9 @@ const METRICS = [
 ]
 const RANGES = ['1h', '6h', '12h', '24h', '3d', '7d', '30d']
 const COLORS = { on: '#4ade80', off: '#334155', unknown: '#a78bfa' }
+const EQUIPMENT_ORDER = ['light', 'exhaust_fan', 'circulation_fan', 'intake_fan', 'fan', 'humidifier']
+const isFan = row => row.kind === 'fan' || row.kind.endsWith('_fan')
+const equipmentLabel = row => row.slot?.match(/_\d+$/) ? `${row.label} ${row.slot.match(/_(\d+)$/)[1]}` : row.label
 const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 const clock = value => new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
 const duration = seconds => seconds < 60 ? `${Math.round(seconds)}s` : seconds < 3600 ? `${Math.round(seconds / 60)}m` : `${(seconds / 3600).toFixed(1)}h`
@@ -64,7 +67,7 @@ export default function StandardTentReport() {
     for (const [kind, label] of [['light', 'Light'], ['exhaust_fan', 'Exhaust'], ['humidifier', 'Humidifier']]) {
       if (!result.some(r => r.kind === kind)) result.push({ kind, label, missing: true, intervals: [] })
     }
-    return result.sort((a, b) => ['light', 'exhaust_fan', 'humidifier'].indexOf(a.kind) - ['light', 'exhaust_fan', 'humidifier'].indexOf(b.kind))
+    return result.sort((a, b) => EQUIPMENT_ORDER.indexOf(a.kind) - EQUIPMENT_ORDER.indexOf(b.kind))
   }, [report])
   const height = 570 + rows.length * 66
   const option = useMemo(() => {
@@ -93,7 +96,7 @@ export default function StandardTentReport() {
     })
     rows.forEach((row, i) => {
       const subtitle = row.missing ? 'Not configured for this tent' : `${duration(row.on_seconds)} on${row.unknown_seconds ? ` · ${duration(row.unknown_seconds)} unknown` : ''}`
-      const axis = addGrid(534 + i * 66, 20, row.slot?.match(/_\d+$/) ? `${row.label} ${row.slot.match(/_(\d+)$/)[1]}` : row.label, subtitle, false)
+      const axis = addGrid(534 + i * 66, 20, equipmentLabel(row), subtitle, false)
       series.push({ name: row.label, type: 'custom', xAxisIndex: axis, yAxisIndex: axis,
         renderItem: (params, api) => {
           const left = api.coord([api.value(0), 0]), right = api.coord([api.value(1), 1])
@@ -129,13 +132,25 @@ export default function StandardTentReport() {
     {error && <div role="alert" className="card text-sm text-amber-300">{error} <button className="underline" onClick={() => setRetry(v => v + 1)}>Retry</button></div>}
     {tentsLoaded && !tents.length && !error && <div className="card text-gray-400">No tents configured yet.</div>}
     {(!tentsLoaded || tents.length > 0) && !report && !error && <div role="status" className="card text-gray-400">Loading climate and switch history…</div>}
+    {report && rows.some(row => isFan(row) && !row.missing) && <div className="card">
+      <h3 className="mb-2 font-semibold">Fan activity</h3>
+      <table className="w-full text-sm tabular-nums">
+        <thead className="text-xs text-gray-400"><tr><th scope="col" className="py-2 text-left">Fan</th><th scope="col" className="text-right">Starts</th><th scope="col" className="text-right">On/off changes</th></tr></thead>
+        <tbody>{rows.filter(row => isFan(row) && !row.missing).map(row => <tr key={row.slot} className="border-t border-[#334155]">
+          <th scope="row" className="py-2 text-left font-normal">{equipmentLabel(row)}{row.unknown_seconds > 0 && <span className="block text-xs text-purple-300">Partial history</span>}</th>
+          <td className="text-right">{row.unknown_seconds >= (Date.parse(report.to) - Date.parse(report.from)) / 1000 ? 'Unknown' : row.starts}</td>
+          <td className="text-right">{row.unknown_seconds >= (Date.parse(report.to) - Date.parse(report.from)) / 1000 ? 'Unknown' : row.changes}</td>
+        </tr>)}</tbody>
+      </table>
+      <p className="mt-2 text-xs text-gray-400">Counts cover the selected time range. Starts are recorded off-to-on changes. A fan already on at the start and transitions across unknown history are excluded.</p>
+    </div>}
     {report && <div className="card !px-2 sm:!px-4">
       <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-3 text-xs text-gray-400">
         <span>{report.tent_name} · {clock(report.from)} to {clock(report.to)}</span>
         <span>{error ? 'Refresh paused' : 'Refreshes every 30s'} · Updated {updated?.toLocaleTimeString()}</span>
       </div>
       <div className="flex flex-wrap gap-4 px-2 pb-3 text-xs">{Object.entries(COLORS).map(([state, color]) => <span key={state} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />{state[0].toUpperCase() + state.slice(1)}</span>)}</div>
-      <div role="img" aria-label="Temperature, humidity and CO2 charts followed by light, exhaust and humidifier state timelines. All charts share the same time range.">
+      <div role="img" aria-label="Temperature, humidity and CO2 charts followed by light, exhaust, circulation fan, intake fan and humidifier state timelines. All charts share the same time range.">
         <ReactECharts key={`${tent}:${range}:${unit}`} option={option} notMerge onEvents={{ dataZoom: e => { const z = e.batch?.[0] || e; if (typeof z.start === 'number' && typeof z.end === 'number') zoom.current = { start: z.start, end: z.end } } }} theme="dark" style={{ height, touchAction: 'pan-y' }} opts={{ renderer: 'canvas' }} />
       </div>
       <p className="px-2 pt-2 text-xs text-gray-400">Drag the bottom handles to zoom all rows together. Switch colors show recorded states. Unknown includes missing history and unavailable devices.</p>

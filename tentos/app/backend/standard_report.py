@@ -4,7 +4,24 @@ import re
 from datetime import datetime, timezone
 
 FAMILIES = ('temperature', 'humidity', 'co2')
-ACTUATORS = {'light': 'Light', 'exhaust_fan': 'Exhaust', 'humidifier': 'Humidifier'}
+ACTUATORS = {'light': 'Light', 'exhaust_fan': 'Exhaust', 'humidifier': 'Humidifier',
+             'circulation_fan': 'Circulation fan', 'intake_fan': 'Intake fan', 'fan': 'Fan'}
+
+
+def switch_counts(history, start, end):
+    """Count confirmed transitions inside (start, end]; seed and dropouts are not starts."""
+    events = sorted([(timestamp(r.get('last_changed') or r.get('last_updated')), r.get('state'))
+                     for r in history], key=lambda r: r[0] or start)
+    previous, starts, changes = None, 0, 0
+    for at, raw in events:
+        if at is None or at > end:
+            continue
+        current = raw if raw in ('on', 'off') else None
+        if at > start and previous is not None and current is not None and previous != current:
+            changes += 1
+            starts += int(current == 'on')
+        previous = current
+    return {'starts': starts, 'changes': changes}
 
 
 def timestamp(raw):
@@ -83,6 +100,7 @@ async def build_standard_report(tent, ha, start, end):
         attrs = next((r.get('attributes') for r in rows if r.get('attributes')), {})
         item['name'] = attrs.get('friendly_name') or item['entity_id']
         item['intervals'] = switch_intervals(rows, start, end)
+        item.update(switch_counts(rows, start, end))
         item['on_seconds'] = sum((timestamp(p['end'])-timestamp(p['start'])).total_seconds()
                                  for p in item['intervals'] if p['state'] == 'on')
         item['unknown_seconds'] = sum((timestamp(p['end'])-timestamp(p['start'])).total_seconds()

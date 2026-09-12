@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
-from standard_report import switch_intervals, build_standard_report
+from standard_report import switch_intervals, switch_counts, build_standard_report
 
 START = datetime(2026, 9, 12, tzinfo=timezone.utc)
 END = START + timedelta(hours=1)
@@ -43,3 +43,26 @@ def test_all_sensor_entities_and_numbered_switches_are_separate():
     assert result['series'][0]['data'][2]['value'] is None
     assert result['switches'][0]['on_seconds'] == 3600
     assert result['switches'][1]['unknown_seconds'] == 3600
+
+
+def test_counts_exclude_initial_state_duplicates_and_unknown_transitions():
+    data = [row(-10,'on'), row(1,'on'), row(2,'off'), row(3,'on'),
+            row(4,'unavailable'), row(5,'on'), row(6,'off'), row(7,'on'), row(70,'off')]
+    assert switch_counts(data, START, END) == {'starts': 2, 'changes': 4}
+    assert switch_counts([row(-1,'on')], START, END) == {'starts': 0, 'changes': 0}
+    assert switch_counts([], START, END) == {'starts': 0, 'changes': 0}
+
+def test_all_fan_types_have_separate_timelines_and_counts():
+    mapping = {'exhaust_fan':'switch.exhaust', 'circulation_fan':'switch.circ',
+               'circulation_fan_2':'switch.circ2', 'intake_fan':'fan.intake', 'fan':'fan.other'}
+    class HA:
+        async def get_history(self, ids, start, end):
+            assert set(ids) == set(mapping.values())
+            return [[row(-1,'off',e), row(5,'on',e), row(5.25,'off',e)] for e in ids]
+    tent = SimpleNamespace(config=SimpleNamespace(name='Fans', sensors={}), slot_to_entity=mapping)
+    result = asyncio.run(build_standard_report(tent, HA(), START, END))
+    assert len(result['switches']) == 5
+    for fan in result['switches']:
+        assert fan['starts'] == 1
+        assert fan['changes'] == 2
+        assert fan['on_seconds'] == 15
