@@ -92,7 +92,7 @@ export default function StandardTentReport() {
       }))
     })
     rows.forEach((row, i) => {
-      const subtitle = row.missing ? 'Not configured for this tent' : `${duration(row.on_seconds)} on${row.unknown_seconds ? ` · ${duration(row.unknown_seconds)} unknown` : ''} · ${row.name}`
+      const subtitle = row.missing ? 'Not configured for this tent' : `${duration(row.on_seconds)} on${row.unknown_seconds ? ` · ${duration(row.unknown_seconds)} unknown` : ''}`
       const axis = addGrid(534 + i * 66, 20, row.slot?.match(/_\d+$/) ? `${row.label} ${row.slot.match(/_(\d+)$/)[1]}` : row.label, subtitle, false)
       series.push({ name: row.label, type: 'custom', xAxisIndex: axis, yAxisIndex: axis,
         renderItem: (params, api) => {
