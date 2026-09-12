@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.7.3
+- Standard reports for each tent align temperature, humidity and CO2 with light, exhaust, humidifier and fan timelines.
+- Equipment summaries show times switched within the selected period. Each recorded on or off transition counts once; missing history stays unknown.
+- Add report links to tent detail and dashboard menus; keep custom reports and focused sensor history available.
+
 ## 1.7.2
 - VPD is now leaf VPD, the thing every target band and every published VPD chart means: SVP(leaf) - SVP(air) x RH, with the leaf 2 C below air. It was air VPD, SVP(air) x (1 - RH), which reads 0.3 to 0.5 kPa high in tent conditions, so a tent sitting correctly inside its band looked permanently too dry. Mother read 1.7 against a 0.8-1.0 flower band when its real leaf VPD was 1.19
 - VPD now carries two decimals, as its own docstring always said
