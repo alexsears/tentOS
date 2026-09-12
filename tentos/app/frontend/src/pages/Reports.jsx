@@ -1,3 +1,4 @@
+import StandardTentReport from './StandardTentReport'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
@@ -110,7 +111,7 @@ function StatsRow({ label, stats, unit, color }) {
   )
 }
 
-export default function Reports() {
+function CustomReports() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { unit: tempUnit, getTempUnit } = useTemperatureUnit()
   // Shade the plot while the tent light was on. Shared with every other chart and
@@ -1001,4 +1002,16 @@ export default function Reports() {
       )}
     </div>
   )
+}
+
+
+export default function Reports() {
+  const [params, setParams] = useSearchParams()
+  const custom = params.get('view') === 'custom' || params.has('entity') || params.has('sensors')
+  if (!custom) return <StandardTentReport />
+  return <><button className="btn btn-sm btn-secondary mb-3" onClick={() => {
+    const next = new URLSearchParams(params)
+    next.delete('view'); next.delete('entity'); next.delete('sensors')
+    setParams(next)
+  }}>Standard tent report</button><CustomReports /></>
 }

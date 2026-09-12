@@ -597,6 +597,7 @@ export function TentCard({
   const detailPath = `/tent/${tent.id}`
 
   const menuItems = [
+    { label: 'Tent report', icon: HistoryIcon, onSelect: () => navigate(`/reports?tent=${encodeURIComponent(tent.id)}`) },
     { label: 'Change stage', icon: RefreshCw, onSelect: () => setShowFlipModal(true), disabled: flipping },
     displayOrder.length > 0 && !editMode
       ? { label: 'Arrange controls', icon: ListOrdered, onSelect: enterEditMode }

@@ -351,6 +351,10 @@ export default function TentDetail() {
         </div>
       </div>
 
+      <Link to={`/reports?tent=${encodeURIComponent(tentId)}`} className="btn btn-secondary mb-3 inline-flex min-h-[44px] items-center gap-2">
+        <HistoryIcon size={16} /> Tent report
+      </Link>
+
       {/* Tabs */}
       <div className="app-scroll-strip mb-5">
         <div className="flex min-w-max gap-1 border-b border-[#2d3a5c]" role="tablist">
