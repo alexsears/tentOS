@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.7.5
+- A sensor listed in two slots drew two identical lines. Flower carries climate 2 in its canonical list and again as slot 2, so every Flower report showed that one probe twice, in the chart and in the by-tent table. One probe is one line now, and the canonical slot still feeds VPD
+
 ## 1.7.4
 - New: metric reports. Pick one measurement and see every tent that has it on one chart: all temperature, all humidity, all leaf VPD, all CO2. A per-tent table gives min, max, average and the last reading, and each tent keeps its color
 - New: water, light, humidifier, exhaust fan and circulation fan switches are metrics too. One lane per switch across every tent, with times switched, confirmed starts and total time on
