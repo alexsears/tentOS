@@ -372,7 +372,7 @@ TOOLS = [
                     "type": "string",
                     "enum": [
                         "temperature", "humidity", "co2", "light_level", "reservoir_level", "leak_sensor", "power_usage", "camera",
-                        "light", "exhaust_fan", "circulation_fan", "humidifier", "dehumidifier", "heater", "ac", "water_pump", "drain_pump"
+                        "light", "exhaust_fan", "intake_fan", "circulation_fan", "humidifier", "dehumidifier", "heater", "ac", "water_pump", "drain_pump"
                     ],
                     "description": "TentOS slot that describes what this entity does in the tent.",
                 },
@@ -485,7 +485,7 @@ async def _create_pending_action(name: str, arguments: dict, request: Request, s
             percentage = int(arguments.get("percentage"))
         except (TypeError, ValueError):
             return {"ok": False, "error": "Fan percentage must be a number from 0 to 100."}
-        if not entity_id or not (actuator.startswith("exhaust_fan") or actuator.startswith("circulation_fan")):
+        if not entity_id or not any(actuator.startswith(kind) for kind in ("exhaust_fan", "intake_fan", "circulation_fan")):
             return {"ok": False, "error": f"{tent.config.name} has no configured fan named '{actuator}'."}
         if not entity_id.startswith("fan."):
             return {"ok": False, "error": "Percentage control is available only for Home Assistant fan entities."}

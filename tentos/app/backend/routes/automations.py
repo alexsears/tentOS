@@ -1049,6 +1049,12 @@ ENTITY_AUTOMATION_MAP = {
             "enables": ["high_temp_exhaust"],
             "description": "Cool your tent when temperature rises"
         },
+        "intake_fan": {
+            "label": "Intake Fan",
+            "icon": "🌬",
+            "enables": ["high_temp_exhaust"],
+            "description": "Pull fresh air in, usually alongside the exhaust"
+        },
         "circulation_fan": {
             "label": "Circulation Fan",
             "icon": "🔄",

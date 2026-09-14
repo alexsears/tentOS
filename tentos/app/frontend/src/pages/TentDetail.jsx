@@ -42,6 +42,7 @@ const TAB_LABELS = {
 const DEFAULT_CONTROL_ORDER = [
   'light', 'light_2', 'light_3',
   'exhaust_fan', 'exhaust_fan_2', 'exhaust_fan_3',
+  'intake_fan', 'intake_fan_2', 'intake_fan_3',
   'circulation_fan', 'circulation_fan_2', 'circulation_fan_3',
   'humidifier', 'dehumidifier', 'heater', 'ac',
   'water_pump', 'water_pump_2', 'water_pump_3',
@@ -52,6 +53,7 @@ const DEFAULT_CONTROL_ORDER = [
 const CONTROL_LABELS = {
   light: 'Light',
   exhaust_fan: 'Exhaust fan',
+  intake_fan: 'Intake fan',
   circulation_fan: 'Circulation fan',
   humidifier: 'Humidifier',
   dehumidifier: 'Dehumidifier',
