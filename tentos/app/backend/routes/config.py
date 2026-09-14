@@ -95,6 +95,14 @@ SLOT_DEFINITIONS = {
             "device_classes": [None],
             "icon": "🌀"
         },
+        "intake_fan": {
+            "label": "Intake Fans",
+            "required": False,
+            "multiple": True,
+            "domains": ["fan", "switch"],
+            "device_classes": [None],
+            "icon": "🌬"
+        },
         "circulation_fan": {
             "label": "Circulation Fans",
             "required": False,

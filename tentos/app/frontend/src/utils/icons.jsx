@@ -39,6 +39,7 @@ import {
 export const ACTUATOR_ICONS = {
   light: Lightbulb,
   exhaust_fan: Fan,
+  intake_fan: Fan,
   circulation_fan: RefreshCw,
   humidifier: Droplets,
   dehumidifier: Wind,

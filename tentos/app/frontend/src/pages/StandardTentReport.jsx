@@ -80,7 +80,7 @@ export default function StandardTentReport() {
       const subtitle = !items.length ? 'Not configured for this tent'
         : !hasData ? 'No recorded history in this range'
         : metric.key === 'vpd' ? 'Calculated from the temperature and humidity above'
-        : items.length > 1 ? `${items.length} sensors · hover to compare` : items[0].label
+        : items.length > 1 ? `${items.map(i => i.label).join(' · ')}` : items[0].label
       const axis = canvas.addGrid(50 + i * 160, 95, `${metric.label} · ${metricUnit}`, subtitle, true)
       items.forEach((item, n) => canvas.series.push({
         name: item.label, type: 'line', xAxisIndex: axis, yAxisIndex: axis, symbol: 'none', connectNulls: false, sampling: 'lttb',
@@ -90,7 +90,11 @@ export default function StandardTentReport() {
       }))
     })
     rows.forEach((row, i) => {
-      const subtitle = row.missing ? 'Not configured for this tent' : noHistory(row, report.from, report.to) ? 'Unknown history' : `${row.changes} times switched${row.unknown_seconds ? ' · Partial history' : ''}`
+      const activity = noHistory(row, report.from, report.to) ? 'Unknown history'
+        : `${row.changes} times switched${row.unknown_seconds ? ' · Partial history' : ''}`
+      // Name the device, not just the role. Two lanes both called Light are only
+      // telling you which is which once they say Lab1a and Lab Diablo.
+      const subtitle = row.missing ? 'Not configured for this tent' : `${row.name} · ${activity}`
       const axis = canvas.addGrid(CLIMATE_HEIGHT + 4 + i * 66, 20, slotLabel(row), subtitle, false)
       canvas.series.push(switchLane(row, axis, slotLabel(row)))
     })
@@ -119,7 +123,9 @@ export default function StandardTentReport() {
       <table className="w-full text-sm tabular-nums">
         <thead className="text-xs text-gray-400"><tr><th scope="col" className="py-2 text-left">Fan</th><th scope="col" className="text-right">Times switched</th></tr></thead>
         <tbody>{rows.filter(row => isFan(row) && !row.missing).map(row => <tr key={row.slot} className="border-t border-[#334155]">
-          <th scope="row" className="py-2 text-left font-normal">{slotLabel(row)}{row.unknown_seconds > 0 && <span className="block text-xs text-purple-300">Partial history</span>}</th>
+          <th scope="row" className="py-2 pr-3 text-left font-normal">{slotLabel(row)}
+            <span className="block text-xs text-gray-400" title={row.entity_id}>{row.name}</span>
+            {row.unknown_seconds > 0 && <span className="block text-xs text-purple-300">Partial history</span>}</th>
           <td className="text-right">{switchedLabel(row, report.from, report.to)}</td>
         </tr>)}</tbody>
       </table>
