@@ -1,27 +1,26 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
-import { graphic } from 'echarts'
 import { apiFetch } from '../utils/api'
 import { useTemperatureUnit } from '../hooks/useTemperatureUnit'
+import ReportFlipper, { useReportDeck } from '../components/ReportFlipper'
+import {
+  RANGES, STATE_COLORS, clock, isFan, noHistory, slotLabel, stackedCanvas, switchLane, switchedLabel,
+} from '../utils/reportChart'
 
 const METRICS = [
-  { key: 'temperature', label: 'Temperature', color: '#fb923c' },
-  { key: 'humidity', label: 'Humidity', color: '#60a5fa' },
-  { key: 'co2', label: 'CO₂', color: '#c084fc' },
+  { key: 'temperature', label: 'Temperature', color: '#fb923c', unit: '°C' },
+  { key: 'humidity', label: 'Humidity', color: '#60a5fa', unit: '%' },
+  { key: 'vpd', label: 'Leaf VPD', color: '#4ade80', unit: 'kPa' },
+  { key: 'co2', label: 'CO₂', color: '#c084fc', unit: 'ppm' },
 ]
-const RANGES = ['1h', '6h', '12h', '24h', '3d', '7d', '30d']
-const COLORS = { on: '#4ade80', off: '#334155', unknown: '#a78bfa' }
-const EQUIPMENT_ORDER = ['light', 'exhaust_fan', 'circulation_fan', 'intake_fan', 'fan', 'humidifier']
-const isFan = row => row.kind === 'fan' || row.kind.endsWith('_fan')
-const equipmentLabel = row => row.slot?.match(/_\d+$/) ? `${row.label} ${row.slot.match(/_(\d+)$/)[1]}` : row.label
-const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
-const clock = value => new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-const duration = seconds => seconds < 60 ? `${Math.round(seconds)}s` : seconds < 3600 ? `${Math.round(seconds / 60)}m` : `${(seconds / 3600).toFixed(1)}h`
+const EQUIPMENT_ORDER = ['light', 'exhaust_fan', 'circulation_fan', 'intake_fan', 'fan', 'humidifier', 'water_pump']
+const CLIMATE_HEIGHT = 50 + METRICS.length * 160
 
 export default function StandardTentReport() {
   const [params, setParams] = useSearchParams()
   const { unit, getTempUnit } = useTemperatureUnit()
+  const deck = useReportDeck()
   const [tents, setTents] = useState([])
   const [tentsLoaded, setTentsLoaded] = useState(false)
   const zoom = useRef({ start: 0, end: 100 })
@@ -69,52 +68,33 @@ export default function StandardTentReport() {
     }
     return result.sort((a, b) => EQUIPMENT_ORDER.indexOf(a.kind) - EQUIPMENT_ORDER.indexOf(b.kind))
   }, [report])
-  const height = 570 + rows.length * 66
+  const height = CLIMATE_HEIGHT + 20 + rows.length * 66
   const option = useMemo(() => {
     if (!report) return null
     const from = Date.parse(report.from), to = Date.parse(report.to)
-    const grids = [], axes = [], yAxes = [], series = [], titles = []
-    const addGrid = (top, height, title, subtitle, numeric) => {
-      const index = grids.length
-      grids.push({ left: 58, right: 18, top, height })
-      titles.push({ text: title, subtext: subtitle, left: 8, top: top - 42, textStyle: { fontSize: 13, color: '#e2e8f0' }, subtextStyle: { fontSize: 10, color: '#94a3b8' }, itemGap: 3 })
-      axes.push({ type: 'time', gridIndex: index, min: from, max: to, axisLabel: { show: numeric, color: '#94a3b8', fontSize: 10, hideOverlap: true }, splitNumber: 4, axisLine: { show: false }, axisTick: { show: false }, splitLine: { show: false } })
-      yAxes.push({ type: 'value', gridIndex: index, show: numeric, scale: true, min: numeric ? null : 0, max: numeric ? null : 1, splitNumber: 3, axisLabel: { color: '#94a3b8', fontSize: 10 }, splitLine: { lineStyle: { color: '#26344d' } } })
-      return index
-    }
+    const canvas = stackedCanvas(from, to)
     METRICS.forEach((metric, i) => {
       const items = report.series.filter(r => r.metric === metric.key)
-      const metricUnit = metric.key === 'temperature' ? getTempUnit() : metric.key === 'humidity' ? '%' : 'ppm'
+      const metricUnit = metric.key === 'temperature' ? getTempUnit() : metric.unit
       const hasData = items.some(r => r.data.some(p => p.value != null))
-      const axis = addGrid(50 + i * 160, 95, `${metric.label} · ${metricUnit}`, !items.length ? 'Not configured for this tent' : !hasData ? 'No recorded history in this range' : items.length > 1 ? `${items.length} sensors · hover to compare` : items[0].label, true)
-      items.forEach((item, n) => series.push({
+      const subtitle = !items.length ? 'Not configured for this tent'
+        : !hasData ? 'No recorded history in this range'
+        : metric.key === 'vpd' ? 'Calculated from the temperature and humidity above'
+        : items.length > 1 ? `${items.length} sensors · hover to compare` : items[0].label
+      const axis = canvas.addGrid(50 + i * 160, 95, `${metric.label} · ${metricUnit}`, subtitle, true)
+      items.forEach((item, n) => canvas.series.push({
         name: item.label, type: 'line', xAxisIndex: axis, yAxisIndex: axis, symbol: 'none', connectNulls: false, sampling: 'lttb',
         lineStyle: { width: 2, type: n % 2 ? 'dashed' : 'solid' }, itemStyle: { color: metric.color },
         data: item.data.map(p => [Date.parse(p.timestamp), p.value == null ? null : metric.key === 'temperature' && unit === 'F' ? p.value * 1.8 + 32 : p.value]),
-        tooltip: { valueFormatter: v => v == null ? 'Unknown' : `${Number(v).toFixed(1)} ${metricUnit}` },
+        tooltip: { valueFormatter: v => v == null ? 'Unknown' : `${Number(v).toFixed(metric.key === 'vpd' ? 2 : 1)} ${metricUnit}` },
       }))
     })
     rows.forEach((row, i) => {
-      const noHistory = row.unknown_seconds >= (to - from) / 1000
-      const subtitle = row.missing ? 'Not configured for this tent' : noHistory ? 'Unknown history' : `${row.changes} times switched${row.unknown_seconds ? ' · Partial history' : ''}`
-      const axis = addGrid(534 + i * 66, 20, equipmentLabel(row), subtitle, false)
-      series.push({ name: row.label, type: 'custom', xAxisIndex: axis, yAxisIndex: axis,
-        renderItem: (params, api) => {
-          const left = api.coord([api.value(0), 0]), right = api.coord([api.value(1), 1])
-          const shape = graphic.clipRectByRect({ x: left[0], y: right[1], width: Math.max(1, right[0] - left[0]), height: left[1] - right[1] }, params.coordSys)
-          return shape && { type: 'rect', shape, style: { fill: COLORS[api.value(2)] } }
-        },
-        encode: { x: [0, 1], y: -1 },
-        data: row.intervals.map(p => [Date.parse(p.start), Date.parse(p.end), p.state]),
-        tooltip: { trigger: 'item', formatter: p => `<b>${escape(row.label)}: ${escape(p.value[2])}</b><br/>${clock(p.value[0])} – ${clock(p.value[1])}<br/>${duration((p.value[1]-p.value[0])/1000)}` },
-      })
+      const subtitle = row.missing ? 'Not configured for this tent' : noHistory(row, report.from, report.to) ? 'Unknown history' : `${row.changes} times switched${row.unknown_seconds ? ' · Partial history' : ''}`
+      const axis = canvas.addGrid(CLIMATE_HEIGHT + 4 + i * 66, 20, slotLabel(row), subtitle, false)
+      canvas.series.push(switchLane(row, axis, slotLabel(row)))
     })
-    axes[axes.length - 1].axisLabel.show = true
-    return { animation: false, backgroundColor: 'transparent', title: titles, grid: grids, xAxis: axes, yAxis: yAxes, series,
-      tooltip: { trigger: 'axis', confine: true, backgroundColor: '#16213e', borderColor: '#334155', textStyle: { color: '#f1f5f9' } },
-      axisPointer: { link: [{ xAxisIndex: 'all' }] },
-      dataZoom: [{ ...zoom.current, type: 'slider', xAxisIndex: axes.map((_, i) => i), filterMode: 'none', bottom: 4, height: 22, borderColor: '#334155', textStyle: { color: '#94a3b8' } }],
-    }
+    return canvas.finish(zoom.current)
   }, [report, rows, unit])
 
   return <div className="space-y-4">
@@ -122,6 +102,7 @@ export default function StandardTentReport() {
       <div><h2 className="text-xl font-bold">Tent report</h2><p className="text-sm text-gray-400">Climate and equipment on the same timeline.</p></div>
       <button className="btn btn-sm btn-secondary" onClick={() => change('view', 'custom')}>Custom report</button>
     </div>
+    <ReportFlipper deck={deck} current={{ type: 'tent', key: tent }} />
     <div className="card space-y-3">
       <label className="flex items-center gap-3 text-sm">Tent
         <select className="input min-w-0 flex-1 sm:max-w-xs" aria-label="Tent" value={tent} onChange={e => change('tent', e.target.value)}>
@@ -138,8 +119,8 @@ export default function StandardTentReport() {
       <table className="w-full text-sm tabular-nums">
         <thead className="text-xs text-gray-400"><tr><th scope="col" className="py-2 text-left">Fan</th><th scope="col" className="text-right">Times switched</th></tr></thead>
         <tbody>{rows.filter(row => isFan(row) && !row.missing).map(row => <tr key={row.slot} className="border-t border-[#334155]">
-          <th scope="row" className="py-2 text-left font-normal">{equipmentLabel(row)}{row.unknown_seconds > 0 && <span className="block text-xs text-purple-300">Partial history</span>}</th>
-          <td className="text-right">{row.unknown_seconds >= (Date.parse(report.to) - Date.parse(report.from)) / 1000 ? 'Unknown' : row.changes}</td>
+          <th scope="row" className="py-2 text-left font-normal">{slotLabel(row)}{row.unknown_seconds > 0 && <span className="block text-xs text-purple-300">Partial history</span>}</th>
+          <td className="text-right">{switchedLabel(row, report.from, report.to)}</td>
         </tr>)}</tbody>
       </table>
       <p className="mt-2 text-xs text-gray-400">Each on or off transition counts once within the selected time range. The initial state and transitions across unknown history are excluded.</p>
@@ -149,8 +130,8 @@ export default function StandardTentReport() {
         <span>{report.tent_name} · {clock(report.from)} to {clock(report.to)}</span>
         <span>{error ? 'Refresh paused' : 'Refreshes every 30s'} · Updated {updated?.toLocaleTimeString()}</span>
       </div>
-      <div className="flex flex-wrap gap-4 px-2 pb-3 text-xs">{Object.entries(COLORS).map(([state, color]) => <span key={state} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />{state[0].toUpperCase() + state.slice(1)}</span>)}</div>
-      <div role="img" aria-label="Temperature, humidity and CO2 charts followed by light, exhaust, circulation fan, intake fan and humidifier state timelines. All charts share the same time range.">
+      <div className="flex flex-wrap gap-4 px-2 pb-3 text-xs">{Object.entries(STATE_COLORS).map(([state, color]) => <span key={state} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />{state[0].toUpperCase() + state.slice(1)}</span>)}</div>
+      <div role="img" aria-label="Temperature, humidity, leaf VPD and CO2 charts followed by light, fan, humidifier and water pump state timelines. All charts share the same time range.">
         <ReactECharts key={`${tent}:${range}:${unit}`} option={option} notMerge onEvents={{ dataZoom: e => { const z = e.batch?.[0] || e; if (typeof z.start === 'number' && typeof z.end === 'number') zoom.current = { start: z.start, end: z.end } } }} theme="dark" style={{ height, touchAction: 'pan-y' }} opts={{ renderer: 'canvas' }} />
       </div>
       <p className="px-2 pt-2 text-xs text-gray-400">Drag the bottom handles to zoom all rows together. Switch colors show recorded states. Unknown includes missing history and unavailable devices.</p>

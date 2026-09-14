@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Query
 from fastapi.responses import Response
 
-from state_manager import fahrenheit_to_celsius, is_temperature_sensor_type
+from state_manager import calculate_vpd, fahrenheit_to_celsius, is_temperature_sensor_type
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -461,7 +461,6 @@ async def get_history(
 
     # Calculate VPD from temperature and humidity if both available
     if "vpd" in sensor_list and "temperature" in result_data and "humidity" in result_data:
-        import math
         vpd_data = []
         # Temperature and humidity are sampled independently, so they are paired
         # on the minute. The full timestamp is carried through: emitting the
@@ -475,13 +474,13 @@ async def get_history(
         for ts, (temp, full_ts) in temp_data.items():
             if ts in hum_data:
                 humidity = hum_data[ts]
-                # VPD calculation (temp in Celsius)
+                # Leaf VPD, the same figure the tent state and every other report
+                # publish. This used to compute air VPD here, so the custom report
+                # read 0.3 to 0.5 kPa high against the rest of the app.
                 temp_c = temp if temp < 50 else (temp - 32) * 5/9
-                svp = 0.6108 * math.exp((17.27 * temp_c) / (temp_c + 237.3))
-                vpd = svp * (1 - humidity / 100)
                 vpd_data.append({
                     "timestamp": full_ts,
-                    "value": round(vpd, 2)
+                    "value": calculate_vpd(temp_c, humidity)
                 })
 
         vpd_data.sort(key=lambda p: p["timestamp"])
@@ -577,13 +576,32 @@ async def export_data(
         return history
 
 
-@router.get('/standard/{tent_id}')
-async def standard_report(tent_id: str, request: Request, range: str = '24h',
-                          from_time: Optional[str] = None, to_time: Optional[str] = None):
-    from standard_report import build_standard_report
-    tent = request.app.state.state_manager.get_tent(tent_id)
-    if not tent:
-        raise HTTPException(status_code=404, detail='Tent not found')
+@router.get('/metrics')
+async def metric_list(request: Request):
+    """The metrics that can be reported here, in flip order, with the tents that have them."""
+    from metric_report import metric_catalog
+    tents = list(request.app.state.state_manager.tents.values())
+    return {'metrics': metric_catalog(tents),
+            'tents': [{'id': tent.config.id, 'name': tent.config.name} for tent in tents]}
+
+
+@router.get('/metric/{metric}')
+async def metric_report(metric: str, request: Request, range: str = '24h',
+                        from_time: Optional[str] = None, to_time: Optional[str] = None):
+    from metric_report import BY_KEY, build_metric_report
+    if metric not in BY_KEY:
+        raise HTTPException(status_code=404, detail='Unknown metric')
+    tents = list(request.app.state.state_manager.tents.values())
+    start, end = _standard_window(range, from_time, to_time)
+    try:
+        return await build_metric_report(metric, tents, request.app.state.ha_client, start, end)
+    except Exception as error:
+        logger.error('Metric report history unavailable: %s', type(error).__name__)
+        raise HTTPException(status_code=502, detail='History is temporarily unavailable') from error
+
+
+def _standard_window(range: str, from_time: Optional[str], to_time: Optional[str]):
+    """Resolve and bound a report window. Anything over 90 days is refused, not truncated."""
     start, end = _resolve_window(range, from_time, to_time)
     if start.tzinfo is None:
         start = start.replace(tzinfo=timezone.utc)
@@ -591,6 +609,17 @@ async def standard_report(tent_id: str, request: Request, range: str = '24h',
         end = end.replace(tzinfo=timezone.utc)
     if end <= start or end - start > timedelta(days=90):
         raise HTTPException(status_code=400, detail='Choose a window between zero and 90 days')
+    return start, end
+
+
+@router.get('/standard/{tent_id}')
+async def standard_report(tent_id: str, request: Request, range: str = '24h',
+                          from_time: Optional[str] = None, to_time: Optional[str] = None):
+    from standard_report import build_standard_report
+    tent = request.app.state.state_manager.get_tent(tent_id)
+    if not tent:
+        raise HTTPException(status_code=404, detail='Tent not found')
+    start, end = _standard_window(range, from_time, to_time)
     try:
         return await build_standard_report(tent, request.app.state.ha_client, start, end)
     except Exception as error:

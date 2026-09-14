@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.4
+- New: metric reports. Pick one measurement and see every tent that has it on one chart: all temperature, all humidity, all leaf VPD, all CO2. A per-tent table gives min, max, average and the last reading, and each tent keeps its color
+- New: water, light, humidifier, exhaust fan and circulation fan switches are metrics too. One lane per switch across every tent, with times switched, confirmed starts and total time on
+- New: flip through reports. One arrow pair and one list walk the whole deck, each tent then each metric, and the left and right arrow keys do the same
+- Water pumps now appear in a tent's own report. They were configured but no report drew them
+- Leaf VPD is now a lane in every tent report, calculated from that tent's temperature and humidity the same way the tent's live VPD is
+- The custom report's VPD history was still air VPD, so it read 0.3 to 0.5 kPa high against the rest of the app. It is leaf VPD now, like everything else since 1.7.2
+- Long windows are averaged into buckets past 2000 points per series, so a 30 day report stays drawable
+
 ## 1.7.3
 - Standard reports for each tent align temperature, humidity and CO2 with light, exhaust, humidifier and fan timelines.
 - Equipment summaries show times switched within the selected period. Each recorded on or off transition counts once; missing history stays unknown.
