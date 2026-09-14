@@ -1,4 +1,5 @@
 import StandardTentReport from './StandardTentReport'
+import MetricReport from './MetricReport'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
@@ -1008,10 +1009,10 @@ function CustomReports() {
 export default function Reports() {
   const [params, setParams] = useSearchParams()
   const custom = params.get('view') === 'custom' || params.has('entity') || params.has('sensors')
-  if (!custom) return <StandardTentReport />
+  if (!custom) return params.get('view') === 'metric' ? <MetricReport /> : <StandardTentReport />
   return <><button className="btn btn-sm btn-secondary mb-3" onClick={() => {
     const next = new URLSearchParams(params)
-    next.delete('view'); next.delete('entity'); next.delete('sensors')
+    next.delete('view'); next.delete('metric'); next.delete('entity'); next.delete('sensors')
     setParams(next)
   }}>Standard tent report</button><CustomReports /></>
 }
