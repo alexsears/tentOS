@@ -150,3 +150,19 @@ def test_impossible_humidity_is_a_gap_not_zero_vpd():
     data = vpd_series(series)['data']
     assert [p['timestamp'][11:16] for p in data] == ['00:10']
     assert data[0]['value'] == 0.97
+
+
+def test_a_probe_listed_in_two_slots_draws_one_line():
+    from standard_report import sensor_series
+    # Flower's real config: climate 2 appears in the canonical list and again as slot 2.
+    flower = tent('flower', 'Flower', {
+        'temperature_2': 'sensor.c2_temp',
+        'temperature': ['sensor.c1_temp', 'sensor.c2_temp'],
+        'humidity': ['sensor.c1_hum', 'sensor.c2_hum'],
+        'humidity_2': 'sensor.c2_hum',
+    }, {})
+    series = sensor_series(flower)
+    assert [i['entity_id'] for i in series] == ['sensor.c1_temp', 'sensor.c2_temp',
+                                                'sensor.c1_hum', 'sensor.c2_hum']
+    # The canonical slot wins, so both probes still feed VPD.
+    assert [i['slot'] for i in series] == ['temperature', 'temperature', 'humidity', 'humidity']

@@ -82,14 +82,21 @@ def thin(points, limit=MAX_POINTS):
 
 
 def sensor_series(tent, families=FAMILIES):
-    """One series stub per configured sensor entity, keeping its slot for VPD pairing."""
-    series = []
-    for slot, ids in tent.config.sensors.items():
+    """One series stub per configured sensor entity, keeping its slot for VPD pairing.
+
+    A sensor can be listed twice, in a slot's list and again in a numbered slot, the
+    way Flower carries climate 2. That is one physical probe, so it gets one line.
+    Canonical slots are read first, so the duplicate never steals a VPD input.
+    """
+    series, seen = [], set()
+    slots = sorted(tent.config.sensors.items(), key=lambda kv: bool(re.search(r'_\d+$', kv[0])))
+    for slot, ids in slots:
         family = re.sub(r'_\d+$', '', slot)
         if family not in families:
             continue
         for entity in (ids if isinstance(ids, list) else [ids]):
-            if entity:
+            if entity and entity not in seen:
+                seen.add(entity)
                 series.append({'entity_id': entity, 'metric': family, 'slot': slot,
                                'label': entity, 'unit': UNITS.get(family, ''), 'data': []})
     return series
