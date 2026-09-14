@@ -78,8 +78,9 @@ export default function MetricReport() {
     const from = Date.parse(report.from), to = Date.parse(report.to)
     const canvas = stackedCanvas(from, to)
     if (report.kind === 'numeric') {
+      const hasData = lines.some(line => line.data.some(p => p.value != null))
       const axis = canvas.addGrid(LANE_TOP, 280, `${report.label} · ${reportUnit}`,
-        lines.length ? `${report.tents.length} tents · hover to compare` : 'No recorded history in this range', true)
+        hasData ? `${report.tents.length} tents · hover to compare` : 'No recorded history in this range', true)
       lines.forEach(line => canvas.series.push({
         name: line.name, type: 'line', xAxisIndex: axis, yAxisIndex: axis, symbol: 'none', connectNulls: false, sampling: 'lttb',
         lineStyle: { width: 2, type: line.dashed ? 'dashed' : 'solid' },

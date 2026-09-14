@@ -122,3 +122,31 @@ def test_a_tent_with_no_recorded_history_still_reports_its_lanes_as_unknown():
     lane = result['tents'][0]['switches'][0]
     assert lane['unknown_seconds'] == 3600 and lane['changes'] == 0
     assert lane['intervals'] == [{'start': START.isoformat(), 'end': END.isoformat(), 'state': 'unknown'}]
+
+
+def test_thinning_keeps_stats_honest_and_leaves_outages_as_gaps():
+    from standard_report import MAX_POINTS, add_stats, thin
+    # One bucket of real readings, one bucket that is mostly a dropout.
+    size = 4
+    points = ([{'timestamp': f'2026-09-12T00:{i:02d}:00+00:00', 'value': 10.0 + i} for i in range(size)]
+              + [{'timestamp': f'2026-09-12T01:{i:02d}:00+00:00', 'value': None if i else 99.0}
+                 for i in range(size)])
+    thinned = thin(points, limit=2)
+    assert [p['value'] for p in thinned] == [11.5, None]
+    # Stats taken before thinning still carry the extremes and the real last reading.
+    item = add_stats({'data': points})
+    assert item['stats'] == {'min': 10.0, 'max': 99.0, 'avg': 29.0, 'last': 99.0}
+    assert thin(points, limit=MAX_POINTS) is points
+
+
+def test_impossible_humidity_is_a_gap_not_zero_vpd():
+    from standard_report import vpd_series
+    series = [{'slot': 'temperature', 'entity_id': 'a', 'metric': 'temperature',
+               'data': [{'timestamp': '2026-09-12T00:00:00+00:00', 'value': 26.0}]},
+              {'slot': 'humidity', 'entity_id': 'b', 'metric': 'humidity',
+               'data': [{'timestamp': '2026-09-12T00:00:00+00:00', 'value': 0.0},
+                        {'timestamp': '2026-09-12T00:10:00+00:00', 'value': 60.0},
+                        {'timestamp': '2026-09-12T00:20:00+00:00', 'value': 140.0}]}]
+    data = vpd_series(series)['data']
+    assert [p['timestamp'][11:16] for p in data] == ['00:10']
+    assert data[0]['value'] == 0.97

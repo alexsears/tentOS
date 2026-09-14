@@ -62,7 +62,12 @@ def switch_intervals(history, start, end):
 
 
 def thin(points, limit=MAX_POINTS):
-    """Average points into buckets once a series is longer than a chart can draw."""
+    """Average points into buckets once a series is longer than a chart can draw.
+
+    A bucket that is mostly a dropout stays a dropout. Averaging only the readings
+    present would paint a solid line straight through an outage, and this module
+    leaves missing history missing.
+    """
     if len(points) <= limit:
         return points
     size = math.ceil(len(points) / limit)
@@ -70,8 +75,9 @@ def thin(points, limit=MAX_POINTS):
     for index in range(0, len(points), size):
         bucket = points[index:index + size]
         values = [p['value'] for p in bucket if p['value'] is not None]
+        covered = len(values) * 2 > len(bucket)
         result.append({'timestamp': bucket[len(bucket) // 2]['timestamp'],
-                       'value': round(sum(values) / len(values), 2) if values else None})
+                       'value': round(sum(values) / len(values), 2) if covered else None})
     return result
 
 
@@ -128,8 +134,10 @@ def fill_series(item, rows, start, end):
         item['data'].append({'timestamp': max(start, at).isoformat(),
                              'value': round(value, 2) if value is not None else None})
     item['data'].sort(key=lambda r: r['timestamp'])
-    item['data'] = thin(item['data'])
+    # Stats first: bucket averages pull min up and max down, and the last bucket
+    # average is not a reading anyone took.
     add_stats(item)
+    item['data'] = thin(item['data'])
     return item
 
 
@@ -181,10 +189,16 @@ def vpd_series(series):
             averages[slot] = sum(values) / len(values) if values else None
         if averages['temperature'] is None or averages['humidity'] is None:
             continue
+        if not 0 < averages['humidity'] <= 100:
+            # calculate_vpd returns 0.0 for impossible humidity. Charted, that reads
+            # as saturated air, so a glitched 0% would spike the series to the floor.
+            continue
         data.append({'timestamp': at, 'value': calculate_vpd(averages['temperature'], averages['humidity'])})
     item = {'entity_id': 'vpd', 'metric': 'vpd', 'slot': 'vpd', 'label': 'Leaf VPD',
-            'unit': UNITS['vpd'], 'data': thin(data)}
-    return add_stats(item)
+            'unit': UNITS['vpd'], 'data': data}
+    add_stats(item)
+    item['data'] = thin(item['data'])
+    return item
 
 
 async def build_standard_report(tent, ha, start, end):

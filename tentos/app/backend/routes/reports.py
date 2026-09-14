@@ -474,6 +474,10 @@ async def get_history(
         for ts, (temp, full_ts) in temp_data.items():
             if ts in hum_data:
                 humidity = hum_data[ts]
+                if not 0 < humidity <= 100:
+                    # calculate_vpd returns 0.0 for impossible humidity, which charts
+                    # as saturated air. A glitched reading is a gap, not a value.
+                    continue
                 # Leaf VPD, the same figure the tent state and every other report
                 # publish. This used to compute air VPD here, so the custom report
                 # read 0.3 to 0.5 kPa high against the rest of the app.

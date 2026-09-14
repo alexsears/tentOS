@@ -45,12 +45,15 @@ export default function ReportFlipper({ deck, current }) {
   useEffect(() => {
     const onKey = event => {
       if (event.target?.closest?.('input, select, textarea')) return  // let a focused control keep its arrows
+      if (event.altKey || event.metaKey || event.ctrlKey) return  // Alt/Cmd+Arrow is browser Back
       if (event.key === 'ArrowLeft') step(-1)
       if (event.key === 'ArrowRight') step(1)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [deck, index])
+    // params belongs here: without it the handler keeps the URL from the render it
+    // was bound on, and a flip would silently drop a range the reader had chosen.
+  }, [deck, index, params])
 
   const groups = useMemo(() => {
     const out = []
