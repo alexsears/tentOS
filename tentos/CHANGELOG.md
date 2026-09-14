@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.7.7
+- Intake fan is now first class everywhere, not just in the slot list: tent detail orders and labels it, the assistant can assign an entity to it and set its speed, and the automation catalog knows a tent with one can run the high temperature exhaust rule
+
 ## 1.7.6
 - Reports name the device, not just the role. A lane called Light 2 now says Lab Diablo under it, and a row in a by-tent table says which switch it is. Hover a name to see its entity id
 - Intake fan is a real slot. It was drawn and labelled by the reports but the tent builder could not offer it, so an intake fan had to live in the exhaust list and every report called it Exhaust 2
