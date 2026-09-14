@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.6
+- Reports name the device, not just the role. A lane called Light 2 now says Lab Diablo under it, and a row in a by-tent table says which switch it is. Hover a name to see its entity id
+- Intake fan is a real slot. It was drawn and labelled by the reports but the tent builder could not offer it, so an intake fan had to live in the exhaust list and every report called it Exhaust 2
+
 ## 1.7.5
 - A sensor listed in two slots drew two identical lines. Flower carries climate 2 in its canonical list and again as slot 2, so every Flower report showed that one probe twice, in the chart and in the by-tent table. One probe is one line now, and the canonical slot still feeds VPD
 

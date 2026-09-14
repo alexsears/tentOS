@@ -57,18 +57,19 @@ export default function MetricReport() {
   const lines = useMemo(() => {
     if (!report || report.kind !== 'numeric') return []
     return report.tents.flatMap((entry, tentIndex) => entry.series.map((item, n) => ({
-      // A tent with one probe is just the tent; a second probe has to name itself.
-      ...item, tentIndex, tentName: entry.tent_name,
-      sensor: entry.series.length > 1 ? item.label : null,
-      name: entry.series.length > 1 ? `${entry.tent_name} · ${item.label}` : entry.tent_name,
+      // Every row names its sensor. On a cross-tent chart "Flower" alone does not
+      // say which of Flower's two probes drew the line.
+      ...item, tentIndex, tentName: entry.tent_name, sensor: item.label,
+      name: `${entry.tent_name} · ${item.label}`,
       dashed: n % 2 === 1,
     })))
   }, [report])
   const lanes = useMemo(() => {
     if (!report || report.kind !== 'switch') return []
     return report.tents.flatMap((entry, tentIndex) => entry.switches.map(item => ({
-      // Always name the switch, not just the tent, so every row of the table reads the same.
-      ...item, tentIndex, tentName: entry.tent_name, name: `${entry.tent_name} · ${slotLabel(item)}`,
+      // `name` stays what the backend put there, the device's own name in Home
+      // Assistant. `title` is the heading: which tent, and what the device does.
+      ...item, tentIndex, tentName: entry.tent_name, title: `${entry.tent_name} · ${slotLabel(item)}`,
     })))
   }, [report])
 
@@ -90,10 +91,11 @@ export default function MetricReport() {
       }))
     } else {
       lanes.forEach((lane, i) => {
-        const subtitle = noHistory(lane, report.from, report.to) ? 'Unknown history'
+        const activity = noHistory(lane, report.from, report.to) ? 'Unknown history'
           : `${lane.changes} times switched · ${duration(lane.on_seconds)} on${lane.unknown_seconds ? ' · Partial history' : ''}`
-        const axis = canvas.addGrid(LANE_TOP + i * LANE_STEP, 20, lane.name, subtitle, false)
-        canvas.series.push(switchLane(lane, axis, lane.name))
+        const subtitle = `${lane.name} · ${activity}`
+        const axis = canvas.addGrid(LANE_TOP + i * LANE_STEP, 20, lane.title, subtitle, false)
+        canvas.series.push(switchLane(lane, axis, lane.title))
       })
     }
     return canvas.finish(zoom.current)
@@ -132,7 +134,7 @@ export default function MetricReport() {
             <th scope="row" className="py-2 pr-3 text-left font-normal">
               <span className="mr-2 inline-block h-2 w-2 rounded-full align-middle" style={{ background: TENT_COLORS[line.tentIndex % TENT_COLORS.length] }} />
               {line.tentName}
-              {line.sensor && <span className="block max-w-[9rem] truncate pl-4 text-xs text-gray-400 sm:max-w-none">{line.sensor}</span>}
+              <span className="block max-w-[9rem] truncate pl-4 text-xs text-gray-400 sm:max-w-none" title={line.entity_id}>{line.sensor}</span>
             </th>
             <td className="text-right">{show(line.stats?.min)}</td>
             <td className="text-right">{show(line.stats?.max)}</td>
@@ -156,7 +158,7 @@ export default function MetricReport() {
           </tr></thead>
           <tbody>{lanes.map(lane => <tr key={`${lane.tentIndex}:${lane.entity_id}`} className="border-t border-[#334155]">
             <th scope="row" className="py-2 pr-3 text-left font-normal">{lane.tentName}
-              <span className="block text-xs text-gray-400">{slotLabel(lane)}</span>
+              <span className="block text-xs text-gray-400" title={lane.entity_id}>{slotLabel(lane)} · {lane.name}</span>
               {lane.unknown_seconds > 0 && <span className="block text-xs text-purple-300">Partial history</span>}</th>
             <td className="text-right">{switchedLabel(lane, report.from, report.to)}</td>
             <td className="text-right">{noHistory(lane, report.from, report.to) ? 'Unknown' : lane.starts}</td>
